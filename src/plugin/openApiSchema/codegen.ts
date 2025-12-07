@@ -4,6 +4,7 @@ import type { BigIntFormatType, NumFormatType } from "../../tags";
 
 type SchemaSettings = {
     coerceSymbolsToStrings?: boolean;
+    transformDate?: (type: Type) => unknown;
 }
 
 type SchemaContext = {
@@ -31,6 +32,13 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         if (settings.coerceSymbolsToStrings)
             return { type: "string" };
         throw new Error("Symbol types require 'coerceSymbolsToStrings' to be enabled.");
+    }
+
+    if (isDateType(type)) {
+        const customSchema = settings.transformDate?.(type);
+        if (customSchema !== undefined)
+            return customSchema;
+        return { type: "string", format: "date-time" };
     }
 
     if (type.isString())
@@ -145,6 +153,18 @@ function isNullable(type: Type) {
         return true;
 
     return ["undefined", "null"].includes(type.getText())
+}
+
+function isDateType(type: Type) {
+    const symbol = type.getSymbol();
+    if (symbol && symbol.getName() === "Date")
+        return true;
+
+    const apparentSymbol = type.getApparentType().getSymbol();
+    if (apparentSymbol && apparentSymbol.getName() === "Date")
+        return true;
+
+    ["Date", "globalThis.Date"].includes(type.getText())
 }
 
 function isSymbolType(type: Type) {

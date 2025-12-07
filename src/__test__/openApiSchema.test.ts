@@ -376,6 +376,48 @@ const cases = [
         }`
     },
     {
+        title: "date defaults to date-time string",
+        type: `type Type = {
+                    occurredAt: Date;
+                };`,
+        schema: `{
+            type: "object",
+            properties: {
+                occurredAt: {
+                    type: "string",
+                    format: "date-time"
+                }
+            },
+            required: [
+                "occurredAt"
+            ]
+        }`
+    },
+    {
+        title: "date uses custom transformer",
+        type: `type Type = {
+                    occurredAt: Date;
+                };`,
+        pluginOptions: {
+            transformDate: () => ({
+                type: "integer",
+                format: "unix-ms"
+            })
+        },
+        schema: `{
+            type: "object",
+            properties: {
+                occurredAt: {
+                    type: "integer",
+                    format: "unix-ms"
+                }
+            },
+            required: [
+                "occurredAt"
+            ]
+        }`
+    },
+    {
         title: "symbol unsupported by default",
         type: `type Type = {
                     token: symbol;

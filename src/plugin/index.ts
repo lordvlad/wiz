@@ -1,4 +1,4 @@
-import { Project, SourceFile } from "ts-morph";
+import { Project, SourceFile, Type } from "ts-morph";
 import ts from "typescript";
 
 import { transformOpenApiSchema } from "./openApiSchema/transform";
@@ -6,6 +6,7 @@ import { transformOpenApiSchema } from "./openApiSchema/transform";
 export type WizPluginOptions = {
     log?: boolean
     coerceSymbolsToStrings?: boolean
+    transformDate?: (type: Type) => unknown
 }
 
 export type WizPluginContext = {

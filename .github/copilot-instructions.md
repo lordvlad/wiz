@@ -37,6 +37,7 @@
 - `codegen.ts` walks `type.getProperties()` and blindly dereferences `prop.getDeclarations()[0]!`; add null checks before handling unions/interfaces to avoid crashes on more complex inputs.
 - Keep schema JSON deterministic: transformations call `JSON.stringify(schema, null, 2)` before replacement, so object key order in `codegen` determines diff noise.
 - Logging is opt-in via plugin options (`wizPlugin({ log: true })`). When debugging new transforms, expose meaningful breadcrumbs through the provided `log` function rather than `console.log`.
+- Date properties default to `{ type: "string", format: "date-time" }`. Override via `wizPlugin({ transformDate(type) { ... } })` when you need unix timestamps or custom envelopes; returning `undefined` falls back to the default.
 - Tests dedent both the source and the compiled output; Indentation does not matter, but you still need to care for linebreaks.
 - Stick with `ts-morph` helpers when working with the TypeScript AST; avoid mixing in raw `typescript` compiler APIs unless you thread them through `ts-morph` types. This keeps transformer code consistent (all type/query helpers already come from `ts-morph`) and prevents version skew between the two AST layers.
 
