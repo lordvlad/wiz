@@ -17,7 +17,7 @@
 ## Development Workflow
 - Install deps with `bun install`. Use Bun ≥1.3.3 (project was bootstrapped with `bun init`).
 - Run the plugin-powered test suite with `bun test` (tests generate `.tmp` artifacts; set `DEBUG=false` inside the test to auto-clean).
-- Make use of test utils in `src/__test__/utils.ts` for building with the plugin and snapshotting outputs. Best case, you only need to add new test cases in the `test` array in `src/__test__/openApiSchema.test.ts`.
+- Make use of test utils in `src/__test__/utils.ts` for building with the plugin and snapshotting outputs. Best case, you only need to add new test cases in the `cases` array in `src/__test__/openApiSchema.test.ts`.
 - Respect `tsconfig.json` (`moduleResolution: bundler`, `noEmit: true`, strict mode). Keep new source files under `src/` so Bun and the plugin pick them up.
 
 ## TDD Workflow
@@ -38,6 +38,7 @@
 - Keep schema JSON deterministic: transformations call `JSON.stringify(schema, null, 2)` before replacement, so object key order in `codegen` determines diff noise.
 - Logging is opt-in via plugin options (`wizPlugin({ log: true })`). When debugging new transforms, expose meaningful breadcrumbs through the provided `log` function rather than `console.log`.
 - Tests dedent both the source and the compiled output; Indentation does not matter, but you still need to care for linebreaks.
+- Stick with `ts-morph` helpers when working with the TypeScript AST; avoid mixing in raw `typescript` compiler APIs unless you thread them through `ts-morph` types. This keeps transformer code consistent (all type/query helpers already come from `ts-morph`) and prevents version skew between the two AST layers.
 
 ## Extending Functionality
 - Add new schema features in `plugin/openApiSchema/codegen.ts`, backed by regression tests in `src/__test__/openApiSchema.test.ts` that describe both the input type alias and the expected transformed JS.
