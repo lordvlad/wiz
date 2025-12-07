@@ -2,10 +2,17 @@
   "name": "wiz",
   "module": "index.ts",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "ts-morph": "^27.0.2"
   }
 }
