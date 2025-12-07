@@ -5,23 +5,25 @@ import { transformOpenApiSchema } from "./openApiSchema/transform";
 
 export type WizPluginOptions = {
     log?: boolean
+    coerceSymbolsToStrings?: boolean
 }
 
 export type WizPluginContext = {
-    opt: WizPluginOptions
-    log: (...args: any[]) => void
+    opt: WizPluginOptions;
+    path: string;
+    log: (...args: any[]) => void;
 }
 
 export type WizTransformer = (src: SourceFile, context: WizPluginContext) => void | Promise<void>;
 
 
 const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
-    const log = opt.log ? (...args: any) => console.log("[wiz-plugin]", ...args) : () => { };
+    const log = opt.log ? (...args: any) => console.log("[wiz]", ...args) : () => { };
 
     return {
         name: "bun-generate-schema",
         setup(build) {
-            log("Plugin initialized with options:", opt);
+            log("Plugin initialized with options:", JSON.stringify(opt));
             build.onLoad({ filter: /\.tsx?$/ }, async (args) => {
                 log(`Processing file: ${args.path}`);
 
@@ -40,7 +42,7 @@ const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
 
                 const sourceFile = project.createSourceFile(args.path, source, { overwrite: true });
 
-                transformOpenApiSchema(sourceFile, { log, opt });
+                transformOpenApiSchema(sourceFile, { log, opt,path:args.path });
 
                 return {
                     contents: sourceFile.getFullText(),
