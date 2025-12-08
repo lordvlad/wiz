@@ -424,7 +424,7 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     return result;
 }
 
-function tryCreateEnumSchema(type: Type): unknown | undefined {
+function tryCreateEnumSchema(type: Type): { type: "string" | "number"; enum: (string | number)[] } | undefined {
     const symbol = type.getSymbol();
     if (!symbol) return undefined;
     
@@ -448,7 +448,8 @@ function tryCreateEnumSchema(type: Type): unknown | undefined {
                         enumValues.push(value);
                         if (enumType === undefined) enumType = "string";
                         else if (enumType !== "string") {
-                            // Mixed types - shouldn't happen but handle it
+                            // TypeScript doesn't allow mixed string/numeric enums, but handle defensively
+                            // This would be a malformed enum; skip schema generation for safety
                             return undefined;
                         }
                     } else if (Node.isNumericLiteral(initializer)) {
@@ -456,16 +457,17 @@ function tryCreateEnumSchema(type: Type): unknown | undefined {
                         enumValues.push(value);
                         if (enumType === undefined) enumType = "number";
                         else if (enumType !== "number") {
-                            // Mixed types
+                            // TypeScript doesn't allow mixed string/numeric enums, but handle defensively
                             return undefined;
                         }
                     } else {
-                        // Complex initializer, can't handle
+                        // Complex initializer (e.g., computed values), can't statically analyze
                         return undefined;
                     }
                 } else {
-                    // Auto-incremented numeric enum
-                    // TypeScript enums without initializers are numeric, starting at 0
+                    // Auto-incremented numeric enum member
+                    // TypeScript enums without explicit initializers are auto-incremented starting at 0
+                    // member.getValue() returns the computed constant value for the enum member
                     const value = member.getValue();
                     if (typeof value === 'number') {
                         enumValues.push(value);
@@ -474,6 +476,7 @@ function tryCreateEnumSchema(type: Type): unknown | undefined {
                             return undefined;
                         }
                     } else {
+                        // Unexpected non-numeric value for auto-incremented enum
                         return undefined;
                     }
                 }
