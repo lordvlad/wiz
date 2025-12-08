@@ -10,7 +10,21 @@ type SchemaSettings = {
 type SchemaContext = {
     nodeText?: string;
     settings?: SchemaSettings;
-    typeNode?: TypeNode;
+    declaration?: Node;
+    typeNode?: Node;
+};
+
+type JSDocMetadata = {
+    description?: string;
+    default?: any;
+    example?: string;
+    deprecated?: boolean;
+    minimum?: number;
+    maximum?: number;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
+    format?: string;
 };
 
 export function createOpenApiSchema(type: Type, context: SchemaContext = {}): unknown {
@@ -54,7 +68,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     if (type.isArray())
         return {
             type: "array",
-            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), context),
+            // Array items are anonymous, don't pass typeName
+            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), { settings: context.settings }),
         };
 
     if (type.isObject() && !type.isArray() && !type.isInterface() && !type.isClass()) {
@@ -64,26 +79,42 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         type.getProperties().forEach(prop => {
             const declaration = prop.getDeclarations()[0];
             if (!declaration) return;
+            
+            // Skip properties marked with @private, @ignore, or @package
+            if (shouldExcludeFromSchema(declaration)) {
+                return;
+            }
 
             const propType = declaration.getType();
             const typeNode = (Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration))
                 ? declaration.getTypeNode()
                 : undefined;
-            properties[prop.getName()] = createOpenApiSchema(propType, {
-                ...context,
+            
+            // Create base schema
+            // Note: We don't pass typeNode to nested objects - they are anonymous inline types
+            let propSchema = createOpenApiSchema(propType, {
+                settings: context.settings,
                 nodeText: typeNode?.getText(),
-                typeNode: undefined // nested objects don't inherit the parent type node to avoid duplicate titles on anonymous nested objects
+                declaration
             });
+            
+            // Extract and merge JSDoc metadata
+            const jsDocMetadata = extractJSDocMetadata(declaration);
+            if (typeof propSchema === 'object' && propSchema !== null) {
+                propSchema = mergeJSDocIntoSchema(propSchema as Record<string, any>, jsDocMetadata);
+            }
+            
+            properties[prop.getName()] = propSchema;
 
             if (!isOptionalProperty(prop, declaration)) {
                 required.push(prop.getName());
             }
         });
 
-        const schema: Record<string, any> = {
-            type: "object",
-            ...(context.typeNode && { title: context.typeNode.getText() }),
+        const schema: Record<string, any> = { 
+            type: "object", 
             properties,
+            ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
         if (required.length > 0) schema.required = required;
@@ -197,6 +228,181 @@ function getFormatLiteral<T extends string>(type: Type): T | undefined {
     }
 
     return undefined;
+}
+
+function extractJSDocMetadata(node?: Node): JSDocMetadata {
+    const metadata: JSDocMetadata = {};
+    
+    if (!node) return metadata;
+    
+    // Check if node supports JSDoc
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== 'function') {
+        return metadata;
+    }
+    
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return metadata;
+    
+    for (const jsDoc of jsDocs) {
+        // Get description from comment text (before any tags)
+        const description = jsDoc.getDescription?.();
+        if (description && !metadata.description) {
+            metadata.description = description.trim();
+        }
+        
+        // Process tags
+        const tags = jsDoc.getTags?.() || [];
+        for (const tag of tags) {
+            const tagName = tag.getTagName();
+            const comment = tag.getComment?.();
+            const commentText = typeof comment === 'string' ? comment.trim() : '';
+            
+            switch (tagName) {
+                case 'description':
+                    if (commentText && !metadata.description) {
+                        metadata.description = commentText;
+                    }
+                    break;
+                case 'default':
+                    if (commentText) {
+                        metadata.default = parseJSDocValue(commentText);
+                    }
+                    break;
+                case 'example':
+                    if (commentText) {
+                        metadata.example = parseJSDocValue(commentText);
+                    }
+                    break;
+                case 'deprecated':
+                    metadata.deprecated = true;
+                    break;
+                case 'minimum':
+                case 'min':
+                    if (commentText) {
+                        const num = parseFloat(commentText);
+                        if (!isNaN(num)) metadata.minimum = num;
+                    }
+                    break;
+                case 'maximum':
+                case 'max':
+                    if (commentText) {
+                        const num = parseFloat(commentText);
+                        if (!isNaN(num)) metadata.maximum = num;
+                    }
+                    break;
+                case 'minLength':
+                    if (commentText) {
+                        const num = parseInt(commentText, 10);
+                        if (!isNaN(num)) metadata.minLength = num;
+                    }
+                    break;
+                case 'maxLength':
+                    if (commentText) {
+                        const num = parseInt(commentText, 10);
+                        if (!isNaN(num)) metadata.maxLength = num;
+                    }
+                    break;
+                case 'pattern':
+                    if (commentText) {
+                        metadata.pattern = commentText;
+                    }
+                    break;
+                case 'format':
+                    if (commentText) {
+                        metadata.format = commentText;
+                    }
+                    break;
+            }
+        }
+    }
+    
+    return metadata;
+}
+
+function shouldExcludeFromSchema(node?: Node): boolean {
+    if (!node) return false;
+    
+    // Check if node supports JSDoc
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== 'function') {
+        return false;
+    }
+    
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return false;
+    
+    for (const jsDoc of jsDocs) {
+        const tags = jsDoc.getTags?.() || [];
+        for (const tag of tags) {
+            const tagName = tag.getTagName();
+            // Exclude fields marked with @private, @ignore, or @package
+            if (tagName === 'private' || tagName === 'ignore' || tagName === 'package') {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+function parseJSDocValue(value: string): any {
+    value = value.trim();
+    
+    // Try to parse as JSON
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    if (value === 'null') return null;
+    
+    // Try to parse as number
+    const num = Number(value);
+    if (!isNaN(num) && value !== '') return num;
+    
+    // Remove quotes if it's a quoted string
+    if ((value.startsWith('"') && value.endsWith('"')) || 
+        (value.startsWith("'") && value.endsWith("'"))) {
+        return value.slice(1, -1);
+    }
+    
+    return value;
+}
+
+function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetadata): Record<string, any> {
+    const result = { ...schema };
+    
+    if (metadata.description !== undefined) {
+        result.description = metadata.description;
+    }
+    if (metadata.default !== undefined) {
+        result.default = metadata.default;
+    }
+    if (metadata.example !== undefined) {
+        result.example = metadata.example;
+    }
+    if (metadata.deprecated === true) {
+        result.deprecated = true;
+    }
+    if (metadata.minimum !== undefined) {
+        result.minimum = metadata.minimum;
+    }
+    if (metadata.maximum !== undefined) {
+        result.maximum = metadata.maximum;
+    }
+    if (metadata.minLength !== undefined) {
+        result.minLength = metadata.minLength;
+    }
+    if (metadata.maxLength !== undefined) {
+        result.maxLength = metadata.maxLength;
+    }
+    if (metadata.pattern !== undefined) {
+        result.pattern = metadata.pattern;
+    }
+    if (metadata.format !== undefined && !result.format) {
+        // Only override format if not already set by type analysis
+        result.format = metadata.format;
+    }
+    
+    return result;
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {

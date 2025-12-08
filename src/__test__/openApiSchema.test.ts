@@ -50,6 +50,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name",
@@ -119,6 +120,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "settings"
@@ -146,6 +148,7 @@ const cases = [
                     type: "boolean"
                 }
             },
+            title: "Type",
             required: [
                 "title",
                 "count",
@@ -183,6 +186,7 @@ const cases = [
                     }
                 }
             },
+            title: "Type",
             required: [
                 "titles",
                 "scores",
@@ -305,6 +309,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "profile",
@@ -330,6 +335,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "reference"
@@ -373,6 +379,7 @@ const cases = [
                     type: "number"
                 }
             },
+            title: "Type",
             required: [
                 "floatValue",
                 "preciseValue",
@@ -396,6 +403,7 @@ const cases = [
                     format: "date-time"
                 }
             },
+            title: "Type",
             required: [
                 "occurredAt"
             ]
@@ -421,6 +429,7 @@ const cases = [
                     format: "unix-ms"
                 }
             },
+            title: "Type",
             required: [
                 "occurredAt"
             ]
@@ -447,8 +456,331 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "token"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc description on properties",
+        type: `type Type = {
+                    /** User's unique identifier */
+                    id: number;
+                    /** Full name of the user */
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number",
+                    description: "User's unique identifier"
+                },
+                name: {
+                    type: "string",
+                    description: "Full name of the user"
+                }
+            },
+            title: "Type",
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @description tag",
+        type: `type Type = {
+                    /**
+                     * @description The user's email address
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "The user's email address"
+                }
+            },
+            title: "Type",
+            required: [
+                "email"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @default value",
+        type: `type Type = {
+                    /**
+                     * @default "guest"
+                     */
+                    role: string;
+                    /**
+                     * @default 0
+                     */
+                    count: number;
+                    /**
+                     * @default true
+                     */
+                    active: boolean;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                role: {
+                    type: "string",
+                    default: "guest"
+                },
+                count: {
+                    type: "number",
+                    default: 0
+                },
+                active: {
+                    type: "boolean",
+                    default: true
+                }
+            },
+            title: "Type",
+            required: [
+                "role",
+                "count",
+                "active"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @example value",
+        type: `type Type = {
+                    /**
+                     * @example "john@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    example: "john@example.com"
+                }
+            },
+            title: "Type",
+            required: [
+                "email"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @deprecated field",
+        type: `type Type = {
+                    /** @deprecated Use newField instead */
+                    oldField: string;
+                    newField: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                oldField: {
+                    type: "string",
+                    deprecated: true
+                },
+                newField: {
+                    type: "string"
+                }
+            },
+            title: "Type",
+            required: [
+                "oldField",
+                "newField"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @minimum and @maximum",
+        type: `type Type = {
+                    /**
+                     * @minimum 1
+                     * @maximum 100
+                     */
+                    age: number;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                age: {
+                    type: "number",
+                    minimum: 1,
+                    maximum: 100
+                }
+            },
+            title: "Type",
+            required: [
+                "age"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc combined tags",
+        type: `type Type = {
+                    /**
+                     * User's email address
+                     * @default "user@example.com"
+                     * @example "john.doe@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "User's email address",
+                    default: "user@example.com",
+                    example: "john.doe@example.com"
+                }
+            },
+            title: "Type",
+            required: [
+                "email"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @private excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @private Internal use only */
+                    secret: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            title: "Type",
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @ignore excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @ignore */
+                    internal: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            title: "Type",
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @package excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @package */
+                    packageOnly: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            title: "Type",
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc on nested objects",
+        type: `type Type = {
+                    user: {
+                        /** User's unique identifier */
+                        id: number;
+                        /** Full name */
+                        name: string;
+                    };
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                user: {
+                    type: "object",
+                    properties: {
+                        id: {
+                            type: "number",
+                            description: "User's unique identifier"
+                        },
+                        name: {
+                            type: "string",
+                            description: "Full name"
+                        }
+                    },
+                    required: [
+                        "id",
+                        "name"
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "user"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc with minLength and maxLength",
+        type: `type Type = {
+                    /**
+                     * @minLength 3
+                     * @maxLength 50
+                     */
+                    username: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                username: {
+                    type: "string",
+                    minLength: 3,
+                    maxLength: 50
+                }
+            },
+            title: "Type",
+            required: [
+                "username"
             ]
         }`
     }
