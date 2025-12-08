@@ -76,10 +76,9 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         for (const element of tupleElements) {
             const typeName = typeNames.get(element)!;
             
-            // Start with an EMPTY processing stack
-            // As we process object types, they will be added to the stack
-            // This allows us to detect when we're at the root level (stack is empty)
-            // vs when we're processing properties (stack has entries)
+            // Start with an EMPTY processing stack at the root level
+            // The codegen function will populate the stack as it processes nested types
+            // This allows detection of root level (stack empty) vs nested (stack has entries)
             const processingStack = new Set<string>();
             
             // Pass undefined for typeNode to avoid duplicate title generation in codegen.

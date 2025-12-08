@@ -549,7 +549,8 @@ function extractFormatFromText<T extends string>(text: string | undefined, alias
  * Returns the type name if it should use a $ref, or undefined if it should be inlined
  */
 function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: Set<string>): string | undefined {
-    // Don't use $ref for primitive types
+    // Don't use $ref for primitive types or arrays
+    // Arrays are handled separately - their element types may use $ref
     if (type.isString() || type.isNumber() || type.isBoolean() || type.isArray()) {
         return undefined;
     }
@@ -568,16 +569,14 @@ function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: 
         return undefined;
     }
     
-    // If this type is in availableTypes, use a $ref UNLESS we're at the root level
-    // We determine root level by checking if the type is NOT in processingStack
-    // (transform starts with an empty processingStack, and we add types as we process them)
+    // Use $ref if this type is in availableTypes, with special handling for root level vs nested
     if (availableTypes.has(typeName)) {
         // If already in processing stack, we're in a circular reference - emit $ref to avoid infinite recursion
         if (processingStack.has(typeName)) {
             return typeName;
         }
-        // If in availableTypes but not in processingStack, check if we should emit $ref or inline
-        // We emit $ref only if there are other types in processingStack (we're not at the root)
+        // If in availableTypes but not in processingStack, only emit $ref if we're nested (not at root level)
+        // Root level is indicated by an empty processingStack
         if (processingStack.size > 0) {
             return typeName;
         }
