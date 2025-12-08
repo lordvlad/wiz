@@ -261,8 +261,9 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         // Handle index signatures (additionalProperties)
         const stringIndexType = type.getStringIndexType();
         if (stringIndexType) {
-            // Check if this is `any` type
-            if (stringIndexType.getText() === 'any') {
+            // Check if this is `any` type using TypeFlags for robust detection
+            const flags = stringIndexType.getFlags();
+            if ((flags & TypeFlags.Any) !== 0) {
                 schema.additionalProperties = true;
             } else {
                 // Generate schema for the index signature value type
