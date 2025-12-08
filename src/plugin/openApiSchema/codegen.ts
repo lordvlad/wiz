@@ -450,7 +450,7 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
     }
     
     const enumValues: (string | number)[] = [];
-    let enumType: "string" | "number" = "string"; // Will be set in first iteration
+    let enumType: "string" | "number" | null = null;
     
     for (const member of members) {
         const initializer = member.getInitializer();
@@ -459,15 +459,17 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
             if (Node.isStringLiteral(initializer)) {
                 const value = initializer.getLiteralValue();
                 enumValues.push(value);
-                if (enumValues.length === 1) enumType = "string";
-                else if (enumType !== "string") {
+                if (enumType === null) {
+                    enumType = "string";
+                } else if (enumType !== "string") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else if (Node.isNumericLiteral(initializer)) {
                 const value = initializer.getLiteralValue();
                 enumValues.push(value);
-                if (enumValues.length === 1) enumType = "number";
-                else if (enumType !== "number") {
+                if (enumType === null) {
+                    enumType = "number";
+                } else if (enumType !== "number") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else {
@@ -481,8 +483,9 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
             const value = member.getValue();
             if (typeof value === 'number') {
                 enumValues.push(value);
-                if (enumValues.length === 1) enumType = "number";
-                else if (enumType !== "number") {
+                if (enumType === null) {
+                    enumType = "number";
+                } else if (enumType !== "number") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else {
@@ -491,7 +494,8 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
         }
     }
     
-    return { type: enumType, enum: enumValues };
+    // enumType is guaranteed to be non-null since we have at least one member
+    return { type: enumType as "string" | "number", enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
