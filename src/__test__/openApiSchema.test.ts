@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { compile, dedent } from './util';
 import type { WizPluginOptions } from '../plugin/index';
+import { compile, dedent } from './util';
 
 // Type definition for test cases
 type TestCase = {
     title: string;
     type: string;
     schema?: string;
-    expectError?: string;
+    expectError?: string | RegExp;
     pluginOptions?: WizPluginOptions;
     isArrayTest?: boolean;
     arrayTypes?: string[];
@@ -2182,7 +2182,7 @@ const cases: TestCase[] = [
 describe("openApiSchema plugin", () => {
     it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes }) => {
         const needsTags = type.includes("tags.");
-        
+
         // All tests now use tuple syntax
         const types = arrayTypes || ['Type'];
         const code = `
@@ -2201,7 +2201,7 @@ describe("openApiSchema plugin", () => {
         }
 
         if (expectError) {
-            await expect(compile(code, pluginOptions)).rejects.toThrow(expectError);
+            expect(await compile(code, pluginOptions)).rejects.toThrow(expectError);
             return;
         }
 
