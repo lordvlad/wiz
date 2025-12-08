@@ -33,6 +33,8 @@ Wiz can automatically generate OpenAPI schemas from TypeScript types using the B
 
 ### Basic Usage
 
+#### Single Type Schema
+
 ```typescript
 import { createOpenApiSchema } from "wiz/openApiSchema";
 
@@ -46,6 +48,59 @@ export const schema = createOpenApiSchema<User>();
 ```
 
 The plugin will transform this at build time into a literal OpenAPI schema object.
+
+#### Multiple Types Schema (Components)
+
+You can generate a composite OpenAPI schema with multiple types by passing them as a tuple:
+
+```typescript
+import { createOpenApiSchema } from "wiz/openApiSchema";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type Product = {
+    sku: string;
+    name: string;
+    price: number;
+};
+
+export const schema = createOpenApiSchema<[User, Product]>();
+```
+
+This generates an OpenAPI schema with a `components.schemas` structure:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number" },
+          "name": { "type": "string" },
+          "email": { "type": "string" }
+        },
+        "title": "User",
+        "required": ["id", "name", "email"]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string" },
+          "name": { "type": "string" },
+          "price": { "type": "number" }
+        },
+        "title": "Product",
+        "required": ["sku", "name", "price"]
+      }
+    }
+  }
+}
+```
 
 ### JSDoc Annotations
 
