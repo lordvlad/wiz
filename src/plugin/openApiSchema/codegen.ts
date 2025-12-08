@@ -1,5 +1,5 @@
 
-import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode } from "ts-morph";
+import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode, EnumDeclaration } from "ts-morph";
 import type { BigIntFormatType, NumFormatType } from "../../tags";
 
 type SchemaSettings = {
@@ -441,11 +441,7 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     return result;
 }
 
-function createEnumSchema(declaration: Node, type: Type): { type: "string" | "number"; enum: (string | number)[] } {
-    if (!Node.isEnumDeclaration(declaration)) {
-        throw new Error(`Expected EnumDeclaration but got ${declaration.getKindName()}`);
-    }
-    
+function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "string" | "number"; enum: (string | number)[] } {
     const members = declaration.getMembers();
     
     // Handle empty enums
@@ -495,11 +491,8 @@ function createEnumSchema(declaration: Node, type: Type): { type: "string" | "nu
         }
     }
     
-    if (!enumType) {
-        throw new Error(`Could not determine enum type: ${type.getText()}`);
-    }
-    
-    return { type: enumType, enum: enumValues };
+    // enumType is guaranteed to be set since we have members and each iteration sets it or throws
+    return { type: enumType!, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
