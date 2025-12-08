@@ -10,6 +10,7 @@ type SchemaSettings = {
 type SchemaContext = {
     nodeText?: string;
     settings?: SchemaSettings;
+    typeName?: string;
 };
 
 export function createOpenApiSchema(type: Type, context: SchemaContext = {}): unknown {
@@ -70,7 +71,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 : undefined;
             properties[prop.getName()] = createOpenApiSchema(propType, {
                 ...context,
-                nodeText: typeNode?.getText()
+                nodeText: typeNode?.getText(),
+                typeName: undefined
             });
 
             if (!isOptionalProperty(prop, declaration)) {
@@ -78,7 +80,13 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const schema: Record<string, any> = { type: "object", properties };
+        const schema: Record<string, any> = { type: "object" };
+        
+        if (context.typeName) {
+            schema.title = context.typeName;
+        }
+        
+        schema.properties = properties;
 
         if (required.length > 0) schema.required = required;
 
