@@ -10,6 +10,9 @@ dist
 coverage
 *.lcov
 
+# test results
+test-results.xml
+
 # logs
 logs
 _.log

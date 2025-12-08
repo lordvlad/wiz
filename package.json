@@ -6,6 +6,11 @@
     ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
+  "scripts": {
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text",
+    "test:report": "bun test --reporter=junit --reporter-outfile=test-results.xml --coverage --coverage-reporter=lcov --coverage-dir=coverage"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
