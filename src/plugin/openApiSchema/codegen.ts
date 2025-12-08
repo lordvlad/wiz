@@ -20,6 +20,8 @@ type JSDocMetadata = {
     deprecated?: boolean;
     minimum?: number;
     maximum?: number;
+    minLength?: number;
+    maxLength?: number;
     pattern?: string;
     format?: string;
 };
@@ -282,6 +284,18 @@ function extractJSDocMetadata(node?: Node): JSDocMetadata {
                         if (!isNaN(num)) metadata.maximum = num;
                     }
                     break;
+                case 'minLength':
+                    if (commentText) {
+                        const num = parseInt(commentText, 10);
+                        if (!isNaN(num)) metadata.minLength = num;
+                    }
+                    break;
+                case 'maxLength':
+                    if (commentText) {
+                        const num = parseInt(commentText, 10);
+                        if (!isNaN(num)) metadata.maxLength = num;
+                    }
+                    break;
                 case 'pattern':
                     if (commentText) {
                         metadata.pattern = commentText;
@@ -366,6 +380,12 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     }
     if (metadata.maximum !== undefined) {
         result.maximum = metadata.maximum;
+    }
+    if (metadata.minLength !== undefined) {
+        result.minLength = metadata.minLength;
+    }
+    if (metadata.maxLength !== undefined) {
+        result.maxLength = metadata.maxLength;
     }
     if (metadata.pattern !== undefined) {
         result.pattern = metadata.pattern;

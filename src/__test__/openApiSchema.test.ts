@@ -692,6 +692,65 @@ const cases = [
                 "name"
             ]
         }`
+    },
+    {
+        title: "jsdoc on nested objects",
+        type: `type Type = {
+                    user: {
+                        /** User's unique identifier */
+                        id: number;
+                        /** Full name */
+                        name: string;
+                    };
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                user: {
+                    type: "object",
+                    properties: {
+                        id: {
+                            type: "number",
+                            description: "User's unique identifier"
+                        },
+                        name: {
+                            type: "string",
+                            description: "Full name"
+                        }
+                    },
+                    required: [
+                        "id",
+                        "name"
+                    ]
+                }
+            },
+            required: [
+                "user"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc with minLength and maxLength",
+        type: `type Type = {
+                    /**
+                     * @minLength 3
+                     * @maxLength 50
+                     */
+                    username: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                username: {
+                    type: "string",
+                    minLength: 3,
+                    maxLength: 50
+                }
+            },
+            required: [
+                "username"
+            ]
+        }`
     }
 ];
 
