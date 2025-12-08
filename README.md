@@ -88,6 +88,140 @@ This generates an OpenAPI schema with a `components.schemas` structure:
 }
 ```
 
+### Type References with $ref
+
+When a type references another type that's included in the schema, Wiz automatically generates `$ref` references instead of inlining the schema. This creates cleaner, more maintainable schemas and properly handles circular references.
+
+```typescript
+type Author = {
+    id: number;
+    name: string;
+};
+
+type Post = {
+    title: string;
+    content: string;
+    author: Author;  // References Author type
+};
+
+export const schema = createOpenApiSchema<[Author, Post]>();
+```
+
+This generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Author": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number" },
+          "name": { "type": "string" }
+        },
+        "required": ["id", "name"],
+        "title": "Author"
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "author": {
+            "$ref": "#/components/schemas/Author"
+          }
+        },
+        "required": ["title", "content", "author"],
+        "title": "Post"
+      }
+    }
+  }
+}
+```
+
+#### $ref Features
+
+- **Direct references**: Properties that reference other types in the schema use `$ref`
+- **Array references**: Arrays of referenced types use `$ref` in the `items` field
+- **Optional references**: Optional properties still use `$ref` (the optionality is handled by the `required` array)
+- **Circular references**: Self-referencing types are automatically handled with `$ref` to prevent infinite recursion
+- **Inline types**: Anonymous object types that aren't in the schema are still inlined
+
+**Example with arrays:**
+
+```typescript
+type Tag = {
+    id: number;
+    name: string;
+};
+
+type Article = {
+    title: string;
+    tags: Tag[];  // Array of Tag references
+};
+
+export const schema = createOpenApiSchema<[Tag, Article]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Tag": { /* ... */ },
+      "Article": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            }
+          }
+        },
+        "required": ["title", "tags"],
+        "title": "Article"
+      }
+    }
+  }
+}
+```
+
+**Example with circular references:**
+
+```typescript
+type Node = {
+    value: string;
+    next?: Node;  // Self-reference
+};
+
+export const schema = createOpenApiSchema<[Node]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Node": {
+        "type": "object",
+        "properties": {
+          "value": { "type": "string" },
+          "next": {
+            "$ref": "#/components/schemas/Node"
+          }
+        },
+        "required": ["value"],
+        "title": "Node"
+      }
+    }
+  }
+}
+```
+
 ### JSDoc Annotations
 
 Wiz supports JSDoc comments to enrich your OpenAPI schemas with additional metadata and constraints. This allows you to maintain documentation and validation rules close to your type definitions.
