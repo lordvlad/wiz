@@ -251,19 +251,18 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        let schema: Record<string, any> = { 
+        const baseSchema: Record<string, any> = { 
             type: "object", 
             properties,
             ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
-        if (required.length > 0) schema.required = required;
+        if (required.length > 0) baseSchema.required = required;
 
         // Extract and merge JSDoc metadata from type alias declaration
-        if (context.typeAliasDeclaration) {
-            const typeJsDocMetadata = extractJSDocMetadata(context.typeAliasDeclaration);
-            schema = mergeJSDocIntoSchema(schema, typeJsDocMetadata);
-        }
+        const schema = context.typeAliasDeclaration
+            ? mergeJSDocIntoSchema(baseSchema, extractJSDocMetadata(context.typeAliasDeclaration))
+            : baseSchema;
 
         return schema;
     }
