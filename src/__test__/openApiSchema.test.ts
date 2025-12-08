@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 import { compile, dedent } from './util';
+import type { WizPluginOptions } from '../plugin/index';
 
+// Type definition for test cases
+type TestCase = {
+    title: string;
+    type: string;
+    schema?: string;
+    expectError?: string;
+    pluginOptions?: WizPluginOptions;
+    isArrayTest?: boolean;
+    arrayTypes?: string[];
+};
 
-const cases = [
+const cases: TestCase[] = [
     {
         title: "simple type",
         type: `type Type = {

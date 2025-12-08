@@ -3,6 +3,16 @@ import { createOpenApiSchema as codegen } from "./codegen";
 import { createOpenApiSchema } from "../../openApiSchema/index";
 import type { WizPluginContext } from "..";
 
+// Type for individual schema in components.schemas
+type SchemaValue = {
+    type?: string;
+    properties?: Record<string, unknown>;
+    items?: unknown;
+    enum?: unknown[];
+    required?: string[];
+    title?: string;
+    [key: string]: unknown;
+};
 
 export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt }: WizPluginContext) {
 
@@ -21,7 +31,7 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         if (type.isTuple()) {
             // Generate composite schema with components.schemas
             const tupleElements = type.getTupleElements();
-            const schemas: Record<string, any> = {};
+            const schemas: Record<string, SchemaValue> = {};
             
             for (const element of tupleElements) {
                 // Get the alias symbol for the type name (User, Product, etc.)
@@ -47,11 +57,12 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 });
                 
                 // Add title to the schema if not already present
-                if (typeof schema === 'object' && schema !== null && !('title' in schema)) {
-                    (schema as any).title = typeName;
+                const schemaObj = schema as SchemaValue;
+                if (typeof schemaObj === 'object' && schemaObj !== null && !('title' in schemaObj)) {
+                    schemaObj.title = typeName;
                 }
                 
-                schemas[typeName] = schema;
+                schemas[typeName] = schemaObj;
             }
             
             const compositeSchema = {
