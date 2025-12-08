@@ -1,5 +1,31 @@
 # Wiz AI Coding Guide
 
+## Quick Reference
+
+**Setup:**
+```bash
+bun install          # Install dependencies (requires Bun ≥1.3.3)
+```
+
+**Testing:**
+```bash
+bun test                                           # Run all tests
+bun test --filter "<case name>"                    # Run specific test
+bun test src/__test__/openApiSchema.test.ts        # Run specific file
+```
+
+**Common Commands:**
+- Build plugin-powered output: Bun processes files via the Wiz plugin automatically
+- Debug tests: Set `DEBUG=false` in test files to auto-clean `.tmp` artifacts
+- View TypeScript config: Check `tsconfig.json` for strict mode settings
+
+## Requirements
+
+- **Runtime:** Bun ≥1.3.3
+- **Language:** TypeScript ^5
+- **Key Dependencies:** ts-morph ^27.0.2
+- **Build System:** Bun bundler with custom plugin architecture
+
 ## Big Picture
 - `src/openApiSchema/index.ts` exports `createOpenApiSchema<T>()`, a compile-time hook that throws via `pluginNotEnabled()` so runtime calls are never expected; Bun plugin rewrites calls to literal schemas.
 - `src/plugin/index.ts` registers the Bun plugin. It spins up a `ts-morph` `Project`, loads each `.ts/.tsx` file, runs `transformOpenApiSchema()`, and hands the modified source back to Bun.
@@ -45,3 +71,25 @@
 - Add new schema features in `plugin/openApiSchema/codegen.ts`, backed by regression tests in `src/__test__/openApiSchema.test.ts` that describe both the input type alias and the expected transformed JS.
 - For future generator types (JSON Schema, protobuf, etc.), follow the same pattern: stub API in `src/<feature>/index.ts`, implement transformer + codegen under `src/plugin/<feature>/`, wire it inside `wizPlugin`.
 - When exposing new plugin options, extend `WizPluginOptions` in `src/plugin/index.ts` and thread them through `WizPluginContext` so transforms remain stateless and testable.
+
+## Troubleshooting
+
+**Plugin not transforming code:**
+- Ensure you're using Bun ≥1.3.3 and the plugin is registered in your build configuration
+- Check that `createOpenApiSchema<T>()` calls use the exact function name from `src/openApiSchema/index.ts`
+- Enable logging with `wizPlugin({ log: true })` to see transformation breadcrumbs
+
+**Test failures:**
+- Verify `.tmp` directories are being cleaned (set `DEBUG=false` in failing tests)
+- Check that dedent is handling indentation correctly - linebreaks matter, but spaces don't
+- Ensure type arguments are resolvable by ts-morph (avoid complex conditional or inferred types initially)
+
+**Type errors or compilation issues:**
+- Confirm `tsconfig.json` settings match project requirements (`moduleResolution: bundler`, `noEmit: true`)
+- Verify all source files are under `src/` directory structure
+- Check that you're using TypeScript ^5 as specified in peerDependencies
+
+**Runtime errors about plugin not enabled:**
+- This is expected when calling `createOpenApiSchema<T>()` without the Bun plugin active
+- The `pluginNotEnabled()` error is intentional - these functions are compile-time only
+- Ensure your build process includes the Wiz plugin to transform these calls to literals
