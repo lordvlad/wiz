@@ -17,6 +17,7 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
         const schema = codegen(type, {
+            typeNode: typeArg,
             settings: {
                 coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                 transformDate: opt?.transformDate
