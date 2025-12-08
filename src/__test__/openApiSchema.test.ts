@@ -1015,6 +1015,16 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "array with duplicate type names",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['User', 'User'],
+        expectError: "Duplicate type name 'User' detected in tuple"
     }
 ];
 

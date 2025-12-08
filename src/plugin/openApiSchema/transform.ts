@@ -32,18 +32,37 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
             // Generate composite schema with components.schemas
             const tupleElements = type.getTupleElements();
             const schemas: Record<string, SchemaValue> = {};
+            const usedNames = new Set<string>();
             
             for (const element of tupleElements) {
                 // Get the alias symbol for the type name (User, Product, etc.)
                 const aliasSymbol = element.getAliasSymbol();
-                let typeName = aliasSymbol?.getName();
+                let typeName: string | undefined = aliasSymbol?.getName();
                 
-                // Fallback to element.getText() if no alias symbol exists
+                // Fallback chain if no alias symbol exists
                 if (!typeName) {
-                    typeName = element.getText();
-                    // Clean up the type name if it contains formatting or whitespace
-                    typeName = typeName.replace(/\s+/g, '');
+                    // Try getting the regular symbol name
+                    const symbol = element.getSymbol();
+                    typeName = symbol?.getName();
+                    
+                    // Last resort: use getText() and clean it up
+                    if (!typeName || typeName === '__type') {
+                        typeName = element.getText();
+                        // Clean up the type name if it contains formatting or whitespace
+                        typeName = typeName.replace(/\s+/g, '');
+                    }
                 }
+                
+                // Validate type name is suitable for use as a schema key
+                if (!typeName || typeName === '__type') {
+                    throw new Error(`Unable to determine a valid type name for tuple element: ${element.getText()}`);
+                }
+                
+                // Check for duplicate type names
+                if (usedNames.has(typeName)) {
+                    throw new Error(`Duplicate type name '${typeName}' detected in tuple. Each type in the tuple must have a unique name.`);
+                }
+                usedNames.add(typeName);
                 
                 // Pass undefined for typeNode to avoid duplicate title generation in codegen.
                 // The codegen function adds a 'title' field when typeNode is provided,
