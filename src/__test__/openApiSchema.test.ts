@@ -17,7 +17,6 @@ const cases = [
                 }`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 id: {
                     type: "number"
@@ -77,7 +76,6 @@ const cases = [
                 }`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 id: {
                     type: "number"
@@ -136,7 +134,6 @@ const cases = [
                 }`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 title: {
                     type: "string"
@@ -165,7 +162,6 @@ const cases = [
                 }`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 titles: {
                     type: "array",
@@ -222,7 +218,6 @@ const cases = [
                 }`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 id: {
                     type: "number"
@@ -325,7 +320,6 @@ const cases = [
                 };`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 id: {
                     type: "integer",
@@ -354,7 +348,6 @@ const cases = [
                 };`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 floatValue: {
                     type: "number",
@@ -396,7 +389,6 @@ const cases = [
                 };`,
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 occurredAt: {
                     type: "string",
@@ -422,7 +414,6 @@ const cases = [
         },
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 occurredAt: {
                     type: "integer",
@@ -450,7 +441,6 @@ const cases = [
         pluginOptions: { coerceSymbolsToStrings: true },
         schema: `{
             type: "object",
-            title: "Type",
             properties: {
                 token: {
                     type: "string"
