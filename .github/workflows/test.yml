@@ -22,13 +22,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests
-        run: bun run test
-
-      - name: Run tests with coverage
-        run: bun run test:coverage
-
-      - name: Generate test report
+      - name: Run tests with coverage and reports
         run: bun run test:report
 
       - name: Upload coverage reports
