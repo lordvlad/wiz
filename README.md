@@ -222,6 +222,237 @@ Generates:
 }
 ```
 
+### Polymorphism and Union Types (oneOf, anyOf, allOf)
+
+Wiz supports TypeScript union types and intersection types, mapping them to JSON Schema's `oneOf` and `allOf` constructs for polymorphic schemas.
+
+#### Union Types (oneOf)
+
+TypeScript union types are represented using `oneOf` in the generated schema:
+
+```typescript
+type Circle = {
+    kind: "circle";
+    radius: number;
+};
+
+type Square = {
+    kind: "square";
+    side: number;
+};
+
+type Shape = Circle | Square;
+
+type Drawing = {
+    shape: Shape;
+};
+
+export const schema = createOpenApiSchema<[Drawing]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Drawing": {
+        "type": "object",
+        "properties": {
+          "shape": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "enum": ["circle"] },
+                  "radius": { "type": "number" }
+                },
+                "required": ["kind", "radius"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "enum": ["square"] },
+                  "side": { "type": "number" }
+                },
+                "required": ["kind", "side"]
+              }
+            ]
+          }
+        },
+        "required": ["shape"],
+        "title": "Drawing"
+      }
+    }
+  }
+}
+```
+
+**Union types with named types use $ref:**
+
+```typescript
+type Dog = {
+    breed: string;
+    bark: boolean;
+};
+
+type Cat = {
+    breed: string;
+    meow: boolean;
+};
+
+type Pet = Dog | Cat;
+
+type Owner = {
+    pet: Pet;
+};
+
+export const schema = createOpenApiSchema<[Owner, Dog, Cat]>();
+```
+
+Generates schemas with `$ref` in the `oneOf`:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Owner": {
+        "type": "object",
+        "properties": {
+          "pet": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/Dog" },
+              { "$ref": "#/components/schemas/Cat" }
+            ]
+          }
+        }
+      },
+      "Dog": { /* ... */ },
+      "Cat": { /* ... */ }
+    }
+  }
+}
+```
+
+**Mixed type unions:**
+
+```typescript
+type Value = string | number | boolean;
+
+type Config = {
+    value: Value;
+};
+```
+
+Generates a `oneOf` with primitive types:
+
+```json
+{
+  "properties": {
+    "value": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" }
+      ]
+    }
+  }
+}
+```
+
+#### Intersection Types (allOf)
+
+TypeScript intersection types (`&`) are represented using `allOf` in the generated schema:
+
+```typescript
+type Timestamped = {
+    createdAt: string;
+    updatedAt: string;
+};
+
+type Named = {
+    name: string;
+};
+
+type Entity = Timestamped & Named;
+
+type Record = {
+    entity: Entity;
+};
+
+export const schema = createOpenApiSchema<[Record]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Record": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "allOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "createdAt": { "type": "string" },
+                  "updatedAt": { "type": "string" }
+                },
+                "required": ["createdAt", "updatedAt"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" }
+                },
+                "required": ["name"]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Special Cases
+
+**Nullable unions**: `null` and `undefined` are automatically filtered from unions:
+
+```typescript
+type Value = string | number | null;
+```
+
+Generates `oneOf` with only `string` and `number`.
+
+**Boolean expansion**: TypeScript expands `boolean` to `true | false` in unions. Wiz automatically collapses these back to a single `boolean` type:
+
+```typescript
+type Value = string | number | boolean;
+```
+
+Generates `oneOf` with `string`, `number`, and `boolean` (not four separate types).
+
+**Union of arrays:**
+
+```typescript
+type Items = string[] | number[];
+```
+
+Generates:
+
+```json
+{
+  "oneOf": [
+    { "type": "array", "items": { "type": "string" } },
+    { "type": "array", "items": { "type": "number" } }
+  ]
+}
+```
+
 ### JSDoc Annotations
 
 Wiz supports JSDoc comments to enrich your OpenAPI schemas with additional metadata and constraints. This allows you to maintain documentation and validation rules close to your type definitions.

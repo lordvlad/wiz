@@ -74,11 +74,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         // Handle complex type unions (oneOf)
         if (narrowed.length > 1) {
             // Collapse boolean literals (true | false) into a single boolean type
-            const hasTrueLiteral = narrowed.some(t => t.isBooleanLiteral() && t.getText() === 'true');
-            const hasFalseLiteral = narrowed.some(t => t.isBooleanLiteral() && t.getText() === 'false');
+            const booleanLiterals = narrowed.filter(t => t.isBooleanLiteral());
+            const hasBothBooleans = booleanLiterals.length === 2;
             
             let typesToProcess = narrowed;
-            if (hasTrueLiteral && hasFalseLiteral) {
+            if (hasBothBooleans) {
                 // Both true and false are present, replace them with a single boolean type
                 typesToProcess = narrowed.filter(t => !t.isBooleanLiteral());
                 // We'll add the boolean schema manually below
@@ -93,7 +93,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             );
             
             // If we had both boolean literals, add a single boolean schema
-            if (hasTrueLiteral && hasFalseLiteral) {
+            if (hasBothBooleans) {
                 schemas.push({ type: "boolean" });
             }
             
@@ -157,6 +157,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     }
     
     // Handle boolean literal types (true, false)
+    // Note: type.getLiteralValue() returns undefined for boolean literals,
+    // so we use getText() to determine the value
     if (type.isBooleanLiteral()) {
         const value = type.getText() === 'true';
         return { type: "boolean", enum: [value] };
