@@ -26,10 +26,20 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
             for (const element of tupleElements) {
                 // Get the alias symbol for the type name (User, Product, etc.)
                 const aliasSymbol = element.getAliasSymbol();
-                const typeName = aliasSymbol?.getName() ?? element.getText();
+                let typeName = aliasSymbol?.getName();
                 
+                // Fallback to element.getText() if no alias symbol exists
+                if (!typeName) {
+                    typeName = element.getText();
+                    // Clean up the type name if it contains formatting or whitespace
+                    typeName = typeName.replace(/\s+/g, '');
+                }
+                
+                // Pass undefined for typeNode to avoid duplicate title generation in codegen.
+                // The codegen function adds a 'title' field when typeNode is provided,
+                // but for composite schemas we want to control title placement ourselves.
                 const schema = codegen(element, {
-                    typeNode: undefined, // Don't pass typeNode for composite schemas to avoid title duplication
+                    typeNode: undefined,
                     settings: {
                         coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                         transformDate: opt?.transformDate
