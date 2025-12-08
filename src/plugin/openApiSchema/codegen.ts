@@ -11,7 +11,7 @@ type SchemaContext = {
     nodeText?: string;
     settings?: SchemaSettings;
     declaration?: Node;
-    typeName?: string;
+    typeNode?: Node;
 };
 
 type JSDocMetadata = {
@@ -91,7 +91,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 : undefined;
             
             // Create base schema
-            // Note: We don't pass typeName to nested objects - they are anonymous
+            // Note: We don't pass typeNode to nested objects - they are anonymous inline types
             let propSchema = createOpenApiSchema(propType, {
                 settings: context.settings,
                 nodeText: typeNode?.getText(),
@@ -114,7 +114,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         const schema: Record<string, any> = { 
             type: "object", 
             properties,
-            ...(context.typeName ? { title: context.typeName } : {})
+            ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
         if (required.length > 0) schema.required = required;
