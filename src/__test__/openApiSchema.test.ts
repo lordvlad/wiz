@@ -1730,6 +1730,207 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "oneOf with nullable union",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nested oneOf",
+        type: `type A = { a: string };
+                type B = { b: number };
+                type C = { c: boolean };
+                type Type = {
+                    nested: {
+                        value: A | B | C;
+                    };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                nested: {
+                    type: "object",
+                    properties: {
+                        value: {
+                            oneOf: [
+                                {
+                                    type: "object",
+                                    properties: {
+                                        a: {
+                                            type: "string"
+                                        }
+                                    },
+                                    required: [
+                                        "a"
+                                    ]
+                                },
+                                {
+                                    type: "object",
+                                    properties: {
+                                        b: {
+                                            type: "number"
+                                        }
+                                    },
+                                    required: [
+                                        "b"
+                                    ]
+                                },
+                                {
+                                    type: "object",
+                                    properties: {
+                                        c: {
+                                            type: "boolean"
+                                        }
+                                    },
+                                    required: [
+                                        "c"
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    required: [
+                        "value"
+                    ]
+                }
+            },
+            required: [
+                "nested"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "allOf with multiple intersections",
+        type: `type A = { a: string };
+                type B = { b: number };
+                type C = { c: boolean };
+                type Combined = A & B & C;
+                type Type = {
+                    combined: Combined;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                combined: {
+                    allOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                a: {
+                                    type: "string"
+                                }
+                            },
+                            required: [
+                                "a"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                b: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "b"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                c: {
+                                    type: "boolean"
+                                }
+                            },
+                            required: [
+                                "c"
+                            ]
+                        }
+                    ]
+                }
+            },
+            required: [
+                "combined"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "union of arrays",
+        type: `type Type = {
+                    items: string[] | number[];
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                items: {
+                    oneOf: [
+                        {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            }
+                        },
+                        {
+                            type: "array",
+                            items: {
+                                type: "number"
+                            }
+                        }
+                    ]
+                }
+            },
+            required: [
+                "items"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
     }
 ];
 
