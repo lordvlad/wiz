@@ -12,6 +12,8 @@ type SchemaContext = {
     settings?: SchemaSettings;
     declaration?: Node;
     typeNode?: Node;
+    availableTypes?: Set<string>;
+    processingStack?: Set<string>;
 };
 
 type JSDocMetadata = {
@@ -29,11 +31,21 @@ type JSDocMetadata = {
 
 export function createOpenApiSchema(type: Type, context: SchemaContext = {}): unknown {
     const settings = context.settings ?? {};
+    const availableTypes = context.availableTypes ?? new Set<string>();
+    const processingStack = context.processingStack ?? new Set<string>();
+
+    // Check if this type should use a $ref
+    // We use $ref if the type is in availableTypes (to reference another schema)
+    // We ALSO use $ref if the type is already in processingStack (to avoid infinite recursion for circular refs)
+    const refName = shouldUseRef(type, availableTypes, processingStack);
+    if (refName) {
+        return { $ref: `#/components/schemas/${refName}` };
+    }
 
     if (type.isUnion()) {
         const narrowed = type.getUnionTypes().filter(t => !isNullable(t));
         if (narrowed.length === 1)
-            return createOpenApiSchema(narrowed[0]!, context);
+            return createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
         if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral()))
             return { type: "boolean" };
         
@@ -105,10 +117,30 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         return {
             type: "array",
             // Array items are anonymous, don't pass typeName
-            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), { settings: context.settings }),
+            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), { 
+                ...context,
+                settings: context.settings,
+                availableTypes,
+                processingStack 
+            }),
         };
 
     if (type.isObject() && !type.isArray() && !type.isInterface() && !type.isClass()) {
+        // Get the type name to add to processing stack
+        const aliasSymbol = type.getAliasSymbol();
+        let currentTypeName: string | undefined = aliasSymbol?.getName();
+        if (!currentTypeName) {
+            const symbol = type.getSymbol();
+            currentTypeName = symbol?.getName();
+        }
+        
+        // Create a new processing stack that includes the current type
+        // This prevents infinite recursion for circular references
+        const newProcessingStack = new Set(processingStack);
+        if (currentTypeName && currentTypeName !== '__type' && availableTypes.has(currentTypeName)) {
+            newProcessingStack.add(currentTypeName);
+        }
+        
         const properties: Record<string, any> = {};
         const required: string[] = [];
 
@@ -131,7 +163,9 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             let propSchema = createOpenApiSchema(propType, {
                 settings: context.settings,
                 nodeText: typeNode?.getText(),
-                declaration
+                declaration,
+                availableTypes,
+                processingStack: newProcessingStack
             });
             
             // Extract and merge JSDoc metadata
@@ -508,4 +542,46 @@ function extractFormatFromText<T extends string>(text: string | undefined, alias
         return undefined;
 
     return match[1] as T;
+}
+
+/**
+ * Determines if a type should be represented as a $ref to a schema in components.schemas
+ * Returns the type name if it should use a $ref, or undefined if it should be inlined
+ */
+function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: Set<string>): string | undefined {
+    // Don't use $ref for primitive types
+    if (type.isString() || type.isNumber() || type.isBoolean() || type.isArray()) {
+        return undefined;
+    }
+
+    // Get the type name from the alias symbol
+    const aliasSymbol = type.getAliasSymbol();
+    let typeName: string | undefined = aliasSymbol?.getName();
+    
+    // Fallback to regular symbol if no alias
+    if (!typeName) {
+        const symbol = type.getSymbol();
+        typeName = symbol?.getName();
+    }
+    
+    if (!typeName || typeName === '__type') {
+        return undefined;
+    }
+    
+    // If this type is in availableTypes, use a $ref UNLESS we're at the root level
+    // We determine root level by checking if the type is NOT in processingStack
+    // (transform starts with an empty processingStack, and we add types as we process them)
+    if (availableTypes.has(typeName)) {
+        // If already in processing stack, we're in a circular reference - emit $ref to avoid infinite recursion
+        if (processingStack.has(typeName)) {
+            return typeName;
+        }
+        // If in availableTypes but not in processingStack, check if we should emit $ref or inline
+        // We emit $ref only if there are other types in processingStack (we're not at the root)
+        if (processingStack.size > 0) {
+            return typeName;
+        }
+    }
+    
+    return undefined;
 }

@@ -37,6 +37,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         const schemas: Record<string, SchemaValue> = {};
         const usedNames = new Set<string>();
         
+        // First pass: collect all type names
+        const typeNames = new Map<Type, string>();
         for (const element of tupleElements) {
             // Get the alias symbol for the type name (User, Product, etc.)
             const aliasSymbol = element.getAliasSymbol();
@@ -66,6 +68,19 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 throw new Error(`Duplicate type name '${typeName}' detected in tuple. Each type in the tuple must have a unique name.`);
             }
             usedNames.add(typeName);
+            typeNames.set(element, typeName);
+        }
+        
+        // Second pass: generate schemas with $ref support
+        const availableTypes = new Set(usedNames);
+        for (const element of tupleElements) {
+            const typeName = typeNames.get(element)!;
+            
+            // Start with an EMPTY processing stack
+            // As we process object types, they will be added to the stack
+            // This allows us to detect when we're at the root level (stack is empty)
+            // vs when we're processing properties (stack has entries)
+            const processingStack = new Set<string>();
             
             // Pass undefined for typeNode to avoid duplicate title generation in codegen.
             // The codegen function adds a 'title' field when typeNode is provided,
@@ -75,7 +90,9 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 settings: {
                     coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                     transformDate: opt?.transformDate
-                }
+                },
+                availableTypes,
+                processingStack
             });
             
             // Add title to the schema if not already present
