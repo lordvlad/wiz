@@ -36,7 +36,26 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             return createOpenApiSchema(narrowed[0]!, context);
         if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral()))
             return { type: "boolean" };
+        
+        // Check for string literal unions
+        if (narrowed.length > 1 && narrowed.every(t => t.isStringLiteral())) {
+            const enumValues = narrowed.map(t => t.getLiteralValue());
+            return { type: "string", enum: enumValues };
+        }
+        
+        // Check for number literal unions
+        if (narrowed.length > 1 && narrowed.every(t => t.isNumberLiteral())) {
+            const enumValues = narrowed.map(t => t.getLiteralValue());
+            return { type: "number", enum: enumValues };
+        }
     }
+    
+    // Check for enum types
+    const enumSchema = tryCreateEnumSchema(type);
+    if (enumSchema) {
+        return enumSchema;
+    }
+    
     if (isBigIntFormat(type, context.nodeText))
         return createSchemaForBigInt(type, context.nodeText);
 
@@ -403,6 +422,70 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     }
     
     return result;
+}
+
+function tryCreateEnumSchema(type: Type): unknown | undefined {
+    const symbol = type.getSymbol();
+    if (!symbol) return undefined;
+    
+    // Check if this is an enum
+    const declarations = symbol.getDeclarations();
+    if (!declarations || declarations.length === 0) return undefined;
+    
+    for (const declaration of declarations) {
+        // Check if it's an enum declaration
+        if (Node.isEnumDeclaration(declaration)) {
+            const members = declaration.getMembers();
+            const enumValues: (string | number)[] = [];
+            let enumType: "string" | "number" | undefined;
+            
+            for (const member of members) {
+                const initializer = member.getInitializer();
+                if (initializer) {
+                    // Has explicit value
+                    if (Node.isStringLiteral(initializer)) {
+                        const value = initializer.getLiteralValue();
+                        enumValues.push(value);
+                        if (enumType === undefined) enumType = "string";
+                        else if (enumType !== "string") {
+                            // Mixed types - shouldn't happen but handle it
+                            return undefined;
+                        }
+                    } else if (Node.isNumericLiteral(initializer)) {
+                        const value = initializer.getLiteralValue();
+                        enumValues.push(value);
+                        if (enumType === undefined) enumType = "number";
+                        else if (enumType !== "number") {
+                            // Mixed types
+                            return undefined;
+                        }
+                    } else {
+                        // Complex initializer, can't handle
+                        return undefined;
+                    }
+                } else {
+                    // Auto-incremented numeric enum
+                    // TypeScript enums without initializers are numeric, starting at 0
+                    const value = member.getValue();
+                    if (typeof value === 'number') {
+                        enumValues.push(value);
+                        if (enumType === undefined) enumType = "number";
+                        else if (enumType !== "number") {
+                            return undefined;
+                        }
+                    } else {
+                        return undefined;
+                    }
+                }
+            }
+            
+            if (enumValues.length > 0 && enumType) {
+                return { type: enumType, enum: enumValues };
+            }
+        }
+    }
+    
+    return undefined;
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
