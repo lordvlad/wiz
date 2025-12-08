@@ -690,6 +690,110 @@ const cases: TestCase[] = [
         }`
     },
     {
+        title: "jsdoc @deprecated on schema",
+        type: `/** @deprecated Use NewType instead */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            deprecated: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc description on schema",
+        type: `/** 
+                 * Represents a user in the system
+                 */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            description: "Represents a user in the system",
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc combined tags on schema",
+        type: `/** 
+                 * Legacy user type
+                 * @deprecated Use UserV2 instead
+                 * @example { "id": "123", "name": "John" }
+                 */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            description: "Legacy user type",
+            example: {
+                id: "123",
+                name: "John"
+            },
+            deprecated: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
         title: "jsdoc @minimum and @maximum",
         type: `type Type = {
                     /**
@@ -2170,6 +2274,514 @@ const cases: TestCase[] = [
             },
             required: [
                 "item"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with string values",
+        type: `type Type = {
+                    [key: string]: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "string"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with number values",
+        type: `type Type = {
+                    [key: string]: number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "number"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with boolean values",
+        type: `type Type = {
+                    [key: string]: boolean;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "boolean"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with object values",
+        type: `type Type = {
+                    [key: string]: {
+                        id: number;
+                        name: string;
+                    };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "number"
+                    },
+                    name: {
+                        type: "string"
+                    }
+                },
+                required: [
+                    "id",
+                    "name"
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with array values",
+        type: `type Type = {
+                    [key: string]: string[];
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "array",
+                items: {
+                    type: "string"
+                }
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with $ref values",
+        type: `type Item = {
+                    id: number;
+                    value: string;
+                }
+                type Type = {
+                    [key: string]: Item;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Type', 'Item'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        additionalProperties: {
+                            $ref: "#/components/schemas/Item"
+                        },
+                        title: "Type"
+                    },
+                    Item: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            value: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "value"
+                        ],
+                        title: "Item"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "mixed properties and map",
+        type: `type Type = {
+                    fixedProp: string;
+                    count: number;
+                    [key: string]: any;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                fixedProp: {
+                    type: "string"
+                },
+                count: {
+                    type: "number"
+                }
+            },
+            required: [
+                "fixedProp",
+                "count"
+            ],
+            additionalProperties: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with union values",
+        type: `type Type = {
+                    [key: string]: string | number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                oneOf: [
+                    {
+                        type: "string"
+                    },
+                    {
+                        type: "number"
+                    }
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nested map",
+        type: `type Type = {
+                    metadata: {
+                        [key: string]: string;
+                    };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                metadata: {
+                    type: "object",
+                    additionalProperties: {
+                        type: "string"
+                    }
+                }
+            },
+            required: [
+                "metadata"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "Record type with string values",
+        type: `type Type = Record<string, string>`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "string"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "Record type with number values",
+        type: `type Type = Record<string, number>`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "number"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "Record type with object values",
+        type: `type Type = Record<string, { id: number; name: string }>`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "number"
+                    },
+                    name: {
+                        type: "string"
+                    }
+                },
+                required: [
+                    "id",
+                    "name"
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "Record type with $ref values",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }
+                type Type = Record<string, User>`,
+        isArrayTest: true,
+        arrayTypes: ['Type', 'User'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        additionalProperties: {
+                            $ref: "#/components/schemas/User"
+                        },
+                        title: "Type"
+                    },
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "Record type with union values",
+        type: `type Type = Record<string, string | number>`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                oneOf: [
+                    {
+                        type: "string"
+                    },
+                    {
+                        type: "number"
+                    }
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "union with index signature - string map or string",
+        type: `type Type = {
+                    value: { [key: string]: string } | string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "string"
+                            }
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "union with index signature - Record or number",
+        type: `type Type = {
+                    data: Record<string, number> | number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                data: {
+                    oneOf: [
+                        {
+                            type: "number"
+                        },
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "number"
+                            }
+                        }
+                    ]
+                }
+            },
+            required: [
+                "data"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "union of different index signatures",
+        type: `type Type = {
+                    value: { [key: string]: string } | { [key: string]: number };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "string"
+                            }
+                        },
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "number"
+                            }
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "union of Record types",
+        type: `type Type = {
+                    config: Record<string, string> | Record<string, boolean>;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                config: {
+                    oneOf: [
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "string"
+                            }
+                        },
+                        {
+                            type: "object",
+                            additionalProperties: {
+                                type: "boolean"
+                            }
+                        }
+                    ]
+                }
+            },
+            required: [
+                "config"
             ],
             title: "Type"
                     }

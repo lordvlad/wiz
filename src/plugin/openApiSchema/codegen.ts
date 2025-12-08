@@ -14,6 +14,7 @@ type SchemaContext = {
     typeNode?: Node;
     availableTypes?: Set<string>;
     processingStack?: Set<string>;
+    typeAliasDeclaration?: Node;
 };
 
 type JSDocMetadata = {
@@ -250,13 +251,35 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const schema: Record<string, any> = { 
+        const baseSchema: Record<string, any> = { 
             type: "object", 
-            properties,
+            ...(Object.keys(properties).length > 0 ? { properties } : {}),
             ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
-        if (required.length > 0) schema.required = required;
+        if (required.length > 0) baseSchema.required = required;
+
+        // Extract and merge JSDoc metadata from type alias declaration
+        const schema = context.typeAliasDeclaration
+            ? mergeJSDocIntoSchema(baseSchema, extractJSDocMetadata(context.typeAliasDeclaration))
+            : baseSchema;
+
+        // Handle index signatures (additionalProperties)
+        const stringIndexType = type.getStringIndexType();
+        if (stringIndexType) {
+            // Check if this is `any` type using TypeFlags for robust detection
+            const flags = stringIndexType.getFlags();
+            if ((flags & TypeFlags.Any) !== 0) {
+                schema.additionalProperties = true;
+            } else {
+                // Generate schema for the index signature value type
+                schema.additionalProperties = createOpenApiSchema(stringIndexType, {
+                    settings: context.settings,
+                    availableTypes,
+                    processingStack: newProcessingStack
+                });
+            }
+        }
 
         return schema;
     }
@@ -488,7 +511,14 @@ function shouldExcludeFromSchema(node?: Node): boolean {
 function parseJSDocValue(value: string): any {
     value = value.trim();
     
-    // Try to parse as JSON
+    // Try to parse as JSON first (handles objects, arrays, and primitives)
+    try {
+        return JSON.parse(value);
+    } catch {
+        // Not valid JSON, continue with other parsing
+    }
+    
+    // Try to parse as boolean
     if (value === 'true') return true;
     if (value === 'false') return false;
     if (value === 'null') return null;
