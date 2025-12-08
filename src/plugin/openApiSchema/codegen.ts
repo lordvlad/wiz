@@ -450,7 +450,7 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
     }
     
     const enumValues: (string | number)[] = [];
-    let enumType: "string" | "number" | undefined;
+    let enumType: "string" | "number" = "string"; // Will be set in first iteration
     
     for (const member of members) {
         const initializer = member.getInitializer();
@@ -459,14 +459,14 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
             if (Node.isStringLiteral(initializer)) {
                 const value = initializer.getLiteralValue();
                 enumValues.push(value);
-                if (enumType === undefined) enumType = "string";
+                if (enumValues.length === 1) enumType = "string";
                 else if (enumType !== "string") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else if (Node.isNumericLiteral(initializer)) {
                 const value = initializer.getLiteralValue();
                 enumValues.push(value);
-                if (enumType === undefined) enumType = "number";
+                if (enumValues.length === 1) enumType = "number";
                 else if (enumType !== "number") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
@@ -481,18 +481,17 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
             const value = member.getValue();
             if (typeof value === 'number') {
                 enumValues.push(value);
-                if (enumType === undefined) enumType = "number";
+                if (enumValues.length === 1) enumType = "number";
                 else if (enumType !== "number") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else {
-                throw new Error(`Enum member ${member.getName()} has unexpected non-numeric value: ${type.getText()}`);
+                throw new Error(`Enum member ${member.getName()} has unexpected non-numeric value (${JSON.stringify(value)}): ${type.getText()}`);
             }
         }
     }
     
-    // enumType is guaranteed to be set since we have members and each iteration sets it or throws
-    return { type: enumType!, enum: enumValues };
+    return { type: enumType, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
