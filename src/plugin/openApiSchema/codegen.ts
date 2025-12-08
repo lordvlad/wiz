@@ -252,11 +252,27 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
 
         const schema: Record<string, any> = { 
             type: "object", 
-            properties,
+            ...(Object.keys(properties).length > 0 ? { properties } : {}),
             ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
         if (required.length > 0) schema.required = required;
+
+        // Handle index signatures (additionalProperties)
+        const stringIndexType = type.getStringIndexType();
+        if (stringIndexType) {
+            // Check if this is `any` type
+            if (stringIndexType.getText() === 'any') {
+                schema.additionalProperties = true;
+            } else {
+                // Generate schema for the index signature value type
+                schema.additionalProperties = createOpenApiSchema(stringIndexType, {
+                    settings: context.settings,
+                    availableTypes,
+                    processingStack: newProcessingStack
+                });
+            }
+        }
 
         return schema;
     }

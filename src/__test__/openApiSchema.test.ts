@@ -2176,6 +2176,246 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "map with string values",
+        type: `type Type = {
+                    [key: string]: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "string"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with number values",
+        type: `type Type = {
+                    [key: string]: number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "number"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with boolean values",
+        type: `type Type = {
+                    [key: string]: boolean;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "boolean"
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with object values",
+        type: `type Type = {
+                    [key: string]: {
+                        id: number;
+                        name: string;
+                    };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "object",
+                properties: {
+                    id: {
+                        type: "number"
+                    },
+                    name: {
+                        type: "string"
+                    }
+                },
+                required: [
+                    "id",
+                    "name"
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with array values",
+        type: `type Type = {
+                    [key: string]: string[];
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                type: "array",
+                items: {
+                    type: "string"
+                }
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with $ref values",
+        type: `type Item = {
+                    id: number;
+                    value: string;
+                }
+                type Type = {
+                    [key: string]: Item;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Type', 'Item'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        additionalProperties: {
+                            $ref: "#/components/schemas/Item"
+                        },
+                        title: "Type"
+                    },
+                    Item: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            value: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "value"
+                        ],
+                        title: "Item"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "mixed properties and map",
+        type: `type Type = {
+                    fixedProp: string;
+                    count: number;
+                    [key: string]: any;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                fixedProp: {
+                    type: "string"
+                },
+                count: {
+                    type: "number"
+                }
+            },
+            required: [
+                "fixedProp",
+                "count"
+            ],
+            additionalProperties: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "map with union values",
+        type: `type Type = {
+                    [key: string]: string | number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            additionalProperties: {
+                oneOf: [
+                    {
+                        type: "string"
+                    },
+                    {
+                        type: "number"
+                    }
+                ]
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nested map",
+        type: `type Type = {
+                    metadata: {
+                        [key: string]: string;
+                    };
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                metadata: {
+                    type: "object",
+                    additionalProperties: {
+                        type: "string"
+                    }
+                }
+            },
+            required: [
+                "metadata"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
     }
 ];
 
