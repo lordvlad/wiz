@@ -1187,6 +1187,313 @@ const cases: TestCase[] = [
         isArrayTest: true,
         arrayTypes: ['User', 'User'],
         expectError: "Duplicate type name 'User' detected in tuple"
+    },
+    {
+        title: "$ref for type reference in property",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }
+                type Post = {
+                    title: string;
+                    author: User;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['User', 'Post'],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "User"
+                    },
+                    Post: {
+                        type: "object",
+                        properties: {
+                            title: {
+                                type: "string"
+                            },
+                            author: {
+                                $ref: "#/components/schemas/User"
+                            }
+                        },
+                        required: [
+                            "title",
+                            "author"
+                        ],
+                        title: "Post"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "$ref for array of referenced type",
+        type: `type Tag = {
+                    id: number;
+                    name: string;
+                }
+                type Article = {
+                    title: string;
+                    tags: Tag[];
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Tag', 'Article'],
+        schema: `{
+            components: {
+                schemas: {
+                    Tag: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "Tag"
+                    },
+                    Article: {
+                        type: "object",
+                        properties: {
+                            title: {
+                                type: "string"
+                            },
+                            tags: {
+                                type: "array",
+                                items: {
+                                    $ref: "#/components/schemas/Tag"
+                                }
+                            }
+                        },
+                        required: [
+                            "title",
+                            "tags"
+                        ],
+                        title: "Article"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "$ref for optional referenced type",
+        type: `type Profile = {
+                    bio: string;
+                }
+                type User = {
+                    name: string;
+                    profile?: Profile;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Profile', 'User'],
+        schema: `{
+            components: {
+                schemas: {
+                    Profile: {
+                        type: "object",
+                        properties: {
+                            bio: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "bio"
+                        ],
+                        title: "Profile"
+                    },
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: {
+                                type: "string"
+                            },
+                            profile: {
+                                $ref: "#/components/schemas/Profile"
+                            }
+                        },
+                        required: [
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "$ref with multiple references",
+        type: `type Author = {
+                    name: string;
+                }
+                type Category = {
+                    title: string;
+                }
+                type Post = {
+                    content: string;
+                    author: Author;
+                    category: Category;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Author', 'Category', 'Post'],
+        schema: `{
+            components: {
+                schemas: {
+                    Author: {
+                        type: "object",
+                        properties: {
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "name"
+                        ],
+                        title: "Author"
+                    },
+                    Category: {
+                        type: "object",
+                        properties: {
+                            title: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "title"
+                        ],
+                        title: "Category"
+                    },
+                    Post: {
+                        type: "object",
+                        properties: {
+                            content: {
+                                type: "string"
+                            },
+                            author: {
+                                $ref: "#/components/schemas/Author"
+                            },
+                            category: {
+                                $ref: "#/components/schemas/Category"
+                            }
+                        },
+                        required: [
+                            "content",
+                            "author",
+                            "category"
+                        ],
+                        title: "Post"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "$ref circular reference",
+        type: `type Node = {
+                    value: string;
+                    next?: Node;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Node'],
+        schema: `{
+            components: {
+                schemas: {
+                    Node: {
+                        type: "object",
+                        properties: {
+                            value: {
+                                type: "string"
+                            },
+                            next: {
+                                $ref: "#/components/schemas/Node"
+                            }
+                        },
+                        required: [
+                            "value"
+                        ],
+                        title: "Node"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "inline type when not in components",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }
+                type Post = {
+                    title: string;
+                    metadata: {
+                        views: number;
+                    };
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['User', 'Post'],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "User"
+                    },
+                    Post: {
+                        type: "object",
+                        properties: {
+                            title: {
+                                type: "string"
+                            },
+                            metadata: {
+                                type: "object",
+                                properties: {
+                                    views: {
+                                        type: "number"
+                                    }
+                                },
+                                required: [
+                                    "views"
+                                ]
+                            }
+                        },
+                        required: [
+                            "title",
+                            "metadata"
+                        ],
+                        title: "Post"
+                    }
+                }
+            }
+        }`
     }
 ];
 
