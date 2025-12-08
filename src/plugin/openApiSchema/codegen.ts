@@ -80,13 +80,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const schema: Record<string, any> = { type: "object" };
-        
-        if (context.typeName) {
-            schema.title = context.typeName;
-        }
-        
-        schema.properties = properties;
+        const schema: Record<string, any> = {
+            type: "object",
+            ...(context.typeName && { title: context.typeName }),
+            properties,
+        };
 
         if (required.length > 0) schema.required = required;
 
