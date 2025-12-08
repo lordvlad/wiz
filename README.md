@@ -420,13 +420,82 @@ Generates:
 
 #### Special Cases
 
-**Nullable unions**: `null` and `undefined` are automatically filtered from unions:
+**Nullable properties**: Properties that can be `null` are marked with `nullable: true` in the OpenAPI schema:
+
+```typescript
+type User = {
+    name: string | null;
+    email: string;
+};
+```
+
+Generates:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "nullable": true
+    },
+    "email": {
+      "type": "string"
+    }
+  },
+  "required": ["name", "email"]
+}
+```
+
+**Important distinctions:**
+
+- `field: string | null` - Required field that can be null (includes `nullable: true`, in `required` array)
+- `field?: string` - Optional field (NOT in `required` array, NO `nullable: true`)
+- `field?: string | null` - Optional field that can also be null (NOT in `required` array, includes `nullable: true`)
+
+**Nullable unions**: `null` and `undefined` are automatically filtered from unions, and `nullable: true` is added when `null` is present:
 
 ```typescript
 type Value = string | number | null;
 ```
 
-Generates `oneOf` with only `string` and `number`.
+Generates:
+
+```json
+{
+  "oneOf": [
+    { "type": "string" },
+    { "type": "number" }
+  ],
+  "nullable": true
+}
+```
+
+**Nullable references**: Types that reference other schemas can also be nullable:
+
+```typescript
+type Author = {
+    id: number;
+    name: string;
+};
+
+type Post = {
+    author: Author | null;
+};
+```
+
+Generates:
+
+```json
+{
+  "properties": {
+    "author": {
+      "$ref": "#/components/schemas/Author",
+      "nullable": true
+    }
+  }
+}
+```
 
 **Boolean expansion**: TypeScript expands `boolean` to `true | false` in unions. Wiz automatically collapses these back to a single `boolean` type:
 
