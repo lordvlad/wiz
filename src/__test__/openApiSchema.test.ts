@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { compile, dedent } from './util';
 
+// Expected export format from Bun's ESM output
+const ESM_EXPORT = `\nexport {\nschema\n};`;
 
 const cases = [
     {
@@ -787,7 +789,7 @@ describe("openApiSchema plugin", () => {
             `
 
         if (schema) {
-            const transformed = `var schema = ${schema};\nexport {\nschema\n};`;
+            const transformed = `var schema = ${schema};${ESM_EXPORT}`;
             const actual = await compile(code, pluginOptions)
             const expected = dedent(transformed);
             expect(actual).toInclude(expected);
