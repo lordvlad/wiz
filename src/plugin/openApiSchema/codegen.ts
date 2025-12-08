@@ -61,9 +61,16 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     }
     
     // Check for enum types
-    const enumSchema = tryCreateEnumSchema(type);
-    if (enumSchema) {
-        return enumSchema;
+    const symbol = type.getSymbol();
+    if (symbol) {
+        const declarations = symbol.getDeclarations();
+        if (declarations && declarations.length > 0) {
+            for (const declaration of declarations) {
+                if (Node.isEnumDeclaration(declaration)) {
+                    return createEnumSchema(declaration, type);
+                }
+            }
+        }
     }
     
     if (isBigIntFormat(type, context.nodeText))
@@ -434,76 +441,65 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     return result;
 }
 
-function tryCreateEnumSchema(type: Type): { type: "string" | "number"; enum: (string | number)[] } | undefined {
-    const symbol = type.getSymbol();
-    if (!symbol) return undefined;
+function createEnumSchema(declaration: Node, type: Type): { type: "string" | "number"; enum: (string | number)[] } {
+    if (!Node.isEnumDeclaration(declaration)) {
+        throw new Error(`Expected EnumDeclaration but got ${declaration.getKindName()}`);
+    }
     
-    // Check if this is an enum
-    const declarations = symbol.getDeclarations();
-    if (!declarations || declarations.length === 0) return undefined;
+    const members = declaration.getMembers();
     
-    for (const declaration of declarations) {
-        // Check if it's an enum declaration
-        if (Node.isEnumDeclaration(declaration)) {
-            const members = declaration.getMembers();
-            const enumValues: (string | number)[] = [];
-            let enumType: "string" | "number" | undefined;
-            
-            for (const member of members) {
-                const initializer = member.getInitializer();
-                if (initializer) {
-                    // Has explicit value
-                    if (Node.isStringLiteral(initializer)) {
-                        const value = initializer.getLiteralValue();
-                        enumValues.push(value);
-                        if (enumType === undefined) enumType = "string";
-                        else if (enumType !== "string") {
-                            // TypeScript doesn't allow mixed string/numeric enums, but handle defensively
-                            // This would be a malformed enum; skip schema generation for safety
-                            return undefined;
-                        }
-                    } else if (Node.isNumericLiteral(initializer)) {
-                        const value = initializer.getLiteralValue();
-                        enumValues.push(value);
-                        if (enumType === undefined) enumType = "number";
-                        else if (enumType !== "number") {
-                            // TypeScript doesn't allow mixed string/numeric enums, but handle defensively
-                            return undefined;
-                        }
-                    } else {
-                        // Complex initializer (e.g., computed values), can't statically analyze
-                        return undefined;
-                    }
-                } else {
-                    // Auto-incremented numeric enum member
-                    // TypeScript enums without explicit initializers are auto-incremented starting at 0
-                    // member.getValue() returns the computed constant value for the enum member.
-                    // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
-                    // (e.g., it may depend on computed values or other declarations), so we bail out.
-                    const value = member.getValue();
-                    if (typeof value === 'number') {
-                        enumValues.push(value);
-                        if (enumType === undefined) enumType = "number";
-                        else if (enumType !== "number") {
-                            return undefined;
-                        }
-                    } else {
-                        // Unexpected non-numeric value or undefined for auto-incremented enum
-                        return undefined;
-                    }
+    // Handle empty enums
+    if (members.length === 0) {
+        throw new Error(`Enum ${declaration.getName()} has no members`);
+    }
+    
+    const enumValues: (string | number)[] = [];
+    let enumType: "string" | "number" | undefined;
+    
+    for (const member of members) {
+        const initializer = member.getInitializer();
+        if (initializer) {
+            // Has explicit value
+            if (Node.isStringLiteral(initializer)) {
+                const value = initializer.getLiteralValue();
+                enumValues.push(value);
+                if (enumType === undefined) enumType = "string";
+                else if (enumType !== "string") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
+            } else if (Node.isNumericLiteral(initializer)) {
+                const value = initializer.getLiteralValue();
+                enumValues.push(value);
+                if (enumType === undefined) enumType = "number";
+                else if (enumType !== "number") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
+                }
+            } else {
+                throw new Error(`Complex enum initializers are not supported: ${type.getText()}`);
             }
-            
-            if (enumValues.length > 0 && enumType) {
-                return { type: enumType, enum: enumValues };
+        } else {
+            // Auto-incremented numeric enum member
+            // TypeScript enums without explicit initializers are auto-incremented starting at 0
+            // member.getValue() returns the computed constant value for the enum member.
+            // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
+            const value = member.getValue();
+            if (typeof value === 'number') {
+                enumValues.push(value);
+                if (enumType === undefined) enumType = "number";
+                else if (enumType !== "number") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
+                }
+            } else {
+                throw new Error(`Enum member ${member.getName()} has unexpected non-numeric value: ${type.getText()}`);
             }
-            
-            // Successfully processed an enum declaration, no need to check remaining declarations
-            return undefined;
         }
     }
     
-    return undefined;
+    if (!enumType) {
+        throw new Error(`Could not determine enum type: ${type.getText()}`);
+    }
+    
+    return { type: enumType, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
