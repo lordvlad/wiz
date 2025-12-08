@@ -32,7 +32,10 @@ export async function compile(source: string, pluginOptions: WizPluginOptions = 
         throw new Error(message);
     }
 
-    const code = await Bun.file(`${import.meta.dir}/.tmp/out/src.js`).text();
+    let code = await Bun.file(`${import.meta.dir}/.tmp/out/src.js`).text();
+
+    // Remove leading comment line if present (e.g., "// src/__test__/.tmp/src.ts")
+    code = code.replace(/^\/\/[^\n]*\n/, '');
 
     if (!DEBUG)
         rmdir(`${import.meta.dir}/.tmp`, { recursive: true });

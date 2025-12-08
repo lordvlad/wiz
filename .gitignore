@@ -13,6 +13,9 @@ coverage
 # test results
 test-results.xml
 
+# test temporary files
+.tmp
+
 # logs
 logs
 _.log
