@@ -1,5 +1,5 @@
 
-import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode } from "ts-morph";
+import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode, EnumDeclaration } from "ts-morph";
 import type { BigIntFormatType, NumFormatType } from "../../tags";
 
 type SchemaSettings = {
@@ -36,7 +36,43 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             return createOpenApiSchema(narrowed[0]!, context);
         if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral()))
             return { type: "boolean" };
+        
+        // Check for string literal unions
+        if (narrowed.length > 1 && narrowed.every(t => t.isStringLiteral())) {
+            const enumValues = narrowed
+                .map(t => t.getLiteralValue())
+                .filter((v): v is string => typeof v === 'string');
+            // Ensure all literal values were extracted successfully
+            if (enumValues.length === narrowed.length) {
+                return { type: "string", enum: enumValues };
+            }
+        }
+        
+        // Check for number literal unions
+        if (narrowed.length > 1 && narrowed.every(t => t.isNumberLiteral())) {
+            const enumValues = narrowed
+                .map(t => t.getLiteralValue())
+                .filter((v): v is number => typeof v === 'number');
+            // Ensure all literal values were extracted successfully
+            if (enumValues.length === narrowed.length) {
+                return { type: "number", enum: enumValues };
+            }
+        }
     }
+    
+    // Check for enum types
+    const symbol = type.getSymbol();
+    if (symbol) {
+        const declarations = symbol.getDeclarations();
+        if (declarations && declarations.length > 0) {
+            for (const declaration of declarations) {
+                if (Node.isEnumDeclaration(declaration)) {
+                    return createEnumSchema(declaration, type);
+                }
+            }
+        }
+    }
+    
     if (isBigIntFormat(type, context.nodeText))
         return createSchemaForBigInt(type, context.nodeText);
 
@@ -403,6 +439,63 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     }
     
     return result;
+}
+
+function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "string" | "number"; enum: (string | number)[] } {
+    const members = declaration.getMembers();
+    
+    // Handle empty enums
+    if (members.length === 0) {
+        throw new Error(`Enum ${declaration.getName()} has no members`);
+    }
+    
+    const enumValues: (string | number)[] = [];
+    let enumType: "string" | "number" | null = null;
+    
+    for (const member of members) {
+        const initializer = member.getInitializer();
+        if (initializer) {
+            // Has explicit value
+            if (Node.isStringLiteral(initializer)) {
+                const value = initializer.getLiteralValue();
+                enumValues.push(value);
+                if (enumType === null) {
+                    enumType = "string";
+                } else if (enumType !== "string") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
+                }
+            } else if (Node.isNumericLiteral(initializer)) {
+                const value = initializer.getLiteralValue();
+                enumValues.push(value);
+                if (enumType === null) {
+                    enumType = "number";
+                } else if (enumType !== "number") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
+                }
+            } else {
+                throw new Error(`Complex enum initializers are not supported: ${type.getText()}`);
+            }
+        } else {
+            // Auto-incremented numeric enum member
+            // TypeScript enums without explicit initializers are auto-incremented starting at 0
+            // member.getValue() returns the computed constant value for the enum member.
+            // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
+            const value = member.getValue();
+            if (typeof value === 'number') {
+                enumValues.push(value);
+                if (enumType === null) {
+                    enumType = "number";
+                } else if (enumType !== "number") {
+                    throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
+                }
+            } else {
+                throw new Error(`Enum member ${member.getName()} has unexpected non-numeric value (${JSON.stringify(value)}): ${type.getText()}`);
+            }
+        }
+    }
+    
+    // enumType is guaranteed to be non-null since we have at least one member
+    return { type: enumType!, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {

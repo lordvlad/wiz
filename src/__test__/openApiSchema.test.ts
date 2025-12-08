@@ -773,6 +773,155 @@ const cases = [
                 "username"
             ]
         }`
+    },
+    {
+        title: "string literal union",
+        type: `type Environment = "development" | "staging" | "production";
+                type Type = {
+                    env: Environment;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                env: {
+                    type: "string",
+                    enum: [
+                        "development",
+                        "staging",
+                        "production"
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "env"
+            ]
+        }`
+    },
+    {
+        title: "inline string literal union",
+        type: `type Type = {
+                    status: "active" | "inactive" | "pending";
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                status: {
+                    type: "string",
+                    enum: [
+                        "active",
+                        "inactive",
+                        "pending"
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "status"
+            ]
+        }`
+    },
+    {
+        title: "typescript string enum",
+        type: `enum UserRole {
+                    Admin = "admin",
+                    User = "user",
+                    Guest = "guest"
+                }
+                type Type = {
+                    role: UserRole;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                role: {
+                    type: "string",
+                    enum: [
+                        "admin",
+                        "user",
+                        "guest"
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "role"
+            ]
+        }`
+    },
+    {
+        title: "typescript numeric enum",
+        type: `enum StatusCode {
+                    Ok = 200,
+                    NotFound = 404,
+                    ServerError = 500
+                }
+                type Type = {
+                    status: StatusCode;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                status: {
+                    type: "number",
+                    enum: [
+                        200,
+                        404,
+                        500
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "status"
+            ]
+        }`
+    },
+    {
+        title: "mixed enum types in one schema",
+        type: `enum UserRole {
+                    Admin = "admin",
+                    User = "user"
+                }
+                type Environment = "dev" | "prod";
+                type Type = {
+                    role: UserRole;
+                    env: Environment;
+                    priority: 1 | 2 | 3;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                role: {
+                    type: "string",
+                    enum: [
+                        "admin",
+                        "user"
+                    ]
+                },
+                env: {
+                    type: "string",
+                    enum: [
+                        "dev",
+                        "prod"
+                    ]
+                },
+                priority: {
+                    type: "number",
+                    enum: [
+                        1,
+                        2,
+                        3
+                    ]
+                }
+            },
+            title: "Type",
+            required: [
+                "role",
+                "env",
+                "priority"
+            ]
+        }`
     }
 ];
 
