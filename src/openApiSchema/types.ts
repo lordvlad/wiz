@@ -10,4 +10,10 @@ type ObjectSchema = {
 
 type UnknownSchema = Record<string, unknown>;
 
-export type OpenApiSchema<T> = PrimitiveSchema | ArraySchema | ObjectSchema | UnknownSchema;
+type CompositeSchema = {
+    components: {
+        schemas: Record<string, OpenApiSchema<any>>;
+    };
+};
+
+export type OpenApiSchema<T> = PrimitiveSchema | ArraySchema | ObjectSchema | UnknownSchema | CompositeSchema;

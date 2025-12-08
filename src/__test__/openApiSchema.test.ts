@@ -922,18 +922,113 @@ const cases = [
                 "priority"
             ]
         }`
+    },
+    {
+        title: "array with single type",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['User'],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "array with multiple types",
+        type: `type User = {
+                    id: number;
+                    name: string;
+                }
+                type Product = {
+                    sku: string;
+                    price: number;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['User', 'Product'],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "id",
+                            "name"
+                        ],
+                        title: "User"
+                    },
+                    Product: {
+                        type: "object",
+                        properties: {
+                            sku: {
+                                type: "string"
+                            },
+                            price: {
+                                type: "number"
+                            }
+                        },
+                        required: [
+                            "sku",
+                            "price"
+                        ],
+                        title: "Product"
+                    }
+                }
+            }
+        }`
     }
 ];
 
 describe("openApiSchema plugin", () => {
-    it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError }) => {
+    it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes }) => {
         const needsTags = type.includes("tags.");
-        const code = `
+        
+        let code;
+        if (isArrayTest && arrayTypes) {
+            // Generate code for array test
+            code = `
+                ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
+                import { createOpenApiSchema } from "../../openApiSchema/index";
+                ${type}
+                export const schema = createOpenApiSchema<[${arrayTypes.join(', ')}]>();
+            `;
+        } else {
+            // Generate code for single type test
+            code = `
                 ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
                 import { createOpenApiSchema } from "../../openApiSchema/index";
                 ${type}
                 export const schema = createOpenApiSchema<Type>();
-            `
+            `;
+        }
 
         if (schema) {
             const transformed = `var schema = ${schema};`;

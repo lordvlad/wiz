@@ -16,15 +16,53 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         // FIXME guard instead of using non-null assertion
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
-        const schema = codegen(type, {
-            typeNode: typeArg,
-            settings: {
-                coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
-                transformDate: opt?.transformDate
+        
+        // Check if this is a tuple type (array of types)
+        if (type.isTuple()) {
+            // Generate composite schema with components.schemas
+            const tupleElements = type.getTupleElements();
+            const schemas: Record<string, any> = {};
+            
+            for (const element of tupleElements) {
+                // Get the alias symbol for the type name (User, Product, etc.)
+                const aliasSymbol = element.getAliasSymbol();
+                const typeName = aliasSymbol?.getName() ?? element.getText();
+                
+                const schema = codegen(element, {
+                    typeNode: undefined, // Don't pass typeNode for composite schemas to avoid title duplication
+                    settings: {
+                        coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
+                        transformDate: opt?.transformDate
+                    }
+                });
+                
+                // Add title to the schema if not already present
+                if (typeof schema === 'object' && schema !== null && !('title' in schema)) {
+                    (schema as any).title = typeName;
+                }
+                
+                schemas[typeName] = schema;
             }
-        });
+            
+            const compositeSchema = {
+                components: {
+                    schemas
+                }
+            };
+            
+            call.replaceWithText(JSON.stringify(compositeSchema, null, 2));
+        } else {
+            // Single type - maintain backward compatibility
+            const schema = codegen(type, {
+                typeNode: typeArg,
+                settings: {
+                    coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
+                    transformDate: opt?.transformDate
+                }
+            });
 
-        // Replace the call expression with a literal object representing the schema
-        call.replaceWithText(JSON.stringify(schema, null, 2));
+            // Replace the call expression with a literal object representing the schema
+            call.replaceWithText(JSON.stringify(schema, null, 2));
+        }
     }
 }
