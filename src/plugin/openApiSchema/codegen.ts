@@ -98,7 +98,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
             
             // Detect discriminator for oneOf schemas
-            const discriminator = detectDiscriminator(typesToProcess, availableTypes);
+            // Use narrowed (not typesToProcess) to include all original types for detection
+            const discriminator = detectDiscriminator(narrowed, availableTypes);
             
             const result: any = { oneOf: schemas };
             if (discriminator) {
@@ -697,8 +698,16 @@ function detectDiscriminator(
         let isValidDiscriminator = true;
         
         for (let i = 0; i < unionTypes.length; i++) {
-            const unionType = unionTypes[i]!;
-            const prop = typeProperties[i]!.get(propName);
+            const unionType = unionTypes[i];
+            const typeProps = typeProperties[i];
+            
+            // Skip if we don't have props for this type
+            if (!unionType || !typeProps) {
+                isValidDiscriminator = false;
+                break;
+            }
+            
+            const prop = typeProps.get(propName);
             if (!prop) {
                 isValidDiscriminator = false;
                 break;
@@ -715,20 +724,10 @@ function detectDiscriminator(
             // Property must be a string or number literal type
             if (propType.isStringLiteral()) {
                 const value = propType.getLiteralValue();
-                if (typeof value === 'string') {
-                    literalValues.set(unionType, value);
-                } else {
-                    isValidDiscriminator = false;
-                    break;
-                }
+                literalValues.set(unionType, value as string);
             } else if (propType.isNumberLiteral()) {
                 const value = propType.getLiteralValue();
-                if (typeof value === 'number') {
-                    literalValues.set(unionType, value);
-                } else {
-                    isValidDiscriminator = false;
-                    break;
-                }
+                literalValues.set(unionType, value as number);
             } else {
                 // Property is not a literal type
                 isValidDiscriminator = false;
