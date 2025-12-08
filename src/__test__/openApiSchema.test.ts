@@ -1022,6 +1022,252 @@ const cases: TestCase[] = [
         }`
     },
     {
+        title: "jsdoc @format email",
+        type: `type Type = {
+                    /**
+                     * @format email
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format uuid",
+        type: `type Type = {
+                    /**
+                     * @format uuid
+                     */
+                    id: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    format: "uuid"
+                }
+            },
+            required: [
+                "id"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format uri",
+        type: `type Type = {
+                    /**
+                     * @format uri
+                     */
+                    url: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                url: {
+                    type: "string",
+                    format: "uri"
+                }
+            },
+            required: [
+                "url"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format with other tags",
+        type: `type Type = {
+                    /**
+                     * User's email address
+                     * @format email
+                     * @example "user@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "User's email address",
+                    example: "user@example.com",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with email",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    email: StrFormat<"email">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with uuid",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    id: StrFormat<"uuid">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    format: "uuid"
+                }
+            },
+            required: [
+                "id"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with uri",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    url: StrFormat<"uri">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                url: {
+                    type: "string",
+                    format: "uri"
+                }
+            },
+            required: [
+                "url"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with ipv4",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    address: StrFormat<"ipv4">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                address: {
+                    type: "string",
+                    format: "ipv4"
+                }
+            },
+            required: [
+                "address"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with hostname",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    server: StrFormat<"hostname">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                server: {
+                    type: "string",
+                    format: "hostname"
+                }
+            },
+            required: [
+                "server"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
         title: "string literal union",
         type: `type Environment = "development" | "staging" | "production";
                 type Type = {
