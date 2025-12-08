@@ -11,6 +11,7 @@ type SchemaContext = {
     nodeText?: string;
     settings?: SchemaSettings;
     declaration?: Node;
+    typeName?: string;
 };
 
 type JSDocMetadata = {
@@ -67,7 +68,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     if (type.isArray())
         return {
             type: "array",
-            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), context),
+            // Array items are anonymous, don't pass typeName
+            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), { settings: context.settings }),
         };
 
     if (type.isObject() && !type.isArray() && !type.isInterface() && !type.isClass()) {
@@ -89,8 +91,9 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 : undefined;
             
             // Create base schema
+            // Note: We don't pass typeName to nested objects - they are anonymous
             let propSchema = createOpenApiSchema(propType, {
-                ...context,
+                settings: context.settings,
                 nodeText: typeNode?.getText(),
                 declaration
             });
@@ -108,7 +111,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const schema: Record<string, any> = { type: "object", properties };
+        const schema: Record<string, any> = { 
+            type: "object", 
+            properties,
+            ...(context.typeName ? { title: context.typeName } : {})
+        };
 
         if (required.length > 0) schema.required = required;
 

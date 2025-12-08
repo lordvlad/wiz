@@ -49,6 +49,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name",
@@ -117,6 +118,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "settings"
@@ -143,6 +145,7 @@ const cases = [
                     type: "boolean"
                 }
             },
+            title: "Type",
             required: [
                 "title",
                 "count",
@@ -179,6 +182,7 @@ const cases = [
                     }
                 }
             },
+            title: "Type",
             required: [
                 "titles",
                 "scores",
@@ -300,6 +304,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "profile",
@@ -324,6 +329,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "reference"
@@ -366,6 +372,7 @@ const cases = [
                     type: "number"
                 }
             },
+            title: "Type",
             required: [
                 "floatValue",
                 "preciseValue",
@@ -388,6 +395,7 @@ const cases = [
                     format: "date-time"
                 }
             },
+            title: "Type",
             required: [
                 "occurredAt"
             ]
@@ -412,6 +420,7 @@ const cases = [
                     format: "unix-ms"
                 }
             },
+            title: "Type",
             required: [
                 "occurredAt"
             ]
@@ -437,6 +446,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "token"
             ]
@@ -462,6 +472,7 @@ const cases = [
                     description: "Full name of the user"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name"
@@ -484,6 +495,7 @@ const cases = [
                     description: "The user's email address"
                 }
             },
+            title: "Type",
             required: [
                 "email"
             ]
@@ -521,6 +533,7 @@ const cases = [
                     default: true
                 }
             },
+            title: "Type",
             required: [
                 "role",
                 "count",
@@ -544,6 +557,7 @@ const cases = [
                     example: "john@example.com"
                 }
             },
+            title: "Type",
             required: [
                 "email"
             ]
@@ -567,6 +581,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "oldField",
                 "newField"
@@ -591,6 +606,7 @@ const cases = [
                     maximum: 100
                 }
             },
+            title: "Type",
             required: [
                 "age"
             ]
@@ -616,6 +632,7 @@ const cases = [
                     example: "john.doe@example.com"
                 }
             },
+            title: "Type",
             required: [
                 "email"
             ]
@@ -639,6 +656,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name"
@@ -663,6 +681,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name"
@@ -687,6 +706,7 @@ const cases = [
                     type: "string"
                 }
             },
+            title: "Type",
             required: [
                 "id",
                 "name"
@@ -724,6 +744,7 @@ const cases = [
                     ]
                 }
             },
+            title: "Type",
             required: [
                 "user"
             ]
@@ -747,6 +768,7 @@ const cases = [
                     maxLength: 50
                 }
             },
+            title: "Type",
             required: [
                 "username"
             ]
