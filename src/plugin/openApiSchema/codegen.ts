@@ -477,7 +477,9 @@ function tryCreateEnumSchema(type: Type): { type: "string" | "number"; enum: (st
                 } else {
                     // Auto-incremented numeric enum member
                     // TypeScript enums without explicit initializers are auto-incremented starting at 0
-                    // member.getValue() returns the computed constant value for the enum member
+                    // member.getValue() returns the computed constant value for the enum member.
+                    // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
+                    // (e.g., it may depend on computed values or other declarations), so we bail out.
                     const value = member.getValue();
                     if (typeof value === 'number') {
                         enumValues.push(value);
@@ -486,7 +488,7 @@ function tryCreateEnumSchema(type: Type): { type: "string" | "number"; enum: (st
                             return undefined;
                         }
                     } else {
-                        // Unexpected non-numeric value for auto-incremented enum
+                        // Unexpected non-numeric value or undefined for auto-incremented enum
                         return undefined;
                     }
                 }
@@ -495,6 +497,9 @@ function tryCreateEnumSchema(type: Type): { type: "string" | "number"; enum: (st
             if (enumValues.length > 0 && enumType) {
                 return { type: enumType, enum: enumValues };
             }
+            
+            // Successfully processed an enum declaration, no need to check remaining declarations
+            return undefined;
         }
     }
     
