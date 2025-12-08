@@ -75,6 +75,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         type.getProperties().forEach(prop => {
             const declaration = prop.getDeclarations()[0];
             if (!declaration) return;
+            
+            // Skip properties marked with @private, @ignore, or @package
+            if (shouldExcludeFromSchema(declaration)) {
+                return;
+            }
 
             const propType = declaration.getType();
             const typeNode = (Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration))
@@ -292,6 +297,32 @@ function extractJSDocMetadata(node?: Node): JSDocMetadata {
     }
     
     return metadata;
+}
+
+function shouldExcludeFromSchema(node?: Node): boolean {
+    if (!node) return false;
+    
+    // Check if node supports JSDoc
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== 'function') {
+        return false;
+    }
+    
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return false;
+    
+    for (const jsDoc of jsDocs) {
+        const tags = jsDoc.getTags?.() || [];
+        for (const tag of tags) {
+            const tagName = tag.getTagName();
+            // Exclude fields marked with @private, @ignore, or @package
+            if (tagName === 'private' || tagName === 'ignore' || tagName === 'package') {
+                return true;
+            }
+        }
+    }
+    
+    return false;
 }
 
 function parseJSDocValue(value: string): any {

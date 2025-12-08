@@ -620,6 +620,78 @@ const cases = [
                 "email"
             ]
         }`
+    },
+    {
+        title: "jsdoc @private excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @private Internal use only */
+                    secret: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @ignore excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @ignore */
+                    internal: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @package excludes field",
+        type: `type Type = {
+                    id: number;
+                    /** @package */
+                    packageOnly: string;
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ]
+        }`
     }
 ];
 
