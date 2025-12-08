@@ -50,8 +50,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         
         if (narrowed.length === 1) {
             const schema = createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
-            if (hasExplicitNull && typeof schema === 'object' && schema !== null) {
-                return { ...schema as Record<string, any>, nullable: true };
+            if (hasExplicitNull && typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+                return { ...(schema as object), nullable: true };
             }
             return schema;
         }
