@@ -495,7 +495,7 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
     }
     
     // enumType is guaranteed to be non-null since we have at least one member
-    return { type: enumType as "string" | "number", enum: enumValues };
+    return { type: enumType!, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
