@@ -1,5 +1,5 @@
 
-import { TypeFlags, Node, Symbol, SymbolFlags, Type, JSDocableNode } from "ts-morph";
+import { TypeFlags, Node, Symbol, SymbolFlags, Type } from "ts-morph";
 import type { BigIntFormatType, NumFormatType } from "../../tags";
 
 type SchemaSettings = {
