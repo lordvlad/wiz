@@ -757,6 +757,237 @@ When both TypeScript type information and JSDoc metadata are present:
 3. JSDoc `@format` does NOT override format inferred from special types (like `Date` → `date-time`)
 4. JSDoc constraints are always additive to the schema
 
+### Object Maps and Dynamic Keys (additionalProperties)
+
+Wiz supports TypeScript index signatures and `Record<string, T>` types for object maps with dynamic keys, converting them to OpenAPI's `additionalProperties` keyword. This is useful for dictionaries, lookup tables, and objects with arbitrary string keys.
+
+**Note:** Both `{ [key: string]: T }` index signature syntax and `Record<string, T>` utility type are fully supported and produce identical OpenAPI schemas. Choose whichever syntax you prefer for your TypeScript code.
+
+#### Basic Maps
+
+Map types with primitive values using index signatures or `Record`:
+
+```typescript
+// Using index signature syntax
+type StringMap = {
+    [key: string]: string;
+};
+
+// Using Record utility type
+type NumberMap = Record<string, number>;
+
+export const schema = createOpenApiSchema<[StringMap, NumberMap]>();
+```
+
+Both syntaxes generate the same OpenAPI schema:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "StringMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "StringMap"
+      },
+      "NumberMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number"
+        },
+        "title": "NumberMap"
+      }
+    }
+  }
+}
+```
+
+#### Maps with Complex Values
+
+Index signatures and `Record` types can reference complex types:
+
+```typescript
+type User = {
+    id: number;
+    name: string;
+};
+
+// Using index signature
+type UserMap = {
+    [userId: string]: User;
+};
+
+// Or using Record (equivalent)
+type UserMapAlt = Record<string, User>;
+
+export const schema = createOpenApiSchema<[UserMap, User]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "UserMap": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/User"
+        },
+        "title": "UserMap"
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number" },
+          "name": { "type": "string" }
+        },
+        "required": ["id", "name"],
+        "title": "User"
+      }
+    }
+  }
+}
+```
+
+#### Mixed Properties and Maps
+
+You can combine explicit properties with index signatures:
+
+```typescript
+type Config = {
+    version: number;
+    enabled: boolean;
+    [key: string]: any;
+};
+
+export const schema = createOpenApiSchema<[Config]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Config": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "number" },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["version", "enabled"],
+        "additionalProperties": true,
+        "title": "Config"
+      }
+    }
+  }
+}
+```
+
+**Note:** When the index signature type is `any`, `additionalProperties` is set to `true` to allow any value type.
+
+#### Maps with Union Types
+
+Index signatures support union types for the value:
+
+```typescript
+type MixedMap = {
+    [key: string]: string | number;
+};
+```
+
+Generates:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": {
+    "oneOf": [
+      { "type": "string" },
+      { "type": "number" }
+    ]
+  }
+}
+```
+
+#### Nested Maps
+
+Maps can be nested within other object properties:
+
+```typescript
+type AppConfig = {
+    metadata: {
+        [key: string]: string;
+    };
+};
+```
+
+Generates:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["metadata"]
+}
+```
+
+#### Unions with Maps
+
+Maps can be part of union types, allowing flexible schemas:
+
+```typescript
+type Config = {
+    // Can be either a primitive or a map
+    settings: Record<string, string> | string;
+};
+
+type Data = {
+    // Can be different map types
+    values: Record<string, string> | Record<string, number>;
+};
+```
+
+Generates `oneOf` schemas:
+
+```json
+{
+  "properties": {
+    "settings": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Use Cases
+
+Object maps with `additionalProperties` are ideal for:
+
+- **Dictionaries/Lookup Tables**: Key-value stores where keys are dynamic
+- **Metadata Objects**: Flexible configuration or metadata with arbitrary keys
+- **Translation Maps**: Language codes mapping to translation strings
+- **Resource Collections**: IDs mapping to resource objects
+- **Settings/Preferences**: User-specific settings with dynamic keys
+
 ## Testing
 
 Run tests:
