@@ -761,6 +761,8 @@ When both TypeScript type information and JSDoc metadata are present:
 
 Wiz supports TypeScript index signatures and `Record<string, T>` types for object maps with dynamic keys, converting them to OpenAPI's `additionalProperties` keyword. This is useful for dictionaries, lookup tables, and objects with arbitrary string keys.
 
+**Note:** Both `{ [key: string]: T }` index signature syntax and `Record<string, T>` utility type are fully supported and produce identical OpenAPI schemas. Choose whichever syntax you prefer for your TypeScript code.
+
 #### Basic Maps
 
 Map types with primitive values using index signatures or `Record`:
