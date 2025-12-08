@@ -1,4 +1,4 @@
-import { SyntaxKind, type SourceFile } from "ts-morph";
+import { Type, SyntaxKind, type SourceFile } from "ts-morph";
 import { createOpenApiSchema as codegen } from "./codegen";
 import { createOpenApiSchema } from "../../openApiSchema/index";
 import type { WizPluginContext } from "..";
