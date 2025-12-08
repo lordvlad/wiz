@@ -27,6 +27,9 @@ const cases: TestCase[] = [
                     };
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -60,14 +63,17 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "name",
                 "isActive",
                 "tags",
                 "metadata"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -86,6 +92,9 @@ const cases: TestCase[] = [
                     };
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -129,11 +138,14 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "settings"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -144,6 +156,9 @@ const cases: TestCase[] = [
                     published: boolean;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 title: {
@@ -156,12 +171,15 @@ const cases: TestCase[] = [
                     type: "boolean"
                 }
             },
-            title: "Type",
             required: [
                 "title",
                 "count",
                 "published"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -172,6 +190,9 @@ const cases: TestCase[] = [
                     flags: boolean[];
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 titles: {
@@ -193,12 +214,15 @@ const cases: TestCase[] = [
                     }
                 }
             },
-            title: "Type",
             required: [
                 "titles",
                 "scores",
                 "flags"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -228,6 +252,9 @@ const cases: TestCase[] = [
                     };
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -315,12 +342,15 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "profile",
                 "history"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -330,6 +360,9 @@ const cases: TestCase[] = [
                     reference: tags.BigIntFormat<"string">;
                 };`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -340,11 +373,14 @@ const cases: TestCase[] = [
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "reference"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -358,6 +394,9 @@ const cases: TestCase[] = [
                     plain: number;
                 };`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 floatValue: {
@@ -383,14 +422,17 @@ const cases: TestCase[] = [
                     type: "number"
                 }
             },
-            title: "Type",
             required: [
                 "floatValue",
                 "preciseValue",
                 "smallInt",
                 "bigInt",
                 "plain"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -399,6 +441,9 @@ const cases: TestCase[] = [
                     occurredAt: Date;
                 };`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 occurredAt: {
@@ -406,10 +451,13 @@ const cases: TestCase[] = [
                     format: "date-time"
                 }
             },
-            title: "Type",
             required: [
                 "occurredAt"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -424,6 +472,9 @@ const cases: TestCase[] = [
             })
         },
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 occurredAt: {
@@ -431,10 +482,13 @@ const cases: TestCase[] = [
                     format: "unix-ms"
                 }
             },
-            title: "Type",
             required: [
                 "occurredAt"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -451,16 +505,22 @@ const cases: TestCase[] = [
                 };`,
         pluginOptions: { coerceSymbolsToStrings: true },
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 token: {
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "token"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -472,6 +532,9 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -483,11 +546,14 @@ const cases: TestCase[] = [
                     description: "Full name of the user"
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "name"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -499,6 +565,9 @@ const cases: TestCase[] = [
                     email: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 email: {
@@ -506,10 +575,13 @@ const cases: TestCase[] = [
                     description: "The user's email address"
                 }
             },
-            title: "Type",
             required: [
                 "email"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -529,6 +601,9 @@ const cases: TestCase[] = [
                     active: boolean;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 role: {
@@ -544,12 +619,15 @@ const cases: TestCase[] = [
                     default: true
                 }
             },
-            title: "Type",
             required: [
                 "role",
                 "count",
                 "active"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -561,6 +639,9 @@ const cases: TestCase[] = [
                     email: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 email: {
@@ -568,10 +649,13 @@ const cases: TestCase[] = [
                     example: "john@example.com"
                 }
             },
-            title: "Type",
             required: [
                 "email"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -582,6 +666,9 @@ const cases: TestCase[] = [
                     newField: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 oldField: {
@@ -592,11 +679,14 @@ const cases: TestCase[] = [
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "oldField",
                 "newField"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -609,6 +699,9 @@ const cases: TestCase[] = [
                     age: number;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 age: {
@@ -617,10 +710,13 @@ const cases: TestCase[] = [
                     maximum: 100
                 }
             },
-            title: "Type",
             required: [
                 "age"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -634,6 +730,9 @@ const cases: TestCase[] = [
                     email: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 email: {
@@ -643,10 +742,13 @@ const cases: TestCase[] = [
                     example: "john.doe@example.com"
                 }
             },
-            title: "Type",
             required: [
                 "email"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -658,6 +760,9 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -667,11 +772,14 @@ const cases: TestCase[] = [
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "name"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -683,6 +791,9 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -692,11 +803,14 @@ const cases: TestCase[] = [
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "name"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -708,6 +822,9 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 id: {
@@ -717,11 +834,14 @@ const cases: TestCase[] = [
                     type: "string"
                 }
             },
-            title: "Type",
             required: [
                 "id",
                 "name"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -735,6 +855,9 @@ const cases: TestCase[] = [
                     };
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 user: {
@@ -755,10 +878,13 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "user"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -771,6 +897,9 @@ const cases: TestCase[] = [
                     username: string;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 username: {
@@ -779,10 +908,13 @@ const cases: TestCase[] = [
                     maxLength: 50
                 }
             },
-            title: "Type",
             required: [
                 "username"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -792,6 +924,9 @@ const cases: TestCase[] = [
                     env: Environment;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 env: {
@@ -803,10 +938,13 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "env"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -815,6 +953,9 @@ const cases: TestCase[] = [
                     status: "active" | "inactive" | "pending";
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 status: {
@@ -826,10 +967,13 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "status"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -843,6 +987,9 @@ const cases: TestCase[] = [
                     role: UserRole;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 role: {
@@ -854,10 +1001,13 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "role"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -871,6 +1021,9 @@ const cases: TestCase[] = [
                     status: StatusCode;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 status: {
@@ -882,10 +1035,13 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "status"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -901,6 +1057,9 @@ const cases: TestCase[] = [
                     priority: 1 | 2 | 3;
                 }`,
         schema: `{
+            components: {
+                schemas: {
+                    Type: {
             type: "object",
             properties: {
                 role: {
@@ -926,12 +1085,15 @@ const cases: TestCase[] = [
                     ]
                 }
             },
-            title: "Type",
             required: [
                 "role",
                 "env",
                 "priority"
-            ]
+            ],
+            title: "Type"
+                    }
+                }
+            }
         }`
     },
     {
@@ -1032,24 +1194,14 @@ describe("openApiSchema plugin", () => {
     it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes }) => {
         const needsTags = type.includes("tags.");
         
-        let code;
-        if (isArrayTest && arrayTypes) {
-            // Generate code for array test
-            code = `
-                ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
-                import { createOpenApiSchema } from "../../openApiSchema/index";
-                ${type}
-                export const schema = createOpenApiSchema<[${arrayTypes.join(', ')}]>();
-            `;
-        } else {
-            // Generate code for single type test
-            code = `
-                ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
-                import { createOpenApiSchema } from "../../openApiSchema/index";
-                ${type}
-                export const schema = createOpenApiSchema<Type>();
-            `;
-        }
+        // All tests now use tuple syntax
+        const types = arrayTypes || ['Type'];
+        const code = `
+            ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
+            import { createOpenApiSchema } from "../../openApiSchema/index";
+            ${type}
+            export const schema = createOpenApiSchema<[${types.join(', ')}]>();
+        `;
 
         if (schema) {
             const transformed = `var schema = ${schema};`;

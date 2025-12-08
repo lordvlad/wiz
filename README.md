@@ -31,27 +31,9 @@ bun run index.ts
 
 Wiz can automatically generate OpenAPI schemas from TypeScript types using the Bun plugin system.
 
-### Basic Usage
+### Usage
 
-#### Single Type Schema
-
-```typescript
-import { createOpenApiSchema } from "wiz/openApiSchema";
-
-type User = {
-    id: number;
-    name: string;
-    email: string;
-};
-
-export const schema = createOpenApiSchema<User>();
-```
-
-The plugin will transform this at build time into a literal OpenAPI schema object.
-
-#### Multiple Types Schema (Components)
-
-You can generate a composite OpenAPI schema with multiple types by passing them as a tuple:
+Generate OpenAPI schemas with a `components.schemas` structure by passing types as a tuple:
 
 ```typescript
 import { createOpenApiSchema } from "wiz/openApiSchema";
@@ -68,7 +50,11 @@ type Product = {
     price: number;
 };
 
+// Generate components.schemas for multiple types
 export const schema = createOpenApiSchema<[User, Product]>();
+
+// Or for a single type (still requires tuple syntax)
+export const userSchema = createOpenApiSchema<[User]>();
 ```
 
 This generates an OpenAPI schema with a `components.schemas` structure:
