@@ -72,7 +72,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             properties[prop.getName()] = createOpenApiSchema(propType, {
                 ...context,
                 nodeText: typeNode?.getText(),
-                typeNode: undefined // nested objects don't inherit the parent type node
+                typeNode: undefined // nested objects don't inherit the parent type node to avoid duplicate titles on anonymous nested objects
             });
 
             if (!isOptionalProperty(prop, declaration)) {
