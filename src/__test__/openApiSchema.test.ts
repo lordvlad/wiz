@@ -690,6 +690,110 @@ const cases: TestCase[] = [
         }`
     },
     {
+        title: "jsdoc @deprecated on schema",
+        type: `/** @deprecated Use NewType instead */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            deprecated: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc description on schema",
+        type: `/** 
+                 * Represents a user in the system
+                 */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            description: "Represents a user in the system",
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc combined tags on schema",
+        type: `/** 
+                 * Legacy user type
+                 * @deprecated Use UserV2 instead
+                 * @example { "id": "123", "name": "John" }
+                 */
+                type Type = {
+                    id: string;
+                    name: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string"
+                },
+                name: {
+                    type: "string"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ],
+            description: "Legacy user type",
+            example: {
+                id: "123",
+                name: "John"
+            },
+            deprecated: true,
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
         title: "jsdoc @minimum and @maximum",
         type: `type Type = {
                     /**
