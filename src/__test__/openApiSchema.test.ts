@@ -1838,37 +1838,7 @@ const cases: TestCase[] = [
             }
         }`
     },
-    {
-        title: "oneOf with nullable union",
-        type: `type Type = {
-                    value: string | number | null;
-                }`,
-        schema: `{
-            components: {
-                schemas: {
-                    Type: {
-            type: "object",
-            properties: {
-                value: {
-                    oneOf: [
-                        {
-                            type: "string"
-                        },
-                        {
-                            type: "number"
-                        }
-                    ]
-                }
-            },
-            required: [
-                "value"
-            ],
-            title: "Type"
-                    }
-                }
-            }
-        }`
-    },
+
     {
         title: "nested oneOf",
         type: `type A = { a: string };
@@ -2784,6 +2754,263 @@ const cases: TestCase[] = [
                 "config"
             ],
             title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable property with null",
+        type: `type Type = {
+                    name: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable property with both null and undefined",
+        type: `type Type = {
+                    name: string | null | undefined;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable number property",
+        type: `type Type = {
+                    count: number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                count: {
+                    type: "number",
+                    nullable: true
+                }
+            },
+            required: [
+                "count"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable boolean property",
+        type: `type Type = {
+                    active: boolean | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                active: {
+                    type: "boolean",
+                    nullable: true
+                }
+            },
+            required: [
+                "active"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable array property",
+        type: `type Type = {
+                    tags: string[] | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                tags: {
+                    type: "array",
+                    items: {
+                        type: "string"
+                    },
+                    nullable: true
+                }
+            },
+            required: [
+                "tags"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable object property",
+        type: `type Type = {
+                    metadata: { key: string } | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                metadata: {
+                    type: "object",
+                    properties: {
+                        key: {
+                            type: "string"
+                        }
+                    },
+                    required: [
+                        "key"
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "metadata"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "optional nullable property",
+        type: `type Type = {
+                    description?: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                description: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable union type (oneOf with nullable)",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable $ref property",
+        type: `type User = {
+                    id: number;
+                }
+                type Type = {
+                    user: User | null;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Type', 'User'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        properties: {
+                            user: {
+                                $ref: "#/components/schemas/User",
+                                nullable: true
+                            }
+                        },
+                        required: [
+                            "user"
+                        ],
+                        title: "Type"
+                    },
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            }
+                        },
+                        required: [
+                            "id"
+                        ],
+                        title: "User"
                     }
                 }
             }

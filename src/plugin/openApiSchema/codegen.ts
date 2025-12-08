@@ -44,11 +44,24 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     }
 
     if (type.isUnion()) {
-        const narrowed = type.getUnionTypes().filter(t => !isNullable(t));
-        if (narrowed.length === 1)
-            return createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
-        if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral()))
-            return { type: "boolean" };
+        const unionTypes = type.getUnionTypes();
+        const hasExplicitNull = unionTypes.some(t => isExplicitlyNull(t));
+        const narrowed = unionTypes.filter(t => !isNullable(t));
+        
+        if (narrowed.length === 1) {
+            const schema = createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
+            if (hasExplicitNull && typeof schema === 'object' && schema !== null) {
+                return { ...schema as Record<string, any>, nullable: true };
+            }
+            return schema;
+        }
+        if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral())) {
+            const baseSchema: any = { type: "boolean" };
+            if (hasExplicitNull) {
+                baseSchema.nullable = true;
+            }
+            return baseSchema;
+        }
         
         // Check for string literal unions
         if (narrowed.length > 1 && narrowed.every(t => t.isStringLiteral())) {
@@ -57,7 +70,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 .filter((v): v is string => typeof v === 'string');
             // Ensure all literal values were extracted successfully
             if (enumValues.length === narrowed.length) {
-                return { type: "string", enum: enumValues };
+                const baseSchema: any = { type: "string", enum: enumValues };
+                if (hasExplicitNull) {
+                    baseSchema.nullable = true;
+                }
+                return baseSchema;
             }
         }
         
@@ -68,7 +85,11 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 .filter((v): v is number => typeof v === 'number');
             // Ensure all literal values were extracted successfully
             if (enumValues.length === narrowed.length) {
-                return { type: "number", enum: enumValues };
+                const baseSchema: any = { type: "number", enum: enumValues };
+                if (hasExplicitNull) {
+                    baseSchema.nullable = true;
+                }
+                return baseSchema;
             }
         }
         
@@ -105,6 +126,9 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             const result: any = { oneOf: schemas };
             if (discriminator) {
                 result.discriminator = discriminator;
+            }
+            if (hasExplicitNull) {
+                result.nullable = true;
             }
             
             return result;
@@ -352,6 +376,13 @@ function isNullable(type: Type) {
         return true;
 
     return ["undefined", "null"].includes(type.getText())
+}
+
+function isExplicitlyNull(type: Type) {
+    if (type.isNull())
+        return true;
+
+    return type.getText() === "null";
 }
 
 function isDateType(type: Type) {
