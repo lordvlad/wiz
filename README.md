@@ -759,25 +759,25 @@ When both TypeScript type information and JSDoc metadata are present:
 
 ### Object Maps and Dynamic Keys (additionalProperties)
 
-Wiz supports TypeScript index signatures for object maps with dynamic keys, converting them to OpenAPI's `additionalProperties` keyword. This is useful for dictionaries, lookup tables, and objects with arbitrary string keys.
+Wiz supports TypeScript index signatures and `Record<string, T>` types for object maps with dynamic keys, converting them to OpenAPI's `additionalProperties` keyword. This is useful for dictionaries, lookup tables, and objects with arbitrary string keys.
 
 #### Basic Maps
 
-Map types with primitive values:
+Map types with primitive values using index signatures or `Record`:
 
 ```typescript
+// Using index signature syntax
 type StringMap = {
     [key: string]: string;
 };
 
-type NumberMap = {
-    [key: string]: number;
-};
+// Using Record utility type
+type NumberMap = Record<string, number>;
 
 export const schema = createOpenApiSchema<[StringMap, NumberMap]>();
 ```
 
-Generates:
+Both syntaxes generate the same OpenAPI schema:
 
 ```json
 {
@@ -804,7 +804,7 @@ Generates:
 
 #### Maps with Complex Values
 
-Index signatures can reference complex types:
+Index signatures and `Record` types can reference complex types:
 
 ```typescript
 type User = {
@@ -812,9 +812,13 @@ type User = {
     name: string;
 };
 
+// Using index signature
 type UserMap = {
     [userId: string]: User;
 };
+
+// Or using Record (equivalent)
+type UserMapAlt = Record<string, User>;
 
 export const schema = createOpenApiSchema<[UserMap, User]>();
 ```
@@ -933,6 +937,42 @@ Generates:
     }
   },
   "required": ["metadata"]
+}
+```
+
+#### Unions with Maps
+
+Maps can be part of union types, allowing flexible schemas:
+
+```typescript
+type Config = {
+    // Can be either a primitive or a map
+    settings: Record<string, string> | string;
+};
+
+type Data = {
+    // Can be different map types
+    values: Record<string, string> | Record<string, number>;
+};
+```
+
+Generates `oneOf` schemas:
+
+```json
+{
+  "properties": {
+    "settings": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  }
 }
 ```
 
