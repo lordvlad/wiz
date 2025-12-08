@@ -441,6 +441,185 @@ const cases = [
                 "token"
             ]
         }`
+    },
+    {
+        title: "jsdoc description on properties",
+        type: `type Type = {
+                    /** User's unique identifier */
+                    id: number;
+                    /** Full name of the user */
+                    name: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                id: {
+                    type: "number",
+                    description: "User's unique identifier"
+                },
+                name: {
+                    type: "string",
+                    description: "Full name of the user"
+                }
+            },
+            required: [
+                "id",
+                "name"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @description tag",
+        type: `type Type = {
+                    /**
+                     * @description The user's email address
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "The user's email address"
+                }
+            },
+            required: [
+                "email"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @default value",
+        type: `type Type = {
+                    /**
+                     * @default "guest"
+                     */
+                    role: string;
+                    /**
+                     * @default 0
+                     */
+                    count: number;
+                    /**
+                     * @default true
+                     */
+                    active: boolean;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                role: {
+                    type: "string",
+                    default: "guest"
+                },
+                count: {
+                    type: "number",
+                    default: 0
+                },
+                active: {
+                    type: "boolean",
+                    default: true
+                }
+            },
+            required: [
+                "role",
+                "count",
+                "active"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @example value",
+        type: `type Type = {
+                    /**
+                     * @example "john@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    example: "john@example.com"
+                }
+            },
+            required: [
+                "email"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @deprecated field",
+        type: `type Type = {
+                    /** @deprecated Use newField instead */
+                    oldField: string;
+                    newField: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                oldField: {
+                    type: "string",
+                    deprecated: true
+                },
+                newField: {
+                    type: "string"
+                }
+            },
+            required: [
+                "oldField",
+                "newField"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc @minimum and @maximum",
+        type: `type Type = {
+                    /**
+                     * @minimum 1
+                     * @maximum 100
+                     */
+                    age: number;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                age: {
+                    type: "number",
+                    minimum: 1,
+                    maximum: 100
+                }
+            },
+            required: [
+                "age"
+            ]
+        }`
+    },
+    {
+        title: "jsdoc combined tags",
+        type: `type Type = {
+                    /**
+                     * User's email address
+                     * @default "user@example.com"
+                     * @example "john.doe@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "User's email address",
+                    default: "user@example.com",
+                    example: "john.doe@example.com"
+                }
+            },
+            required: [
+                "email"
+            ]
+        }`
     }
 ];
 
