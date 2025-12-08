@@ -1553,7 +1553,10 @@ const cases: TestCase[] = [
                                 "side"
                             ]
                         }
-                    ]
+                    ],
+                    discriminator: {
+                        propertyName: "kind"
+                    }
                 }
             },
             required: [
@@ -1925,6 +1928,248 @@ const cases: TestCase[] = [
             },
             required: [
                 "items"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "oneOf with discriminator for inline types",
+        type: `type Circle = {
+                    kind: "circle";
+                    radius: number;
+                }
+                type Square = {
+                    kind: "square";
+                    side: number;
+                }
+                type Shape = Circle | Square;
+                type Type = {
+                    shape: Shape;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                shape: {
+                    oneOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "circle"
+                                    ]
+                                },
+                                radius: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "radius"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "square"
+                                    ]
+                                },
+                                side: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "side"
+                            ]
+                        }
+                    ],
+                    discriminator: {
+                        propertyName: "kind"
+                    }
+                }
+            },
+            required: [
+                "shape"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "oneOf with discriminator and mapping for named types",
+        type: `type Dog = {
+                    petType: "dog";
+                    breed: string;
+                    bark: boolean;
+                }
+                type Cat = {
+                    petType: "cat";
+                    breed: string;
+                    meow: boolean;
+                }
+                type Pet = Dog | Cat;
+                type Type = {
+                    pet: Pet;
+                }`,
+        arrayTypes: ['Type', 'Dog', 'Cat'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        properties: {
+                            pet: {
+                                oneOf: [
+                                    {
+                                        $ref: "#/components/schemas/Dog"
+                                    },
+                                    {
+                                        $ref: "#/components/schemas/Cat"
+                                    }
+                                ],
+                                discriminator: {
+                                    propertyName: "petType",
+                                    mapping: {
+                                        dog: "#/components/schemas/Dog",
+                                        cat: "#/components/schemas/Cat"
+                                    }
+                                }
+                            }
+                        },
+                        required: [
+                            "pet"
+                        ],
+                        title: "Type"
+                    },
+                    Dog: {
+                        type: "object",
+                        properties: {
+                            petType: {
+                                type: "string",
+                                enum: [
+                                    "dog"
+                                ]
+                            },
+                            breed: {
+                                type: "string"
+                            },
+                            bark: {
+                                type: "boolean"
+                            }
+                        },
+                        required: [
+                            "petType",
+                            "breed",
+                            "bark"
+                        ],
+                        title: "Dog"
+                    },
+                    Cat: {
+                        type: "object",
+                        properties: {
+                            petType: {
+                                type: "string",
+                                enum: [
+                                    "cat"
+                                ]
+                            },
+                            breed: {
+                                type: "string"
+                            },
+                            meow: {
+                                type: "boolean"
+                            }
+                        },
+                        required: [
+                            "petType",
+                            "breed",
+                            "meow"
+                        ],
+                        title: "Cat"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "oneOf with numeric discriminator",
+        type: `type TypeA = {
+                    version: 1;
+                    dataA: string;
+                }
+                type TypeB = {
+                    version: 2;
+                    dataB: number;
+                }
+                type Versioned = TypeA | TypeB;
+                type Type = {
+                    item: Versioned;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                item: {
+                    oneOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                version: {
+                                    type: "number",
+                                    enum: [
+                                        1
+                                    ]
+                                },
+                                dataA: {
+                                    type: "string"
+                                }
+                            },
+                            required: [
+                                "version",
+                                "dataA"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                version: {
+                                    type: "number",
+                                    enum: [
+                                        2
+                                    ]
+                                },
+                                dataB: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "version",
+                                "dataB"
+                            ]
+                        }
+                    ],
+                    discriminator: {
+                        propertyName: "version"
+                    }
+                }
+            },
+            required: [
+                "item"
             ],
             title: "Type"
                     }

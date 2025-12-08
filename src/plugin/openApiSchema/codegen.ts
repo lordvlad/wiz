@@ -97,7 +97,15 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 schemas.push({ type: "boolean" });
             }
             
-            return { oneOf: schemas };
+            // Detect discriminator for oneOf schemas
+            const discriminator = detectDiscriminator(typesToProcess, availableTypes);
+            
+            const result: any = { oneOf: schemas };
+            if (discriminator) {
+                result.discriminator = discriminator;
+            }
+            
+            return result;
         }
     }
     
@@ -639,6 +647,137 @@ function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: 
         // Root level is indicated by an empty processingStack
         if (processingStack.size > 0) {
             return typeName;
+        }
+    }
+    
+    return undefined;
+}
+
+/**
+ * Detects if a union has a discriminator property and returns discriminator metadata
+ * A discriminator is detected when all union members:
+ * 1. Are object types
+ * 2. Share a common property with the same name
+ * 3. That property has different literal string/number values in each member
+ */
+function detectDiscriminator(
+    unionTypes: Type[], 
+    availableTypes: Set<string>
+): { propertyName: string; mapping?: Record<string, string> } | undefined {
+    // Need at least 2 types for a discriminator
+    if (unionTypes.length < 2) {
+        return undefined;
+    }
+    
+    // All types must be objects (not primitives, arrays, etc.)
+    if (!unionTypes.every(t => t.isObject() && !t.isArray())) {
+        return undefined;
+    }
+    
+    // Get properties for each type
+    const typeProperties = unionTypes.map(t => {
+        const props = t.getProperties();
+        return new Map(props.map(p => [p.getName(), p]));
+    });
+    
+    // Find common property names across all union members
+    const firstProps = typeProperties[0];
+    if (!firstProps) return undefined;
+    
+    const commonProps: string[] = [];
+    for (const [propName] of firstProps) {
+        if (typeProperties.every(props => props.has(propName))) {
+            commonProps.push(propName);
+        }
+    }
+    
+    // Check each common property to see if it's a valid discriminator
+    for (const propName of commonProps) {
+        const literalValues = new Map<Type, string | number>();
+        let isValidDiscriminator = true;
+        
+        for (let i = 0; i < unionTypes.length; i++) {
+            const unionType = unionTypes[i]!;
+            const prop = typeProperties[i]!.get(propName);
+            if (!prop) {
+                isValidDiscriminator = false;
+                break;
+            }
+            
+            const declaration = prop.getDeclarations()[0];
+            if (!declaration) {
+                isValidDiscriminator = false;
+                break;
+            }
+            
+            const propType = declaration.getType();
+            
+            // Property must be a string or number literal type
+            if (propType.isStringLiteral()) {
+                const value = propType.getLiteralValue();
+                if (typeof value === 'string') {
+                    literalValues.set(unionType, value);
+                } else {
+                    isValidDiscriminator = false;
+                    break;
+                }
+            } else if (propType.isNumberLiteral()) {
+                const value = propType.getLiteralValue();
+                if (typeof value === 'number') {
+                    literalValues.set(unionType, value);
+                } else {
+                    isValidDiscriminator = false;
+                    break;
+                }
+            } else {
+                // Property is not a literal type
+                isValidDiscriminator = false;
+                break;
+            }
+        }
+        
+        // If we found a valid discriminator property
+        if (isValidDiscriminator && literalValues.size === unionTypes.length) {
+            // Check if all literal values are unique
+            const values = Array.from(literalValues.values());
+            const uniqueValues = new Set(values);
+            if (uniqueValues.size !== values.length) {
+                // Duplicate literal values, not a valid discriminator
+                continue;
+            }
+            
+            // Build discriminator object
+            const discriminator: { propertyName: string; mapping?: Record<string, string> } = {
+                propertyName: propName
+            };
+            
+            // Try to build mapping if all types have names and are in availableTypes
+            const mapping: Record<string, string> = {};
+            let canBuildMapping = true;
+            
+            for (const [unionType, literalValue] of literalValues) {
+                const aliasSymbol = unionType.getAliasSymbol();
+                let typeName = aliasSymbol?.getName();
+                
+                if (!typeName) {
+                    const symbol = unionType.getSymbol();
+                    typeName = symbol?.getName();
+                }
+                
+                if (typeName && typeName !== '__type' && availableTypes.has(typeName)) {
+                    mapping[String(literalValue)] = `#/components/schemas/${typeName}`;
+                } else {
+                    canBuildMapping = false;
+                    break;
+                }
+            }
+            
+            // Only include mapping if we could map all types to $ref
+            if (canBuildMapping && Object.keys(mapping).length > 0) {
+                discriminator.mapping = mapping;
+            }
+            
+            return discriminator;
         }
     }
     

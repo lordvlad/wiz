@@ -453,6 +453,107 @@ Generates:
 }
 ```
 
+#### Discriminator Support
+
+Wiz automatically detects and generates discriminator metadata for union types when all members share a common property with distinct literal values. This is particularly useful for polymorphic types where a "type" or "kind" field determines the structure.
+
+**Automatic Detection:**
+
+```typescript
+type Circle = {
+    kind: "circle";  // discriminator property
+    radius: number;
+};
+
+type Square = {
+    kind: "square";  // discriminator property
+    side: number;
+};
+
+type Shape = Circle | Square;
+
+type Drawing = {
+    shape: Shape;
+};
+
+export const schema = createOpenApiSchema<[Drawing]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Drawing": {
+        "type": "object",
+        "properties": {
+          "shape": {
+            "oneOf": [...],
+            "discriminator": {
+              "propertyName": "kind"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**With Mapping (Named Types):**
+
+When union members are named types included in the schema, Wiz generates a full discriminator with mapping:
+
+```typescript
+type Dog = {
+    petType: "dog";
+    breed: string;
+    bark: boolean;
+};
+
+type Cat = {
+    petType: "cat";
+    breed: string;
+    meow: boolean;
+};
+
+type Pet = Dog | Cat;
+
+export const schema = createOpenApiSchema<[Pet, Dog, Cat]>();
+```
+
+Generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Pet": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/Dog" },
+          { "$ref": "#/components/schemas/Cat" }
+        ],
+        "discriminator": {
+          "propertyName": "petType",
+          "mapping": {
+            "dog": "#/components/schemas/Dog",
+            "cat": "#/components/schemas/Cat"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Requirements for Discriminator Detection:**
+
+1. All union members must be object types
+2. All members must share a common property name
+3. The common property must have distinct literal values (string or number)
+4. For `mapping` generation: all types must be named and included in `availableTypes`
+
 ### JSDoc Annotations
 
 Wiz supports JSDoc comments to enrich your OpenAPI schemas with additional metadata and constraints. This allows you to maintain documentation and validation rules close to your type definitions.
