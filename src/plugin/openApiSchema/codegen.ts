@@ -39,14 +39,24 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         
         // Check for string literal unions
         if (narrowed.length > 1 && narrowed.every(t => t.isStringLiteral())) {
-            const enumValues = narrowed.map(t => t.getLiteralValue());
-            return { type: "string", enum: enumValues };
+            const enumValues = narrowed
+                .map(t => t.getLiteralValue())
+                .filter((v): v is string => typeof v === 'string');
+            // Ensure all literal values were extracted successfully
+            if (enumValues.length === narrowed.length) {
+                return { type: "string", enum: enumValues };
+            }
         }
         
         // Check for number literal unions
         if (narrowed.length > 1 && narrowed.every(t => t.isNumberLiteral())) {
-            const enumValues = narrowed.map(t => t.getLiteralValue());
-            return { type: "number", enum: enumValues };
+            const enumValues = narrowed
+                .map(t => t.getLiteralValue())
+                .filter((v): v is number => typeof v === 'number');
+            // Ensure all literal values were extracted successfully
+            if (enumValues.length === narrowed.length) {
+                return { type: "number", enum: enumValues };
+            }
         }
     }
     
