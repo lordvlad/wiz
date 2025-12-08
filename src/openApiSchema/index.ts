@@ -1,7 +1,8 @@
 import { pluginNotEnabled } from "../errors";
 import type { OpenApiSchema } from "./types";
 
-export function createOpenApiSchema<T>(): OpenApiSchema<T> {
+// Accepts a tuple of types to generate OpenAPI components.schemas structure
+export function createOpenApiSchema<T extends readonly any[]>(): OpenApiSchema<T> {
     // intentionally empty, will be replaced at build time
     throw pluginNotEnabled()
 }
