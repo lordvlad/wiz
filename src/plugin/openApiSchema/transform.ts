@@ -16,9 +16,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         // FIXME guard instead of using non-null assertion
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
-        const typeName = typeArg.getText();
         const schema = codegen(type, {
-            typeName,
+            typeNode: typeArg,
             settings: {
                 coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                 transformDate: opt?.transformDate

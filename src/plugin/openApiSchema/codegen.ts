@@ -1,5 +1,5 @@
 
-import { TypeFlags, Node, Symbol, SymbolFlags, Type } from "ts-morph";
+import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode } from "ts-morph";
 import type { BigIntFormatType, NumFormatType } from "../../tags";
 
 type SchemaSettings = {
@@ -10,7 +10,7 @@ type SchemaSettings = {
 type SchemaContext = {
     nodeText?: string;
     settings?: SchemaSettings;
-    typeName?: string;
+    typeNode?: TypeNode;
 };
 
 export function createOpenApiSchema(type: Type, context: SchemaContext = {}): unknown {
@@ -72,7 +72,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             properties[prop.getName()] = createOpenApiSchema(propType, {
                 ...context,
                 nodeText: typeNode?.getText(),
-                typeName: undefined
+                typeNode: undefined // nested objects don't inherit the parent type node
             });
 
             if (!isOptionalProperty(prop, declaration)) {
@@ -82,7 +82,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
 
         const schema: Record<string, any> = {
             type: "object",
-            ...(context.typeName && { title: context.typeName }),
+            ...(context.typeNode && { title: context.typeNode.getText() }),
             properties,
         };
 
