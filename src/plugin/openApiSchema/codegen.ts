@@ -14,6 +14,7 @@ type SchemaContext = {
     typeNode?: Node;
     availableTypes?: Set<string>;
     processingStack?: Set<string>;
+    typeAliasDeclaration?: Node;
 };
 
 type JSDocMetadata = {
@@ -250,13 +251,18 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const schema: Record<string, any> = { 
+        const baseSchema: Record<string, any> = { 
             type: "object", 
             properties,
             ...(context.typeNode ? { title: context.typeNode.getText() } : {})
         };
 
-        if (required.length > 0) schema.required = required;
+        if (required.length > 0) baseSchema.required = required;
+
+        // Extract and merge JSDoc metadata from type alias declaration
+        const schema = context.typeAliasDeclaration
+            ? mergeJSDocIntoSchema(baseSchema, extractJSDocMetadata(context.typeAliasDeclaration))
+            : baseSchema;
 
         return schema;
     }
@@ -488,7 +494,14 @@ function shouldExcludeFromSchema(node?: Node): boolean {
 function parseJSDocValue(value: string): any {
     value = value.trim();
     
-    // Try to parse as JSON
+    // Try to parse as JSON first (handles objects, arrays, and primitives)
+    try {
+        return JSON.parse(value);
+    } catch {
+        // Not valid JSON, continue with other parsing
+    }
+    
+    // Try to parse as boolean
     if (value === 'true') return true;
     if (value === 'false') return false;
     if (value === 'null') return null;

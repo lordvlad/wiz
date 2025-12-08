@@ -81,6 +81,10 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
             // This allows detection of root level (stack empty) vs nested (stack has entries)
             const processingStack = new Set<string>();
             
+            // Get the type alias declaration to extract JSDoc metadata
+            const aliasSymbol = element.getAliasSymbol();
+            const typeAliasDeclaration = aliasSymbol?.getDeclarations()[0];
+            
             // Pass undefined for typeNode to avoid duplicate title generation in codegen.
             // The codegen function adds a 'title' field when typeNode is provided,
             // but for composite schemas we want to control title placement ourselves.
@@ -91,7 +95,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                     transformDate: opt?.transformDate
                 },
                 availableTypes,
-                processingStack
+                processingStack,
+                typeAliasDeclaration
             });
             
             // Add title to the schema if not already present
