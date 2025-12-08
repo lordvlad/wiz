@@ -70,6 +70,48 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 return { type: "number", enum: enumValues };
             }
         }
+        
+        // Handle complex type unions (oneOf)
+        if (narrowed.length > 1) {
+            // Collapse boolean literals (true | false) into a single boolean type
+            const hasTrueLiteral = narrowed.some(t => t.isBooleanLiteral() && t.getText() === 'true');
+            const hasFalseLiteral = narrowed.some(t => t.isBooleanLiteral() && t.getText() === 'false');
+            
+            let typesToProcess = narrowed;
+            if (hasTrueLiteral && hasFalseLiteral) {
+                // Both true and false are present, replace them with a single boolean type
+                typesToProcess = narrowed.filter(t => !t.isBooleanLiteral());
+                // We'll add the boolean schema manually below
+            }
+            
+            const schemas = typesToProcess.map(t => 
+                createOpenApiSchema(t, {
+                    ...context,
+                    availableTypes,
+                    processingStack
+                })
+            );
+            
+            // If we had both boolean literals, add a single boolean schema
+            if (hasTrueLiteral && hasFalseLiteral) {
+                schemas.push({ type: "boolean" });
+            }
+            
+            return { oneOf: schemas };
+        }
+    }
+    
+    // Handle intersection types (allOf)
+    if (type.isIntersection()) {
+        const intersectionTypes = type.getIntersectionTypes();
+        const schemas = intersectionTypes.map(t => 
+            createOpenApiSchema(t, {
+                ...context,
+                availableTypes,
+                processingStack
+            })
+        );
+        return { allOf: schemas };
     }
     
     // Check for enum types
@@ -102,6 +144,22 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         if (customSchema !== undefined)
             return customSchema;
         return { type: "string", format: "date-time" };
+    }
+    
+    // Handle string literal types (e.g., "circle", "square")
+    if (type.isStringLiteral()) {
+        return { type: "string", enum: [type.getLiteralValue()] };
+    }
+    
+    // Handle number literal types
+    if (type.isNumberLiteral()) {
+        return { type: "number", enum: [type.getLiteralValue()] };
+    }
+    
+    // Handle boolean literal types (true, false)
+    if (type.isBooleanLiteral()) {
+        const value = type.getText() === 'true';
+        return { type: "boolean", enum: [value] };
     }
 
     if (type.isString())

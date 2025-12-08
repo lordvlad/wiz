@@ -1494,6 +1494,242 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "oneOf for type union",
+        type: `type Circle = {
+                    kind: "circle";
+                    radius: number;
+                }
+                type Square = {
+                    kind: "square";
+                    side: number;
+                }
+                type Shape = Circle | Square;
+                type Type = {
+                    shape: Shape;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                shape: {
+                    oneOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "circle"
+                                    ]
+                                },
+                                radius: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "radius"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "square"
+                                    ]
+                                },
+                                side: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "side"
+                            ]
+                        }
+                    ]
+                }
+            },
+            required: [
+                "shape"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "oneOf for mixed type union",
+        type: `type Type = {
+                    value: string | number | boolean;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        },
+                        {
+                            type: "boolean"
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "allOf for intersection type",
+        type: `type Timestamped = {
+                    createdAt: string;
+                    updatedAt: string;
+                }
+                type Named = {
+                    name: string;
+                }
+                type Entity = Timestamped & Named;
+                type Type = {
+                    entity: Entity;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                entity: {
+                    allOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                createdAt: {
+                                    type: "string"
+                                },
+                                updatedAt: {
+                                    type: "string"
+                                }
+                            },
+                            required: [
+                                "createdAt",
+                                "updatedAt"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                name: {
+                                    type: "string"
+                                }
+                            },
+                            required: [
+                                "name"
+                            ]
+                        }
+                    ]
+                }
+            },
+            required: [
+                "entity"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "oneOf with $ref for named types",
+        type: `type Dog = {
+                    breed: string;
+                    bark: boolean;
+                }
+                type Cat = {
+                    breed: string;
+                    meow: boolean;
+                }
+                type Pet = Dog | Cat;
+                type Type = {
+                    pet: Pet;
+                }`,
+        arrayTypes: ['Type', 'Dog', 'Cat'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        properties: {
+                            pet: {
+                                oneOf: [
+                                    {
+                                        $ref: "#/components/schemas/Dog"
+                                    },
+                                    {
+                                        $ref: "#/components/schemas/Cat"
+                                    }
+                                ]
+                            }
+                        },
+                        required: [
+                            "pet"
+                        ],
+                        title: "Type"
+                    },
+                    Dog: {
+                        type: "object",
+                        properties: {
+                            breed: {
+                                type: "string"
+                            },
+                            bark: {
+                                type: "boolean"
+                            }
+                        },
+                        required: [
+                            "breed",
+                            "bark"
+                        ],
+                        title: "Dog"
+                    },
+                    Cat: {
+                        type: "object",
+                        properties: {
+                            breed: {
+                                type: "string"
+                            },
+                            meow: {
+                                type: "boolean"
+                            }
+                        },
+                        required: [
+                            "breed",
+                            "meow"
+                        ],
+                        title: "Cat"
+                    }
+                }
+            }
+        }`
     }
 ];
 
