@@ -24,6 +24,9 @@ type JSDocMetadata = {
     deprecated?: boolean;
     minimum?: number;
     maximum?: number;
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
+    multipleOf?: number;
     minLength?: number;
     maxLength?: number;
     pattern?: string;
@@ -453,6 +456,24 @@ function extractJSDocMetadata(node?: Node): JSDocMetadata {
                         if (!isNaN(num)) metadata.maximum = num;
                     }
                     break;
+                case 'exclusiveMinimum':
+                    if (commentText) {
+                        const num = parseFloat(commentText);
+                        if (!isNaN(num)) metadata.exclusiveMinimum = num;
+                    }
+                    break;
+                case 'exclusiveMaximum':
+                    if (commentText) {
+                        const num = parseFloat(commentText);
+                        if (!isNaN(num)) metadata.exclusiveMaximum = num;
+                    }
+                    break;
+                case 'multipleOf':
+                    if (commentText) {
+                        const num = parseFloat(commentText);
+                        if (!isNaN(num) && num > 0) metadata.multipleOf = num;
+                    }
+                    break;
                 case 'minLength':
                     if (commentText) {
                         const num = parseInt(commentText, 10);
@@ -556,6 +577,15 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
     }
     if (metadata.maximum !== undefined) {
         result.maximum = metadata.maximum;
+    }
+    if (metadata.exclusiveMinimum !== undefined) {
+        result.exclusiveMinimum = metadata.exclusiveMinimum;
+    }
+    if (metadata.exclusiveMaximum !== undefined) {
+        result.exclusiveMaximum = metadata.exclusiveMaximum;
+    }
+    if (metadata.multipleOf !== undefined) {
+        result.multipleOf = metadata.multipleOf;
     }
     if (metadata.minLength !== undefined) {
         result.minLength = metadata.minLength;
