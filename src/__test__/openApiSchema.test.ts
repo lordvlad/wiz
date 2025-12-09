@@ -3457,6 +3457,235 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "anyOf for type union with anyOf option",
+        type: `type Circle = {
+                    kind: "circle";
+                    radius: number;
+                }
+                type Square = {
+                    kind: "square";
+                    side: number;
+                }
+                type Shape = Circle | Square;
+                type Type = {
+                    shape: Shape;
+                }`,
+        pluginOptions: { unionStyle: "anyOf" },
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                shape: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "circle"
+                                    ]
+                                },
+                                radius: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "radius"
+                            ]
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                kind: {
+                                    type: "string",
+                                    enum: [
+                                        "square"
+                                    ]
+                                },
+                                side: {
+                                    type: "number"
+                                }
+                            },
+                            required: [
+                                "kind",
+                                "side"
+                            ]
+                        }
+                    ],
+                    discriminator: {
+                        propertyName: "kind"
+                    }
+                }
+            },
+            required: [
+                "shape"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "anyOf for mixed type union with anyOf option",
+        type: `type Type = {
+                    value: string | number | boolean;
+                }`,
+        pluginOptions: { unionStyle: "anyOf" },
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    anyOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        },
+                        {
+                            type: "boolean"
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "anyOf with $ref for named types",
+        type: `type Dog = {
+                    petType: "dog";
+                    breed: string;
+                }
+                type Cat = {
+                    petType: "cat";
+                    breed: string;
+                }
+                type Pet = Dog | Cat;
+                type Owner = {
+                    pet: Pet;
+                }`,
+        pluginOptions: { unionStyle: "anyOf" },
+        arrayTypes: ['Owner', 'Dog', 'Cat'],
+        schema: `{
+            components: {
+                schemas: {
+                    Owner: {
+                        type: "object",
+                        properties: {
+                            pet: {
+                                anyOf: [
+                                    {
+                                        $ref: "#/components/schemas/Dog"
+                                    },
+                                    {
+                                        $ref: "#/components/schemas/Cat"
+                                    }
+                                ],
+                                discriminator: {
+                                    propertyName: "petType",
+                                    mapping: {
+                                        dog: "#/components/schemas/Dog",
+                                        cat: "#/components/schemas/Cat"
+                                    }
+                                }
+                            }
+                        },
+                        required: [
+                            "pet"
+                        ],
+                        title: "Owner"
+                    },
+                    Dog: {
+                        type: "object",
+                        properties: {
+                            petType: {
+                                type: "string",
+                                enum: [
+                                    "dog"
+                                ]
+                            },
+                            breed: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "petType",
+                            "breed"
+                        ],
+                        title: "Dog"
+                    },
+                    Cat: {
+                        type: "object",
+                        properties: {
+                            petType: {
+                                type: "string",
+                                enum: [
+                                    "cat"
+                                ]
+                            },
+                            breed: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "petType",
+                            "breed"
+                        ],
+                        title: "Cat"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "anyOf with nullable union",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        pluginOptions: { unionStyle: "anyOf" },
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    anyOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
     }
 ];
 

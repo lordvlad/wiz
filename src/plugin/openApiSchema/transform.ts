@@ -92,7 +92,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 typeNode: undefined,
                 settings: {
                     coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
-                    transformDate: opt?.transformDate
+                    transformDate: opt?.transformDate,
+                    unionStyle: opt?.unionStyle
                 },
                 availableTypes,
                 processingStack,

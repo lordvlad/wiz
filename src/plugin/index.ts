@@ -7,6 +7,12 @@ export type WizPluginOptions = {
     log?: boolean
     coerceSymbolsToStrings?: boolean
     transformDate?: (type: Type) => unknown
+    /**
+     * Controls which OpenAPI keyword to use for union types.
+     * - "oneOf": validates against exactly one schema (default, stricter)
+     * - "anyOf": validates against one or more schemas (more permissive)
+     */
+    unionStyle?: "oneOf" | "anyOf"
 }
 
 export type WizPluginContext = {

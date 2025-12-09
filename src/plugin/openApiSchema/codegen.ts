@@ -5,6 +5,7 @@ import type { BigIntFormatType, NumFormatType, StrFormatType } from "../../tags"
 type SchemaSettings = {
     coerceSymbolsToStrings?: boolean;
     transformDate?: (type: Type) => unknown;
+    unionStyle?: "oneOf" | "anyOf";
 }
 
 type SchemaContext = {
@@ -96,7 +97,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         }
         
-        // Handle complex type unions (oneOf)
+        // Handle complex type unions (oneOf or anyOf)
         if (narrowed.length > 1) {
             // Collapse boolean literals (true | false) into a single boolean type
             const booleanLiterals = narrowed.filter(t => t.isBooleanLiteral());
@@ -122,11 +123,14 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 schemas.push({ type: "boolean" });
             }
             
-            // Detect discriminator for oneOf schemas
+            // Detect discriminator for oneOf/anyOf schemas
             // Use narrowed (not typesToProcess) to include all original types for detection
             const discriminator = detectDiscriminator(narrowed, availableTypes);
             
-            const result: any = { oneOf: schemas };
+            // Use unionStyle from settings, defaulting to "oneOf"
+            const unionKeyword = settings.unionStyle ?? "oneOf";
+            
+            const result: any = { [unionKeyword]: schemas };
             if (discriminator) {
                 result.discriminator = discriminator;
             }
