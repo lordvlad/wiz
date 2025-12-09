@@ -31,7 +31,7 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         if (typeArgs.length >= 2) {
             // Second type argument is the version
             const versionTypeArg = typeArgs[1];
-            const versionText = versionTypeArg?.getText().replace(/['"]/g, '');
+            const versionText = versionTypeArg.getText().replace(/['"]/g, '');
             if (versionText !== "3.0" && versionText !== "3.1") {
                 throw new Error(`createOpenApiSchema version type parameter must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
             }
