@@ -50,11 +50,110 @@ type Product = {
     price: number;
 };
 
-// Generate components.schemas for multiple types
-export const schema = createOpenApiSchema<[User, Product]>();
+// Generate components.schemas for multiple types (OpenAPI 3.0)
+export const schema = createOpenApiSchema<[User, Product]>("3.0");
 
 // Or for a single type (still requires tuple syntax)
-export const userSchema = createOpenApiSchema<[User]>();
+export const userSchema = createOpenApiSchema<[User]>("3.0");
+
+// Generate OpenAPI 3.1 schemas
+export const schema31 = createOpenApiSchema<[User, Product]>("3.1");
+```
+
+#### OpenAPI Version Support
+
+Wiz supports both **OpenAPI 3.0** and **OpenAPI 3.1** specifications. The version is specified as a required parameter to `createOpenApiSchema()`.
+
+**Key Differences:**
+
+- **OpenAPI 3.0**:
+  - Uses `nullable: true` property for nullable types
+  - Example: `{ type: "string", nullable: true }`
+
+- **OpenAPI 3.1**:
+  - Uses type arrays for nullable types: `type: ["string", "null"]`
+  - Fully compatible with JSON Schema Draft 2020-12
+  - For union types with null (oneOf/anyOf), adds `{ type: "null" }` to the array
+
+**Example - Nullable Properties:**
+
+```typescript
+type User = {
+    name: string | null;
+    age: number | null;
+};
+
+// OpenAPI 3.0
+export const schema30 = createOpenApiSchema<[User]>("3.0");
+// Generates: { type: "string", nullable: true }
+
+// OpenAPI 3.1
+export const schema31 = createOpenApiSchema<[User]>("3.1");
+// Generates: { type: ["string", "null"] }
+```
+
+**OpenAPI 3.0 Output:**
+```json
+{
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "age": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": ["name", "age"],
+        "title": "User"
+      }
+    }
+  }
+}
+```
+
+**OpenAPI 3.1 Output:**
+```json
+{
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": ["string", "null"]
+          },
+          "age": {
+            "type": ["number", "null"]
+          }
+        },
+        "required": ["name", "age"],
+        "title": "User"
+      }
+    }
+  }
+}
+```
+
+**Example - Nullable Unions (oneOf/anyOf):**
+
+```typescript
+type Data = {
+    value: string | number | null;
+};
+
+// OpenAPI 3.0
+export const schema30 = createOpenApiSchema<[Data]>("3.0");
+// Generates: { oneOf: [...], nullable: true }
+
+// OpenAPI 3.1
+export const schema31 = createOpenApiSchema<[Data]>("3.1");
+// Generates: { oneOf: [..., { type: "null" }] }
 ```
 
 This generates an OpenAPI schema with a `components.schemas` structure:
@@ -104,7 +203,7 @@ type Post = {
     author: Author;  // References Author type
 };
 
-export const schema = createOpenApiSchema<[Author, Post]>();
+export const schema = createOpenApiSchema<[Author, Post]>("3.0");
 ```
 
 This generates:
@@ -160,7 +259,7 @@ type Article = {
     tags: Tag[];  // Array of Tag references
 };
 
-export const schema = createOpenApiSchema<[Tag, Article]>();
+export const schema = createOpenApiSchema<[Tag, Article]>("3.0");
 ```
 
 Generates:
@@ -197,7 +296,7 @@ type Node = {
     next?: Node;  // Self-reference
 };
 
-export const schema = createOpenApiSchema<[Node]>();
+export const schema = createOpenApiSchema<[Node]>("3.0");
 ```
 
 Generates:
@@ -247,7 +346,7 @@ type Drawing = {
     shape: Shape;
 };
 
-export const schema = createOpenApiSchema<[Drawing]>();
+export const schema = createOpenApiSchema<[Drawing]>("3.0");
 ```
 
 Generates:
@@ -307,7 +406,7 @@ type Owner = {
     pet: Pet;
 };
 
-export const schema = createOpenApiSchema<[Owner, Dog, Cat]>();
+export const schema = createOpenApiSchema<[Owner, Dog, Cat]>("3.0");
 ```
 
 Generates schemas with `$ref` in the `oneOf`:
@@ -403,7 +502,7 @@ type Drawing = {
     shape: Shape;
 };
 
-export const schema = createOpenApiSchema<[Drawing]>();
+export const schema = createOpenApiSchema<[Drawing]>("3.0");
 ```
 
 With `unionStyle: "anyOf"`, this generates:
@@ -466,7 +565,7 @@ type Record = {
     entity: Entity;
 };
 
-export const schema = createOpenApiSchema<[Record]>();
+export const schema = createOpenApiSchema<[Record]>("3.0");
 ```
 
 Generates:
@@ -631,7 +730,7 @@ type Drawing = {
     shape: Shape;
 };
 
-export const schema = createOpenApiSchema<[Drawing]>();
+export const schema = createOpenApiSchema<[Drawing]>("3.0");
 ```
 
 Generates:
@@ -675,7 +774,7 @@ type Cat = {
 
 type Pet = Dog | Cat;
 
-export const schema = createOpenApiSchema<[Pet, Dog, Cat]>();
+export const schema = createOpenApiSchema<[Pet, Dog, Cat]>("3.0");
 ```
 
 Generates:
@@ -931,7 +1030,7 @@ type StringMap = {
 // Using Record utility type
 type NumberMap = Record<string, number>;
 
-export const schema = createOpenApiSchema<[StringMap, NumberMap]>();
+export const schema = createOpenApiSchema<[StringMap, NumberMap]>("3.0");
 ```
 
 Both syntaxes generate the same OpenAPI schema:
@@ -977,7 +1076,7 @@ type UserMap = {
 // Or using Record (equivalent)
 type UserMapAlt = Record<string, User>;
 
-export const schema = createOpenApiSchema<[UserMap, User]>();
+export const schema = createOpenApiSchema<[UserMap, User]>("3.0");
 ```
 
 Generates:
@@ -1018,7 +1117,7 @@ type Config = {
     [key: string]: any;
 };
 
-export const schema = createOpenApiSchema<[Config]>();
+export const schema = createOpenApiSchema<[Config]>("3.0");
 ```
 
 Generates:
