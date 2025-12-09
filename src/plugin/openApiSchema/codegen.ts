@@ -1,6 +1,6 @@
 
 import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode, EnumDeclaration } from "ts-morph";
-import type { BigIntFormatType, NumFormatType } from "../../tags";
+import type { BigIntFormatType, NumFormatType, StrFormatType } from "../../tags";
 
 type SchemaSettings = {
     coerceSymbolsToStrings?: boolean;
@@ -167,6 +167,9 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     if (isNumFormat(type, context.nodeText))
         return createSchemaForNumberFormat(type, context.nodeText);
 
+    if (isStrFormat(type, context.nodeText))
+        return createSchemaForStrFormat(type, context.nodeText);
+
     if (isSymbolType(type)) {
         if (settings.coerceSymbolsToStrings)
             return { type: "string" };
@@ -318,6 +321,10 @@ function isNumFormat(type: Type, nodeText?: string) {
     return hasFormatAlias(type, "NumFormat") || nodeText?.includes("NumFormat");
 }
 
+function isStrFormat(type: Type, nodeText?: string) {
+    return hasFormatAlias(type, "StrFormat") || nodeText?.includes("StrFormat");
+}
+
 function hasFormatAlias(type: Type, name: string) {
     const alias = type.getAliasSymbol();
     if (alias && alias.getName() === name)
@@ -358,6 +365,16 @@ function createSchemaForNumberFormat(type: Type, nodeText?: string) {
         return { type: "number", format: formatValue };
 
     return { type: "number" };
+}
+
+function createSchemaForStrFormat(type: Type, nodeText?: string) {
+    const formatValue = getFormatLiteral<StrFormatType>(type) ?? extractFormatFromText<StrFormatType>(nodeText, "StrFormat");
+
+    if (!formatValue)
+        return { type: "string" };
+
+    // All StrFormat types map to string with format field
+    return { type: "string", format: formatValue };
 }
 
 function isOptionalProperty(symbol: Symbol, declaration: Node) {
