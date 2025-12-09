@@ -2022,7 +2022,8 @@ const cases: TestCase[] = [
                         {
                             type: "number"
                         }
-                    ]
+                    ],
+                    nullable: true
                 }
             },
             required: [
