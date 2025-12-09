@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { compile, dedent } from './util';
 import type { WizPluginOptions } from '../plugin/index';
+import { compile, dedent } from './util';
 
 // Type definition for test cases
 type TestCase = {
     title: string;
     type: string;
     schema?: string;
-    expectError?: string;
+    expectError?: string | RegExp;
     pluginOptions?: WizPluginOptions;
     isArrayTest?: boolean;
     arrayTypes?: string[];
@@ -1014,6 +1014,252 @@ const cases: TestCase[] = [
             },
             required: [
                 "username"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format email",
+        type: `type Type = {
+                    /**
+                     * @format email
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format uuid",
+        type: `type Type = {
+                    /**
+                     * @format uuid
+                     */
+                    id: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    format: "uuid"
+                }
+            },
+            required: [
+                "id"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format uri",
+        type: `type Type = {
+                    /**
+                     * @format uri
+                     */
+                    url: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                url: {
+                    type: "string",
+                    format: "uri"
+                }
+            },
+            required: [
+                "url"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @format with other tags",
+        type: `type Type = {
+                    /**
+                     * User's email address
+                     * @format email
+                     * @example "user@example.com"
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "User's email address",
+                    example: "user@example.com",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with email",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    email: StrFormat<"email">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    format: "email"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with uuid",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    id: StrFormat<"uuid">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    format: "uuid"
+                }
+            },
+            required: [
+                "id"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with uri",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    url: StrFormat<"uri">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                url: {
+                    type: "string",
+                    format: "uri"
+                }
+            },
+            required: [
+                "url"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with ipv4",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    address: StrFormat<"ipv4">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                address: {
+                    type: "string",
+                    format: "ipv4"
+                }
+            },
+            required: [
+                "address"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "StrFormat type with hostname",
+        type: `import type { StrFormat } from "../tags";
+                type Type = {
+                    server: StrFormat<"hostname">;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                server: {
+                    type: "string",
+                    format: "hostname"
+                }
+            },
+            required: [
+                "server"
             ],
             title: "Type"
                     }
@@ -2954,13 +3200,270 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "nullable property with null",
+        type: `type Type = {
+                    name: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable property with both null and undefined",
+        type: `type Type = {
+                    name: string | null | undefined;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable number property",
+        type: `type Type = {
+                    count: number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                count: {
+                    type: "number",
+                    nullable: true
+                }
+            },
+            required: [
+                "count"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable boolean property",
+        type: `type Type = {
+                    active: boolean | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                active: {
+                    type: "boolean",
+                    nullable: true
+                }
+            },
+            required: [
+                "active"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable array property",
+        type: `type Type = {
+                    tags: string[] | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                tags: {
+                    type: "array",
+                    items: {
+                        type: "string"
+                    },
+                    nullable: true
+                }
+            },
+            required: [
+                "tags"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable object property",
+        type: `type Type = {
+                    metadata: { key: string } | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                metadata: {
+                    type: "object",
+                    properties: {
+                        key: {
+                            type: "string"
+                        }
+                    },
+                    required: [
+                        "key"
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "metadata"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "optional nullable property",
+        type: `type Type = {
+                    description?: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                description: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable union type (oneOf with nullable)",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "nullable $ref property",
+        type: `type User = {
+                    id: number;
+                }
+                type Type = {
+                    user: User | null;
+                }`,
+        isArrayTest: true,
+        arrayTypes: ['Type', 'User'],
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+                        type: "object",
+                        properties: {
+                            user: {
+                                $ref: "#/components/schemas/User",
+                                nullable: true
+                            }
+                        },
+                        required: [
+                            "user"
+                        ],
+                        title: "Type"
+                    },
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            }
+                        },
+                        required: [
+                            "id"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`
     }
 ];
 
 describe("openApiSchema plugin", () => {
     it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes }) => {
         const needsTags = type.includes("tags.");
-        
+
         // All tests now use tuple syntax
         const types = arrayTypes || ['Type'];
         const code = `
