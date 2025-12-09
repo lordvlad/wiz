@@ -11,6 +11,7 @@ type TestCase = {
     pluginOptions?: WizPluginOptions;
     isArrayTest?: boolean;
     arrayTypes?: string[];
+    version?: "3.0" | "3.1";
 };
 
 const cases: TestCase[] = [
@@ -3686,20 +3687,260 @@ const cases: TestCase[] = [
                 }
             }
         }`
+    },
+    {
+        title: "OpenAPI 3.0 nullable property with null",
+        version: "3.0",
+        type: `type Type = {
+                    name: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    nullable: true
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.1 nullable property with null",
+        version: "3.1",
+        type: `type Type = {
+                    name: string | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                name: {
+                    type: [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            required: [
+                "name"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.0 nullable number property",
+        version: "3.0",
+        type: `type Type = {
+                    count: number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                count: {
+                    type: "number",
+                    nullable: true
+                }
+            },
+            required: [
+                "count"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.1 nullable number property",
+        version: "3.1",
+        type: `type Type = {
+                    count: number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                count: {
+                    type: [
+                        "number",
+                        "null"
+                    ]
+                }
+            },
+            required: [
+                "count"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.0 oneOf with nullable union",
+        version: "3.0",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.1 oneOf with nullable union",
+        version: "3.1",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        },
+                        {
+                            type: "null"
+                        }
+                    ]
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.0 nullable enum",
+        version: "3.0",
+        type: `type Type = {
+                    status: "active" | "inactive" | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                status: {
+                    type: "string",
+                    enum: [
+                        "active",
+                        "inactive"
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "status"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "OpenAPI 3.1 nullable enum",
+        version: "3.1",
+        type: `type Type = {
+                    status: "active" | "inactive" | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                status: {
+                    type: [
+                        "string",
+                        "null"
+                    ],
+                    enum: [
+                        "active",
+                        "inactive"
+                    ]
+                }
+            },
+            required: [
+                "status"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
     }
 ];
 
 describe("openApiSchema plugin", () => {
-    it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes }) => {
+    it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes, version }) => {
         const needsTags = type.includes("tags.");
 
         // All tests now use tuple syntax
         const types = arrayTypes || ['Type'];
+        // Default to "3.0" for backward compatibility with existing tests
+        const apiVersion = version || "3.0";
         const code = `
             ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
             import { createOpenApiSchema } from "../../openApiSchema/index";
             ${type}
-            export const schema = createOpenApiSchema<[${types.join(', ')}]>();
+            export const schema = createOpenApiSchema<[${types.join(', ')}]>("${apiVersion}");
         `;
 
         if (schema) {

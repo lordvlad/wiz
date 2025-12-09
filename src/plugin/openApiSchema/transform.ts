@@ -23,6 +23,20 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
 
     for (const call of calls) {
         log(`Transforming createOpenApiSchema call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+        
+        // Extract version parameter (required first argument)
+        const args = call.getArguments();
+        if (args.length === 0) {
+            throw new Error(`createOpenApiSchema requires a version parameter ("3.0" or "3.1"). Found at ${path}:${call.getStartLineNumber()}`);
+        }
+        
+        const versionArg = args[0];
+        const versionText = versionArg?.getText().replace(/['"]/g, '');
+        if (versionText !== "3.0" && versionText !== "3.1") {
+            throw new Error(`createOpenApiSchema version must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
+        }
+        const openApiVersion = versionText as "3.0" | "3.1";
+        
         // FIXME guard instead of using non-null assertion
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
@@ -93,7 +107,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 settings: {
                     coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                     transformDate: opt?.transformDate,
-                    unionStyle: opt?.unionStyle
+                    unionStyle: opt?.unionStyle,
+                    openApiVersion
                 },
                 availableTypes,
                 processingStack,
