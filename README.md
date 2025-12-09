@@ -224,7 +224,7 @@ Generates:
 
 ### Polymorphism and Union Types (oneOf, anyOf, allOf)
 
-Wiz supports TypeScript union types and intersection types, mapping them to JSON Schema's `oneOf` and `allOf` constructs for polymorphic schemas.
+Wiz supports TypeScript union types and intersection types, mapping them to OpenAPI's `oneOf`, `anyOf`, and `allOf` constructs for polymorphic schemas.
 
 #### Union Types (oneOf)
 
@@ -359,6 +359,92 @@ Generates a `oneOf` with primitive types:
   }
 }
 ```
+
+#### Union Types with anyOf
+
+By default, Wiz generates `oneOf` for union types, which requires that a value validates against exactly one schema. However, you can configure the plugin to use `anyOf` instead, which is more permissive and allows a value to validate against one or more schemas.
+
+**When to use `anyOf` vs `oneOf`:**
+
+- **`oneOf`** (default): Stricter validation - the value must match exactly one schema. Use when schemas are mutually exclusive.
+- **`anyOf`**: More lenient validation - the value can match one or more schemas. Use when schemas may overlap or when you need more flexible validation.
+
+**Configuring the plugin to use `anyOf`:**
+
+```typescript
+import wizPlugin from "wiz/plugin";
+
+Bun.build({
+  entrypoints: ["./src/index.ts"],
+  plugins: [
+    wizPlugin({
+      unionStyle: "anyOf"  // Use anyOf instead of oneOf for union types
+    })
+  ]
+});
+```
+
+**Example with `anyOf`:**
+
+```typescript
+type Circle = {
+    kind: "circle";
+    radius: number;
+};
+
+type Square = {
+    kind: "square";
+    side: number;
+};
+
+type Shape = Circle | Square;
+
+type Drawing = {
+    shape: Shape;
+};
+
+export const schema = createOpenApiSchema<[Drawing]>();
+```
+
+With `unionStyle: "anyOf"`, this generates:
+
+```json
+{
+  "components": {
+    "schemas": {
+      "Drawing": {
+        "type": "object",
+        "properties": {
+          "shape": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "enum": ["circle"] },
+                  "radius": { "type": "number" }
+                },
+                "required": ["kind", "radius"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "enum": ["square"] },
+                  "side": { "type": "number" }
+                },
+                "required": ["kind", "side"]
+              }
+            ]
+          }
+        },
+        "required": ["shape"],
+        "title": "Drawing"
+      }
+    }
+  }
+}
+```
+
+**Note:** The `anyOf` option applies to all union types in your schema. Discriminator properties are still detected and included when using `anyOf`.
 
 #### Intersection Types (allOf)
 
