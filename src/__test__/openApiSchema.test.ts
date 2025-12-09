@@ -3940,7 +3940,7 @@ describe("openApiSchema plugin", () => {
             ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
             import { createOpenApiSchema } from "../../openApiSchema/index";
             ${type}
-            export const schema = createOpenApiSchema<[${types.join(', ')}]>("${apiVersion}");
+            export const schema = createOpenApiSchema<[${types.join(', ')}], "${apiVersion}">();
         `;
 
         if (schema) {

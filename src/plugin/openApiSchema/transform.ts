@@ -17,25 +17,26 @@ type SchemaValue = {
 export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt }: WizPluginContext) {
 
     const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)
-        .filter(call => (call.getExpression()).getText() === createOpenApiSchema.name && call.getTypeArguments().length === 1);
+        .filter(call => (call.getExpression()).getText() === createOpenApiSchema.name && call.getTypeArguments().length >= 1);
 
     if (calls.length === 0) return;
 
     for (const call of calls) {
         log(`Transforming createOpenApiSchema call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
         
-        // Extract version parameter (required first argument)
-        const args = call.getArguments();
-        if (args.length === 0) {
-            throw new Error(`createOpenApiSchema requires a version parameter ("3.0" or "3.1"). Found at ${path}:${call.getStartLineNumber()}`);
-        }
+        // Extract version from second type parameter (defaults to "3.0" if not provided)
+        const typeArgs = call.getTypeArguments();
+        let openApiVersion: "3.0" | "3.1" = "3.0"; // default
         
-        const versionArg = args[0];
-        const versionText = versionArg?.getText().replace(/['"]/g, '');
-        if (versionText !== "3.0" && versionText !== "3.1") {
-            throw new Error(`createOpenApiSchema version must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
+        if (typeArgs.length >= 2) {
+            // Second type argument is the version
+            const versionTypeArg = typeArgs[1];
+            const versionText = versionTypeArg?.getText().replace(/['"]/g, '');
+            if (versionText !== "3.0" && versionText !== "3.1") {
+                throw new Error(`createOpenApiSchema version type parameter must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
+            }
+            openApiVersion = versionText as "3.0" | "3.1";
         }
-        const openApiVersion = versionText as "3.0" | "3.1";
         
         // FIXME guard instead of using non-null assertion
         const typeArg = call.getTypeArguments()[0]!;
