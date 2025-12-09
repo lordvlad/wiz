@@ -3286,7 +3286,7 @@ describe("openApiSchema plugin", () => {
         }
 
         if (expectError) {
-            expect(await compile(code, pluginOptions)).rejects.toThrow(expectError);
+            await expect(compile(code, pluginOptions)).rejects.toThrow(expectError);
             return;
         }
 
