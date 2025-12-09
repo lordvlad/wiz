@@ -1268,6 +1268,171 @@ const cases: TestCase[] = [
         }`
     },
     {
+        title: "jsdoc @pattern for string validation",
+        type: `type Type = {
+                    /**
+                     * @pattern ^[a-zA-Z0-9]+$
+                     */
+                    username: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                username: {
+                    type: "string",
+                    pattern: "^[a-zA-Z0-9]+$"
+                }
+            },
+            required: [
+                "username"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @multipleOf for number validation",
+        type: `type Type = {
+                    /**
+                     * @multipleOf 0.01
+                     */
+                    price: number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                price: {
+                    type: "number",
+                    multipleOf: 0.01
+                }
+            },
+            required: [
+                "price"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc @exclusiveMinimum and @exclusiveMaximum",
+        type: `type Type = {
+                    /**
+                     * @exclusiveMinimum 0
+                     * @exclusiveMaximum 100
+                     */
+                    percentage: number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                percentage: {
+                    type: "number",
+                    exclusiveMinimum: 0,
+                    exclusiveMaximum: 100
+                }
+            },
+            required: [
+                "percentage"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc combined number validation keywords",
+        type: `type Type = {
+                    /**
+                     * Price in USD
+                     * @minimum 0
+                     * @maximum 1000000
+                     * @multipleOf 0.01
+                     */
+                    price: number;
+                    /**
+                     * @exclusiveMinimum 0
+                     * @exclusiveMaximum 1
+                     */
+                    probability: number;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                price: {
+                    type: "number",
+                    description: "Price in USD",
+                    minimum: 0,
+                    maximum: 1e6,
+                    multipleOf: 0.01
+                },
+                probability: {
+                    type: "number",
+                    exclusiveMinimum: 0,
+                    exclusiveMaximum: 1
+                }
+            },
+            required: [
+                "price",
+                "probability"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
+        title: "jsdoc combined string validation keywords",
+        type: `type Type = {
+                    /**
+                     * Email address
+                     * @pattern ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$
+                     * @minLength 5
+                     * @maxLength 255
+                     */
+                    email: string;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                email: {
+                    type: "string",
+                    description: "Email address",
+                    minLength: 5,
+                    maxLength: 255,
+                    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\\\.[a-zA-Z]{2,}$"
+                }
+            },
+            required: [
+                "email"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
+    {
         title: "string literal union",
         type: `type Environment = "development" | "staging" | "production";
                 type Type = {
@@ -2084,7 +2249,38 @@ const cases: TestCase[] = [
             }
         }`
     },
-
+    {
+        title: "oneOf with nullable union",
+        type: `type Type = {
+                    value: string | number | null;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                value: {
+                    oneOf: [
+                        {
+                            type: "string"
+                        },
+                        {
+                            type: "number"
+                        }
+                    ],
+                    nullable: true
+                }
+            },
+            required: [
+                "value"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`
+    },
     {
         title: "nested oneOf",
         type: `type A = { a: string };
