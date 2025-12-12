@@ -2,6 +2,7 @@ import { Project, SourceFile, Type } from "ts-morph";
 import ts from "typescript";
 
 import { transformOpenApiSchema } from "./openApiSchema/transform";
+import { transformValidator } from "./validator/transform";
 
 export type WizPluginOptions = {
     log?: boolean
@@ -50,6 +51,7 @@ const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
                 const sourceFile = project.createSourceFile(args.path, source, { overwrite: true });
 
                 transformOpenApiSchema(sourceFile, { log, opt,path:args.path });
+                transformValidator(sourceFile, { log, opt, path: args.path });
 
                 return {
                     contents: sourceFile.getFullText(),
