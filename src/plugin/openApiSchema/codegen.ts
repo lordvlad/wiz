@@ -1,5 +1,5 @@
-
 import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode, EnumDeclaration } from "ts-morph";
+
 import type { BigIntFormatType, NumFormatType, StrFormatType } from "../../tags";
 
 type SchemaSettings = {
@@ -7,7 +7,7 @@ type SchemaSettings = {
     transformDate?: (type: Type) => unknown;
     unionStyle?: "oneOf" | "anyOf";
     openApiVersion?: "3.0" | "3.1";
-}
+};
 
 type SchemaContext = {
     nodeText?: string;
@@ -50,29 +50,29 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
 
     if (type.isUnion()) {
         const unionTypes = type.getUnionTypes();
-        const hasExplicitNull = unionTypes.some(t => isExplicitlyNull(t));
-        const narrowed = unionTypes.filter(t => !isNullable(t));
-        
+        const hasExplicitNull = unionTypes.some((t) => isExplicitlyNull(t));
+        const narrowed = unionTypes.filter((t) => !isNullable(t));
+
         if (narrowed.length === 1) {
             const schema = createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
-            if (hasExplicitNull && typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+            if (hasExplicitNull && typeof schema === "object" && schema !== null && !Array.isArray(schema)) {
                 return makeNullable(schema, settings.openApiVersion);
             }
             return schema;
         }
-        if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral())) {
+        if (narrowed.length > 1 && narrowed.every((t) => t.isBooleanLiteral())) {
             const baseSchema: any = { type: "boolean" };
             if (hasExplicitNull) {
                 return makeNullable(baseSchema, settings.openApiVersion);
             }
             return baseSchema;
         }
-        
+
         // Check for string literal unions
-        if (narrowed.length > 1 && narrowed.every(t => t.isStringLiteral())) {
+        if (narrowed.length > 1 && narrowed.every((t) => t.isStringLiteral())) {
             const enumValues = narrowed
-                .map(t => t.getLiteralValue())
-                .filter((v): v is string => typeof v === 'string');
+                .map((t) => t.getLiteralValue())
+                .filter((v): v is string => typeof v === "string");
             // Ensure all literal values were extracted successfully
             if (enumValues.length === narrowed.length) {
                 const baseSchema: any = { type: "string", enum: enumValues };
@@ -82,12 +82,12 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 return baseSchema;
             }
         }
-        
+
         // Check for number literal unions
-        if (narrowed.length > 1 && narrowed.every(t => t.isNumberLiteral())) {
+        if (narrowed.length > 1 && narrowed.every((t) => t.isNumberLiteral())) {
             const enumValues = narrowed
-                .map(t => t.getLiteralValue())
-                .filter((v): v is number => typeof v === 'number');
+                .map((t) => t.getLiteralValue())
+                .filter((v): v is number => typeof v === "number");
             // Ensure all literal values were extracted successfully
             if (enumValues.length === narrowed.length) {
                 const baseSchema: any = { type: "number", enum: enumValues };
@@ -97,40 +97,40 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 return baseSchema;
             }
         }
-        
+
         // Handle complex type unions (oneOf or anyOf)
         if (narrowed.length > 1) {
             // Collapse boolean literals (true | false) into a single boolean type
-            const booleanLiterals = narrowed.filter(t => t.isBooleanLiteral());
+            const booleanLiterals = narrowed.filter((t) => t.isBooleanLiteral());
             const hasBothBooleans = booleanLiterals.length === 2;
-            
+
             let typesToProcess = narrowed;
             if (hasBothBooleans) {
                 // Both true and false are present, replace them with a single boolean type
-                typesToProcess = narrowed.filter(t => !t.isBooleanLiteral());
+                typesToProcess = narrowed.filter((t) => !t.isBooleanLiteral());
                 // We'll add the boolean schema manually below
             }
-            
-            const schemas = typesToProcess.map(t => 
+
+            const schemas = typesToProcess.map((t) =>
                 createOpenApiSchema(t, {
                     ...context,
                     availableTypes,
-                    processingStack
-                })
+                    processingStack,
+                }),
             );
-            
+
             // If we had both boolean literals, add a single boolean schema
             if (hasBothBooleans) {
                 schemas.push({ type: "boolean" });
             }
-            
+
             // Detect discriminator for oneOf/anyOf schemas
             // Use narrowed (not typesToProcess) to include all original types for detection
             const discriminator = detectDiscriminator(narrowed, availableTypes);
-            
+
             // Use unionStyle from settings, defaulting to "oneOf"
             const unionKeyword = settings.unionStyle ?? "oneOf";
-            
+
             const result: any = { [unionKeyword]: schemas };
             if (discriminator) {
                 result.discriminator = discriminator;
@@ -138,24 +138,24 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             if (hasExplicitNull) {
                 return makeNullable(result, settings.openApiVersion);
             }
-            
+
             return result;
         }
     }
-    
+
     // Handle intersection types (allOf)
     if (type.isIntersection()) {
         const intersectionTypes = type.getIntersectionTypes();
-        const schemas = intersectionTypes.map(t => 
+        const schemas = intersectionTypes.map((t) =>
             createOpenApiSchema(t, {
                 ...context,
                 availableTypes,
-                processingStack
-            })
+                processingStack,
+            }),
         );
         return { allOf: schemas };
     }
-    
+
     // Check for enum types
     const symbol = type.getSymbol();
     if (symbol) {
@@ -168,65 +168,57 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         }
     }
-    
-    if (isBigIntFormat(type, context.nodeText))
-        return createSchemaForBigInt(type, context.nodeText);
 
-    if (isNumFormat(type, context.nodeText))
-        return createSchemaForNumberFormat(type, context.nodeText);
+    if (isBigIntFormat(type, context.nodeText)) return createSchemaForBigInt(type, context.nodeText);
 
-    if (isStrFormat(type, context.nodeText))
-        return createSchemaForStrFormat(type, context.nodeText);
+    if (isNumFormat(type, context.nodeText)) return createSchemaForNumberFormat(type, context.nodeText);
+
+    if (isStrFormat(type, context.nodeText)) return createSchemaForStrFormat(type, context.nodeText);
 
     if (isSymbolType(type)) {
-        if (settings.coerceSymbolsToStrings)
-            return { type: "string" };
+        if (settings.coerceSymbolsToStrings) return { type: "string" };
         throw new Error("Symbol types require 'coerceSymbolsToStrings' to be enabled.");
     }
 
     if (isDateType(type)) {
         const customSchema = settings.transformDate?.(type);
-        if (customSchema !== undefined)
-            return customSchema;
+        if (customSchema !== undefined) return customSchema;
         return { type: "string", format: "date-time" };
     }
-    
+
     // Handle string literal types (e.g., "circle", "square")
     if (type.isStringLiteral()) {
         return { type: "string", enum: [type.getLiteralValue()] };
     }
-    
+
     // Handle number literal types
     if (type.isNumberLiteral()) {
         return { type: "number", enum: [type.getLiteralValue()] };
     }
-    
+
     // Handle boolean literal types (true, false)
     // Note: type.getLiteralValue() returns undefined for boolean literals,
     // so we use getText() to determine the value
     if (type.isBooleanLiteral()) {
-        const value = type.getText() === 'true';
+        const value = type.getText() === "true";
         return { type: "boolean", enum: [value] };
     }
 
-    if (type.isString())
-        return { type: "string" };
+    if (type.isString()) return { type: "string" };
 
-    if (type.isNumber())
-        return { type: "number" };
+    if (type.isNumber()) return { type: "number" };
 
-    if (type.isBoolean())
-        return { type: "boolean" };
+    if (type.isBoolean()) return { type: "boolean" };
 
     if (type.isArray())
         return {
             type: "array",
             // Array items are anonymous, don't pass typeName
-            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), { 
+            items: createOpenApiSchema(type.getArrayElementTypeOrThrow(), {
                 ...context,
                 settings: context.settings,
                 availableTypes,
-                processingStack 
+                processingStack,
             }),
         };
 
@@ -238,31 +230,32 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             const symbol = type.getSymbol();
             currentTypeName = symbol?.getName();
         }
-        
+
         // Create a new processing stack that includes the current type
         // This prevents infinite recursion for circular references
         const newProcessingStack = new Set(processingStack);
-        if (currentTypeName && currentTypeName !== '__type' && availableTypes.has(currentTypeName)) {
+        if (currentTypeName && currentTypeName !== "__type" && availableTypes.has(currentTypeName)) {
             newProcessingStack.add(currentTypeName);
         }
-        
+
         const properties: Record<string, any> = {};
         const required: string[] = [];
 
-        type.getProperties().forEach(prop => {
+        type.getProperties().forEach((prop) => {
             const declaration = prop.getDeclarations()[0];
             if (!declaration) return;
-            
+
             // Skip properties marked with @private, @ignore, or @package
             if (shouldExcludeFromSchema(declaration)) {
                 return;
             }
 
             const propType = declaration.getType();
-            const typeNode = (Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration))
-                ? declaration.getTypeNode()
-                : undefined;
-            
+            const typeNode =
+                Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration)
+                    ? declaration.getTypeNode()
+                    : undefined;
+
             // Create base schema
             // Note: We don't pass typeNode to nested objects - they are anonymous inline types
             let propSchema = createOpenApiSchema(propType, {
@@ -270,15 +263,15 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 nodeText: typeNode?.getText(),
                 declaration,
                 availableTypes,
-                processingStack: newProcessingStack
+                processingStack: newProcessingStack,
             });
-            
+
             // Extract and merge JSDoc metadata
             const jsDocMetadata = extractJSDocMetadata(declaration);
-            if (typeof propSchema === 'object' && propSchema !== null) {
+            if (typeof propSchema === "object" && propSchema !== null) {
                 propSchema = mergeJSDocIntoSchema(propSchema as Record<string, any>, jsDocMetadata);
             }
-            
+
             properties[prop.getName()] = propSchema;
 
             if (!isOptionalProperty(prop, declaration)) {
@@ -286,10 +279,10 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             }
         });
 
-        const baseSchema: Record<string, any> = { 
-            type: "object", 
+        const baseSchema: Record<string, any> = {
+            type: "object",
             ...(Object.keys(properties).length > 0 ? { properties } : {}),
-            ...(context.typeNode ? { title: context.typeNode.getText() } : {})
+            ...(context.typeNode ? { title: context.typeNode.getText() } : {}),
         };
 
         if (required.length > 0) baseSchema.required = required;
@@ -311,7 +304,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 schema.additionalProperties = createOpenApiSchema(stringIndexType, {
                     settings: context.settings,
                     availableTypes,
-                    processingStack: newProcessingStack
+                    processingStack: newProcessingStack,
                 });
             }
         }
@@ -335,77 +328,67 @@ function isStrFormat(type: Type, nodeText?: string) {
 
 function hasFormatAlias(type: Type, name: string) {
     const alias = type.getAliasSymbol();
-    if (alias && alias.getName() === name)
-        return true;
+    if (alias && alias.getName() === name) return true;
 
     const symbol = type.getSymbol();
-    if (symbol && symbol.getName() === name)
-        return true;
+    if (symbol && symbol.getName() === name) return true;
 
     return type.getText().includes(name);
 }
 
 function createSchemaForBigInt(type: Type, nodeText?: string) {
-    const formatValue = getFormatLiteral<BigIntFormatType>(type) ?? extractFormatFromText<BigIntFormatType>(nodeText, "BigIntFormat");
+    const formatValue =
+        getFormatLiteral<BigIntFormatType>(type) ?? extractFormatFromText<BigIntFormatType>(nodeText, "BigIntFormat");
 
-    if (formatValue === "int64")
-        return { type: "integer", format: "int64" };
+    if (formatValue === "int64") return { type: "integer", format: "int64" };
 
-    if (formatValue === "string")
-        return { type: "string" };
+    if (formatValue === "string") return { type: "string" };
 
     throw new Error(`BigIntFormat requires a format. Received: ${type.getText()}`);
 }
 
 function createSchemaForNumberFormat(type: Type, nodeText?: string) {
-    const formatValue = getFormatLiteral<NumFormatType>(type) ?? extractFormatFromText<NumFormatType>(nodeText, "NumFormat");
+    const formatValue =
+        getFormatLiteral<NumFormatType>(type) ?? extractFormatFromText<NumFormatType>(nodeText, "NumFormat");
 
-    if (!formatValue)
-        return { type: "number" };
+    if (!formatValue) return { type: "number" };
 
-    if (formatValue === "string")
-        return { type: "string" };
+    if (formatValue === "string") return { type: "string" };
 
-    if (formatValue === "int32" || formatValue === "int64")
-        return { type: "integer", format: formatValue };
+    if (formatValue === "int32" || formatValue === "int64") return { type: "integer", format: formatValue };
 
-    if (formatValue === "float" || formatValue === "double")
-        return { type: "number", format: formatValue };
+    if (formatValue === "float" || formatValue === "double") return { type: "number", format: formatValue };
 
     return { type: "number" };
 }
 
 function createSchemaForStrFormat(type: Type, nodeText?: string) {
-    const formatValue = getFormatLiteral<StrFormatType>(type) ?? extractFormatFromText<StrFormatType>(nodeText, "StrFormat");
+    const formatValue =
+        getFormatLiteral<StrFormatType>(type) ?? extractFormatFromText<StrFormatType>(nodeText, "StrFormat");
 
-    if (!formatValue)
-        return { type: "string" };
+    if (!formatValue) return { type: "string" };
 
     // All StrFormat types map to string with format field
     return { type: "string", format: formatValue };
 }
 
 function isOptionalProperty(symbol: Symbol, declaration: Node) {
-    if (symbol.hasFlags(SymbolFlags.Optional))
-        return true;
+    if (symbol.hasFlags(SymbolFlags.Optional)) return true;
 
     if (Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration))
-        if (declaration.hasQuestionToken())
-            return true;
+        if (declaration.hasQuestionToken()) return true;
 
     return false;
 }
 
 function isNullable(type: Type) {
-    if (type.isUndefined() || type.isNull())
-        return true;
+    if (type.isUndefined() || type.isNull()) return true;
 
-    return ["undefined", "null"].includes(type.getText())
+    return ["undefined", "null"].includes(type.getText());
 }
 
 function isExplicitlyNull(type: Type) {
-    if (type.isNull())
-        return true;
+    if (type.isNull()) return true;
 
     return type.getText() === "null";
 }
@@ -413,14 +396,14 @@ function isExplicitlyNull(type: Type) {
 /**
  * Adds nullable handling to a schema based on OpenAPI version.
  * - OpenAPI 3.0: adds `nullable: true` property
- * - OpenAPI 3.1: 
+ * - OpenAPI 3.1:
  *   - For simple types: wraps type in an array with "null" (e.g., type: ["string", "null"])
  *   - For oneOf/anyOf: adds { type: "null" } to the array
  */
 function makeNullable(schema: any, openApiVersion: "3.0" | "3.1" = "3.0"): any {
     if (openApiVersion === "3.1") {
         // OpenAPI 3.1: use type arrays or add null schema
-        if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+        if (typeof schema === "object" && schema !== null && !Array.isArray(schema)) {
             // For oneOf/anyOf schemas, add { type: "null" } to the array
             if (schema.oneOf) {
                 return { ...schema, oneOf: [...schema.oneOf, { type: "null" }] };
@@ -428,7 +411,7 @@ function makeNullable(schema: any, openApiVersion: "3.0" | "3.1" = "3.0"): any {
             if (schema.anyOf) {
                 return { ...schema, anyOf: [...schema.anyOf, { type: "null" }] };
             }
-            
+
             // For regular schemas with a type field
             const currentType = schema.type;
             if (currentType) {
@@ -443,30 +426,26 @@ function makeNullable(schema: any, openApiVersion: "3.0" | "3.1" = "3.0"): any {
         return schema;
     } else {
         // OpenAPI 3.0: use nullable property
-        if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+        if (typeof schema === "object" && schema !== null && !Array.isArray(schema)) {
             return { ...schema, nullable: true };
         }
         return schema;
     }
 }
 
-
 function isDateType(type: Type) {
     const symbol = type.getSymbol();
-    if (symbol && symbol.getName() === "Date")
-        return true;
+    if (symbol && symbol.getName() === "Date") return true;
 
     const apparentSymbol = type.getApparentType().getSymbol();
-    if (apparentSymbol && apparentSymbol.getName() === "Date")
-        return true;
+    if (apparentSymbol && apparentSymbol.getName() === "Date") return true;
 
-    ["Date", "globalThis.Date"].includes(type.getText())
+    ["Date", "globalThis.Date"].includes(type.getText());
 }
 
 function isSymbolType(type: Type) {
     const flags = type.getFlags();
-    if ((flags & TypeFlags.ESSymbol) !== 0 || (flags & TypeFlags.UniqueESSymbol) !== 0)
-        return true;
+    if ((flags & TypeFlags.ESSymbol) !== 0 || (flags & TypeFlags.UniqueESSymbol) !== 0) return true;
 
     return ["symbol", "unique symbol"].includes(type.getText());
 }
@@ -475,15 +454,13 @@ function getFormatLiteral<T extends string>(type: Type): T | undefined {
     const aliasArgs = type.getAliasTypeArguments?.();
     if (aliasArgs && aliasArgs.length > 0) {
         const literal = aliasArgs[0]?.getLiteralValue?.();
-        if (typeof literal === "string")
-            return literal as T;
+        if (typeof literal === "string") return literal as T;
     }
 
     const typeArgs = type.getTypeArguments?.();
     if (typeArgs && typeArgs.length > 0) {
         const literal = typeArgs[0]?.getLiteralValue?.();
-        if (typeof literal === "string")
-            return literal as T;
+        if (typeof literal === "string") return literal as T;
     }
 
     return undefined;
@@ -491,101 +468,101 @@ function getFormatLiteral<T extends string>(type: Type): T | undefined {
 
 function extractJSDocMetadata(node?: Node): JSDocMetadata {
     const metadata: JSDocMetadata = {};
-    
+
     if (!node) return metadata;
-    
+
     // Check if node supports JSDoc
     const jsDocableNode = node as any;
-    if (typeof jsDocableNode.getJsDocs !== 'function') {
+    if (typeof jsDocableNode.getJsDocs !== "function") {
         return metadata;
     }
-    
+
     const jsDocs = jsDocableNode.getJsDocs();
     if (!jsDocs || jsDocs.length === 0) return metadata;
-    
+
     for (const jsDoc of jsDocs) {
         // Get description from comment text (before any tags)
         const description = jsDoc.getDescription?.();
         if (description && !metadata.description) {
             metadata.description = description.trim();
         }
-        
+
         // Process tags
         const tags = jsDoc.getTags?.() || [];
         for (const tag of tags) {
             const tagName = tag.getTagName();
             const comment = tag.getComment?.();
-            const commentText = typeof comment === 'string' ? comment.trim() : '';
-            
+            const commentText = typeof comment === "string" ? comment.trim() : "";
+
             switch (tagName) {
-                case 'description':
+                case "description":
                     if (commentText && !metadata.description) {
                         metadata.description = commentText;
                     }
                     break;
-                case 'default':
+                case "default":
                     if (commentText) {
                         metadata.default = parseJSDocValue(commentText);
                     }
                     break;
-                case 'example':
+                case "example":
                     if (commentText) {
                         metadata.example = parseJSDocValue(commentText);
                     }
                     break;
-                case 'deprecated':
+                case "deprecated":
                     metadata.deprecated = true;
                     break;
-                case 'minimum':
-                case 'min':
+                case "minimum":
+                case "min":
                     if (commentText) {
                         const num = parseFloat(commentText);
                         if (!isNaN(num)) metadata.minimum = num;
                     }
                     break;
-                case 'maximum':
-                case 'max':
+                case "maximum":
+                case "max":
                     if (commentText) {
                         const num = parseFloat(commentText);
                         if (!isNaN(num)) metadata.maximum = num;
                     }
                     break;
-                case 'exclusiveMinimum':
+                case "exclusiveMinimum":
                     if (commentText) {
                         const num = parseFloat(commentText);
                         if (!isNaN(num)) metadata.exclusiveMinimum = num;
                     }
                     break;
-                case 'exclusiveMaximum':
+                case "exclusiveMaximum":
                     if (commentText) {
                         const num = parseFloat(commentText);
                         if (!isNaN(num)) metadata.exclusiveMaximum = num;
                     }
                     break;
-                case 'multipleOf':
+                case "multipleOf":
                     if (commentText) {
                         const num = parseFloat(commentText);
                         if (!isNaN(num) && num > 0) metadata.multipleOf = num;
                     }
                     break;
-                case 'minLength':
+                case "minLength":
                     if (commentText) {
                         const num = parseInt(commentText, 10);
                         if (!isNaN(num)) metadata.minLength = num;
                     }
                     break;
-                case 'maxLength':
+                case "maxLength":
                     if (commentText) {
                         const num = parseInt(commentText, 10);
                         if (!isNaN(num)) metadata.maxLength = num;
                     }
                     break;
-                case 'pattern':
+                case "pattern":
                     if (commentText) {
                         metadata.pattern = commentText;
                     }
                     break;
-                case 'format':
+                case "format":
                     if (commentText) {
                         metadata.format = commentText;
                     }
@@ -593,67 +570,66 @@ function extractJSDocMetadata(node?: Node): JSDocMetadata {
             }
         }
     }
-    
+
     return metadata;
 }
 
 function shouldExcludeFromSchema(node?: Node): boolean {
     if (!node) return false;
-    
+
     // Check if node supports JSDoc
     const jsDocableNode = node as any;
-    if (typeof jsDocableNode.getJsDocs !== 'function') {
+    if (typeof jsDocableNode.getJsDocs !== "function") {
         return false;
     }
-    
+
     const jsDocs = jsDocableNode.getJsDocs();
     if (!jsDocs || jsDocs.length === 0) return false;
-    
+
     for (const jsDoc of jsDocs) {
         const tags = jsDoc.getTags?.() || [];
         for (const tag of tags) {
             const tagName = tag.getTagName();
             // Exclude fields marked with @private, @ignore, or @package
-            if (tagName === 'private' || tagName === 'ignore' || tagName === 'package') {
+            if (tagName === "private" || tagName === "ignore" || tagName === "package") {
                 return true;
             }
         }
     }
-    
+
     return false;
 }
 
 function parseJSDocValue(value: string): any {
     value = value.trim();
-    
+
     // Try to parse as JSON first (handles objects, arrays, and primitives)
     try {
         return JSON.parse(value);
     } catch {
         // Not valid JSON, continue with other parsing
     }
-    
+
     // Try to parse as boolean
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    if (value === 'null') return null;
-    
+    if (value === "true") return true;
+    if (value === "false") return false;
+    if (value === "null") return null;
+
     // Try to parse as number
     const num = Number(value);
-    if (!isNaN(num) && value !== '') return num;
-    
+    if (!isNaN(num) && value !== "") return num;
+
     // Remove quotes if it's a quoted string
-    if ((value.startsWith('"') && value.endsWith('"')) || 
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
         return value.slice(1, -1);
     }
-    
+
     return value;
 }
 
 function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetadata): Record<string, any> {
     const result = { ...schema };
-    
+
     if (metadata.description !== undefined) {
         result.description = metadata.description;
     }
@@ -694,21 +670,24 @@ function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetada
         // Only override format if not already set by type analysis
         result.format = metadata.format;
     }
-    
+
     return result;
 }
 
-function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "string" | "number"; enum: (string | number)[] } {
+function createEnumSchema(
+    declaration: EnumDeclaration,
+    type: Type,
+): { type: "string" | "number"; enum: (string | number)[] } {
     const members = declaration.getMembers();
-    
+
     // Handle empty enums
     if (members.length === 0) {
         throw new Error(`Enum ${declaration.getName()} has no members`);
     }
-    
+
     const enumValues: (string | number)[] = [];
     let enumType: "string" | "number" | null = null;
-    
+
     for (const member of members) {
         const initializer = member.getInitializer();
         if (initializer) {
@@ -738,7 +717,7 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
             // member.getValue() returns the computed constant value for the enum member.
             // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
             const value = member.getValue();
-            if (typeof value === 'number') {
+            if (typeof value === "number") {
                 enumValues.push(value);
                 if (enumType === null) {
                     enumType = "number";
@@ -746,23 +725,23 @@ function createEnumSchema(declaration: EnumDeclaration, type: Type): { type: "st
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else {
-                throw new Error(`Enum member ${member.getName()} has unexpected non-numeric value (${JSON.stringify(value)}): ${type.getText()}`);
+                throw new Error(
+                    `Enum member ${member.getName()} has unexpected non-numeric value (${JSON.stringify(value)}): ${type.getText()}`,
+                );
             }
         }
     }
-    
+
     // enumType is guaranteed to be non-null since we have at least one member
     return { type: enumType!, enum: enumValues };
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
-    if (!text)
-        return undefined;
+    if (!text) return undefined;
 
     const pattern = new RegExp(`${alias}<\s*"([^"]+)"`, "i");
     const match = text.match(pattern);
-    if (!match)
-        return undefined;
+    if (!match) return undefined;
 
     return match[1] as T;
 }
@@ -781,17 +760,17 @@ function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: 
     // Get the type name from the alias symbol
     const aliasSymbol = type.getAliasSymbol();
     let typeName: string | undefined = aliasSymbol?.getName();
-    
+
     // Fallback to regular symbol if no alias
     if (!typeName) {
         const symbol = type.getSymbol();
         typeName = symbol?.getName();
     }
-    
-    if (!typeName || typeName === '__type') {
+
+    if (!typeName || typeName === "__type") {
         return undefined;
     }
-    
+
     // Use $ref if this type is in availableTypes, with special handling for root level vs nested
     if (availableTypes.has(typeName)) {
         // If already in processing stack, we're in a circular reference - emit $ref to avoid infinite recursion
@@ -804,7 +783,7 @@ function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: 
             return typeName;
         }
     }
-    
+
     return undefined;
 }
 
@@ -816,65 +795,65 @@ function shouldUseRef(type: Type, availableTypes: Set<string>, processingStack: 
  * 3. That property has different literal string/number values in each member
  */
 function detectDiscriminator(
-    unionTypes: Type[], 
-    availableTypes: Set<string>
+    unionTypes: Type[],
+    availableTypes: Set<string>,
 ): { propertyName: string; mapping?: Record<string, string> } | undefined {
     // Need at least 2 types for a discriminator
     if (unionTypes.length < 2) {
         return undefined;
     }
-    
+
     // All types must be objects (not primitives, arrays, etc.)
-    if (!unionTypes.every(t => t.isObject() && !t.isArray())) {
+    if (!unionTypes.every((t) => t.isObject() && !t.isArray())) {
         return undefined;
     }
-    
+
     // Get properties for each type
-    const typeProperties = unionTypes.map(t => {
+    const typeProperties = unionTypes.map((t) => {
         const props = t.getProperties();
-        return new Map(props.map(p => [p.getName(), p]));
+        return new Map(props.map((p) => [p.getName(), p]));
     });
-    
+
     // Find common property names across all union members
     const firstProps = typeProperties[0];
     if (!firstProps) return undefined;
-    
+
     const commonProps: string[] = [];
     for (const [propName] of firstProps) {
-        if (typeProperties.every(props => props.has(propName))) {
+        if (typeProperties.every((props) => props.has(propName))) {
             commonProps.push(propName);
         }
     }
-    
+
     // Check each common property to see if it's a valid discriminator
     for (const propName of commonProps) {
         const literalValues = new Map<Type, string | number>();
         let isValidDiscriminator = true;
-        
+
         for (let i = 0; i < unionTypes.length; i++) {
             const unionType = unionTypes[i];
             const typeProps = typeProperties[i];
-            
+
             // Skip if we don't have props for this type
             if (!unionType || !typeProps) {
                 isValidDiscriminator = false;
                 break;
             }
-            
+
             const prop = typeProps.get(propName);
             if (!prop) {
                 isValidDiscriminator = false;
                 break;
             }
-            
+
             const declaration = prop.getDeclarations()[0];
             if (!declaration) {
                 isValidDiscriminator = false;
                 break;
             }
-            
+
             const propType = declaration.getType();
-            
+
             // Property must be a string or number literal type
             if (propType.isStringLiteral()) {
                 const value = propType.getLiteralValue();
@@ -888,7 +867,7 @@ function detectDiscriminator(
                 break;
             }
         }
-        
+
         // If we found a valid discriminator property
         if (isValidDiscriminator && literalValues.size === unionTypes.length) {
             // Check if all literal values are unique
@@ -898,41 +877,41 @@ function detectDiscriminator(
                 // Duplicate literal values, not a valid discriminator
                 continue;
             }
-            
+
             // Build discriminator object
             const discriminator: { propertyName: string; mapping?: Record<string, string> } = {
-                propertyName: propName
+                propertyName: propName,
             };
-            
+
             // Try to build mapping if all types have names and are in availableTypes
             const mapping: Record<string, string> = {};
             let canBuildMapping = true;
-            
+
             for (const [unionType, literalValue] of literalValues) {
                 const aliasSymbol = unionType.getAliasSymbol();
                 let typeName = aliasSymbol?.getName();
-                
+
                 if (!typeName) {
                     const symbol = unionType.getSymbol();
                     typeName = symbol?.getName();
                 }
-                
-                if (typeName && typeName !== '__type' && availableTypes.has(typeName)) {
+
+                if (typeName && typeName !== "__type" && availableTypes.has(typeName)) {
                     mapping[String(literalValue)] = `#/components/schemas/${typeName}`;
                 } else {
                     canBuildMapping = false;
                     break;
                 }
             }
-            
+
             // Only include mapping if we could map all types to $ref
             if (canBuildMapping && Object.keys(mapping).length > 0) {
                 discriminator.mapping = mapping;
             }
-            
+
             return discriminator;
         }
     }
-    
+
     return undefined;
 }

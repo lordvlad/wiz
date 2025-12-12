@@ -1,48 +1,44 @@
 import { CallExpression, SourceFile, SyntaxKind } from "ts-morph";
+
 import type { WizPluginContext } from "../index";
 import { generateValidatorCode, generateIsCode, generateAssertCode, generateValidateCode } from "./codegen";
 
-const VALIDATOR_FUNCTIONS = [
-    "createValidator",
-    "validate", 
-    "assert",
-    "createAssert",
-    "createIs",
-    "is"
-] as const;
+const VALIDATOR_FUNCTIONS = ["createValidator", "validate", "assert", "createAssert", "createIs", "is"] as const;
 
 export function transformValidator(src: SourceFile, context: WizPluginContext): void {
     const { log } = context;
-    
+
     // Find all call expressions
     src.getDescendantsOfKind(SyntaxKind.CallExpression).forEach((callExpr: CallExpression) => {
         const expr = callExpr.getExpression();
-        
+
         // Check if this is one of our validator functions
         const functionName = expr.getText();
         if (!VALIDATOR_FUNCTIONS.includes(functionName as any)) {
             return;
         }
-        
-        log(`Transforming ${functionName} call at ${src.getFilePath()}:${callExpr.getStartLineNumber()}:${callExpr.getStartLinePos()}`);
-        
+
+        log(
+            `Transforming ${functionName} call at ${src.getFilePath()}:${callExpr.getStartLineNumber()}:${callExpr.getStartLinePos()}`,
+        );
+
         try {
             // Get type argument
             const typeArgs = callExpr.getTypeArguments();
             if (typeArgs.length === 0) {
                 throw new Error(`${functionName} requires a type argument`);
             }
-            
-            const typeArg = typeArgs[0];
+
+            const typeArg = typeArgs[0]!;
             const type = typeArg.getType();
-            
+
             let replacementCode: string;
-            
+
             switch (functionName) {
                 case "createValidator":
                     replacementCode = generateValidatorCode(type);
                     break;
-                    
+
                 case "validate":
                     // validate<T>(value) - needs to wrap with immediate invocation
                     const validateArg = callExpr.getArguments()[0];
@@ -52,7 +48,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                     const validateValueCode = validateArg.getText();
                     replacementCode = `${generateValidateCode(type)}(${validateValueCode})`;
                     break;
-                    
+
                 case "assert":
                     // assert<T>(value) - needs to wrap with immediate invocation
                     const assertArg = callExpr.getArguments()[0];
@@ -62,7 +58,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                     const assertValueCode = assertArg.getText();
                     replacementCode = `${generateAssertCode(type, false)}(${assertValueCode})`;
                     break;
-                    
+
                 case "createAssert":
                     // createAssert<T>(errorFactory?)
                     const errorFactoryArg = callExpr.getArguments()[0];
@@ -74,11 +70,11 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                         replacementCode = generateAssertCode(type, false);
                     }
                     break;
-                    
+
                 case "createIs":
                     replacementCode = generateIsCode(type);
                     break;
-                    
+
                 case "is":
                     // is<T>(value) - needs to wrap with immediate invocation
                     const isArg = callExpr.getArguments()[0];
@@ -88,13 +84,12 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                     const isValueCode = isArg.getText();
                     replacementCode = `${generateIsCode(type)}(${isValueCode})`;
                     break;
-                    
+
                 default:
                     throw new Error(`Unknown validator function: ${functionName}`);
             }
-            
+
             callExpr.replaceWithText(replacementCode);
-            
         } catch (error: any) {
             const message = `Failed to transform ${functionName}: ${error.message}`;
             log(`Error: ${message}`);

@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'bun:test';
-import { compile, dedent } from './util';
+import { describe, expect, it } from "bun:test";
 
-describe('validator plugin', () => {
-    describe('createValidator', () => {
-        it('should validate simple object types', async () => {
+import { compile, dedent } from "./util";
+
+describe("validator plugin", () => {
+    describe("createValidator", () => {
+        it("should validate simple object types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -14,29 +15,29 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<User>();
             `;
-            
+
             const output = await compile(source);
-            
+
             // Should contain validator function
-            expect(output).toContain('function(value)');
-            expect(output).toContain('errors');
-            
+            expect(output).toContain("function(value)");
+            expect(output).toContain("errors");
+
             // Test the actual validator by importing from file
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid object
             const validResult = validator({ id: 10, username: "foobar" });
             expect(validResult).toEqual([]);
-            
+
             // Invalid object - wrong types
             const invalidResult = validator({ id: "foo", username: 123 });
             expect(invalidResult.length).toBeGreaterThan(0);
             expect(invalidResult[0].path).toBe("id");
             expect(invalidResult[0].expected.type).toContain("number");
         });
-        
-        it('should validate nested object types', async () => {
+
+        it("should validate nested object types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -51,31 +52,31 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<User>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid object
             const validResult = validator({
                 id: 10,
                 username: "foobar",
-                posts: [{ title: "Hello", id: 1 }]
+                posts: [{ title: "Hello", id: 1 }],
             });
             expect(validResult).toEqual([]);
-            
+
             // Invalid - wrong type in nested array
             const invalidResult = validator({
                 id: 10,
                 username: "foobar",
-                posts: [{ title: 10, id: 1 }]
+                posts: [{ title: 10, id: 1 }],
             });
             expect(invalidResult.length).toBeGreaterThan(0);
             expect(invalidResult[0].path).toContain("posts");
             expect(invalidResult[0].path).toContain("title");
         });
-        
-        it('should handle missing required fields', async () => {
+
+        it("should handle missing required fields", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -86,20 +87,20 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<User>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            const validator = module.validator;
-            
+            const validator = module.validator as (value: any) => any[];
+
             // Missing username
             const result = validator({ id: 10 });
             expect(result.length).toBeGreaterThan(0);
-            const usernameError = result.find(e => e.path === "username");
+            const usernameError = result.find((e) => e.path === "username");
             expect(usernameError).toBeDefined();
             expect(usernameError?.actual.type).toBe("undefined");
         });
-        
-        it('should validate primitive types', async () => {
+
+        it("should validate primitive types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -111,21 +112,21 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<Config>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid
             const validResult = validator({ name: "test", count: 42, enabled: true });
             expect(validResult).toEqual([]);
-            
+
             // Invalid types
             const invalidResult = validator({ name: 123, count: "bad", enabled: "yes" });
             expect(invalidResult.length).toBe(3);
         });
-        
-        it('should validate array types', async () => {
+
+        it("should validate array types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -136,23 +137,23 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<Data>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid
             const validResult = validator({ tags: ["a", "b"], scores: [1, 2, 3] });
             expect(validResult).toEqual([]);
-            
+
             // Invalid - wrong element types
             const invalidResult = validator({ tags: [1, 2], scores: ["a", "b"] });
             expect(invalidResult.length).toBeGreaterThan(0);
         });
     });
-    
-    describe('validate', () => {
-        it('should validate inline with value', async () => {
+
+    describe("validate", () => {
+        it("should validate inline with value", async () => {
             const source = `
                 import { validate } from '../validator/index';
                 
@@ -163,14 +164,14 @@ describe('validator plugin', () => {
                 
                 export const result = validate<User>({ id: 10, username: "test" });
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(module.result).toEqual([]);
         });
-        
-        it('should return errors for invalid values', async () => {
+
+        it("should return errors for invalid values", async () => {
             const source = `
                 import { validate } from '../validator/index';
                 
@@ -181,16 +182,16 @@ describe('validator plugin', () => {
                 
                 export const result = validate<User>({ id: "bad", username: 123 });
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(module.result.length).toBeGreaterThan(0);
         });
     });
-    
-    describe('createIs', () => {
-        it('should create type guard function', async () => {
+
+    describe("createIs", () => {
+        it("should create type guard function", async () => {
             const source = `
                 import { createIs } from '../validator/index';
                 
@@ -201,20 +202,20 @@ describe('validator plugin', () => {
                 
                 export const isUser = createIs<User>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const isUser = module.isUser;
-            
+
             expect(isUser({ id: 10, username: "test" })).toBe(true);
             expect(isUser({ id: "bad", username: "test" })).toBe(false);
             expect(isUser(null)).toBe(false);
             expect(isUser(undefined)).toBe(false);
         });
     });
-    
-    describe('is', () => {
-        it('should check type inline and return boolean', async () => {
+
+    describe("is", () => {
+        it("should check type inline and return boolean", async () => {
             const source = `
                 import { is } from '../validator/index';
                 
@@ -227,16 +228,16 @@ describe('validator plugin', () => {
                 export const result2 = is<User>({ id: "bad", username: "test" });
                 export const result3 = is<User>(null);
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(module.result1).toBe(true);
             expect(module.result2).toBe(false);
             expect(module.result3).toBe(false);
         });
-        
-        it('should work with complex types', async () => {
+
+        it("should work with complex types", async () => {
             const source = `
                 import { is } from '../validator/index';
                 
@@ -248,17 +249,17 @@ describe('validator plugin', () => {
                 export const validResult = is<Data>({ items: ["a", "b"], count: 2 });
                 export const invalidResult = is<Data>({ items: [1, 2], count: 2 });
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(module.validResult).toBe(true);
             expect(module.invalidResult).toBe(false);
         });
     });
-    
-    describe('assert', () => {
-        it('should not throw for valid values', async () => {
+
+    describe("assert", () => {
+        it("should not throw for valid values", async () => {
             const source = `
                 import { assert } from '../validator/index';
                 
@@ -271,14 +272,14 @@ describe('validator plugin', () => {
                 assert<User>(value);
                 export const result = "success";
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(module.result).toBe("success");
         });
-        
-        it('should throw for invalid values', async () => {
+
+        it("should throw for invalid values", async () => {
             const source = `
                 import { assert } from '../validator/index';
                 
@@ -292,16 +293,16 @@ describe('validator plugin', () => {
                     assert<User>(value);
                 }
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
-            
+
             expect(() => module.testAssert()).toThrow(TypeError);
         });
     });
-    
-    describe('createAssert', () => {
-        it('should create asserter with default error', async () => {
+
+    describe("createAssert", () => {
+        it("should create asserter with default error", async () => {
             const source = `
                 import { createAssert } from '../validator/index';
                 
@@ -312,19 +313,19 @@ describe('validator plugin', () => {
                 
                 export const assertUser = createAssert<User>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const assertUser = module.assertUser;
-            
+
             // Should not throw for valid
             expect(() => assertUser({ id: 10, username: "test" })).not.toThrow();
-            
+
             // Should throw for invalid
             expect(() => assertUser({ id: "bad", username: 123 })).toThrow(TypeError);
         });
-        
-        it('should create asserter with custom error factory', async () => {
+
+        it("should create asserter with custom error factory", async () => {
             const source = `
                 import { createAssert } from '../validator/index';
                 
@@ -341,14 +342,14 @@ describe('validator plugin', () => {
                 
                 export const assertUser = createAssert<User>((errors) => new CustomError(errors));
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const assertUser = module.assertUser;
-            
+
             // Should not throw for valid
             expect(() => assertUser({ id: 10, username: "test" })).not.toThrow();
-            
+
             // Should throw custom error for invalid
             try {
                 assertUser({ id: "bad", username: 123 });
@@ -359,9 +360,9 @@ describe('validator plugin', () => {
             }
         });
     });
-    
-    describe('optional properties', () => {
-        it('should handle optional properties correctly', async () => {
+
+    describe("optional properties", () => {
+        it("should handle optional properties correctly", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -373,27 +374,27 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<User>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid without optional field
             const validResult = validator({ id: 10, username: "test" });
             expect(validResult).toEqual([]);
-            
+
             // Valid with optional field
             const validResult2 = validator({ id: 10, username: "test", email: "test@example.com" });
             expect(validResult2).toEqual([]);
-            
+
             // Invalid - wrong type for optional field
             const invalidResult = validator({ id: 10, username: "test", email: 123 });
             expect(invalidResult.length).toBeGreaterThan(0);
         });
     });
-    
-    describe('union types', () => {
-        it('should validate union types', async () => {
+
+    describe("union types", () => {
+        it("should validate union types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -405,23 +406,23 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<Data>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid with string
             expect(validator({ value: "test" })).toEqual([]);
-            
+
             // Valid with number
             expect(validator({ value: 42 })).toEqual([]);
-            
+
             // Invalid with boolean
             const invalidResult = validator({ value: true });
             expect(invalidResult.length).toBeGreaterThan(0);
         });
-        
-        it('should validate nullable types', async () => {
+
+        it("should validate nullable types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -431,25 +432,25 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<Data>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid with string
             expect(validator({ value: "test" })).toEqual([]);
-            
+
             // Valid with null
             expect(validator({ value: null })).toEqual([]);
-            
+
             // Invalid with number
             const invalidResult = validator({ value: 42 });
             expect(invalidResult.length).toBeGreaterThan(0);
         });
     });
-    
-    describe('literal types', () => {
-        it('should validate string literal types', async () => {
+
+    describe("literal types", () => {
+        it("should validate string literal types", async () => {
             const source = `
                 import { createValidator } from '../validator/index';
                 
@@ -459,15 +460,15 @@ describe('validator plugin', () => {
                 
                 export const validator = createValidator<Status>();
             `;
-            
+
             const output = await compile(source);
             const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
-            
+
             // Valid
             expect(validator({ kind: "active" })).toEqual([]);
             expect(validator({ kind: "inactive" })).toEqual([]);
-            
+
             // Invalid
             const invalidResult = validator({ kind: "other" });
             expect(invalidResult.length).toBeGreaterThan(0);

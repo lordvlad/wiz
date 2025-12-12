@@ -67,13 +67,13 @@ Wiz supports both **OpenAPI 3.0** and **OpenAPI 3.1** specifications. The versio
 **Key Differences:**
 
 - **OpenAPI 3.0**:
-  - Uses `nullable: true` property for nullable types
-  - Example: `{ type: "string", nullable: true }`
+    - Uses `nullable: true` property for nullable types
+    - Example: `{ type: "string", nullable: true }`
 
 - **OpenAPI 3.1**:
-  - Uses type arrays for nullable types: `type: ["string", "null"]`
-  - Fully compatible with JSON Schema Draft 2020-12
-  - For union types with null (oneOf/anyOf), adds `{ type: "null" }` to the array
+    - Uses type arrays for nullable types: `type: ["string", "null"]`
+    - Fully compatible with JSON Schema Draft 2020-12
+    - For union types with null (oneOf/anyOf), adds `{ type: "null" }` to the array
 
 **Example - Nullable Properties:**
 
@@ -93,50 +93,52 @@ export const schema31 = createOpenApiSchema<[User], "3.1">();
 ```
 
 **OpenAPI 3.0 Output:**
+
 ```json
 {
-  "components": {
-    "schemas": {
-      "User": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "nullable": true
-          },
-          "age": {
-            "type": "number",
-            "nullable": true
-          }
-        },
-        "required": ["name", "age"],
-        "title": "User"
-      }
+    "components": {
+        "schemas": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "age": {
+                        "type": "number",
+                        "nullable": true
+                    }
+                },
+                "required": ["name", "age"],
+                "title": "User"
+            }
+        }
     }
-  }
 }
 ```
 
 **OpenAPI 3.1 Output:**
+
 ```json
 {
-  "components": {
-    "schemas": {
-      "User": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": ["string", "null"]
-          },
-          "age": {
-            "type": ["number", "null"]
-          }
-        },
-        "required": ["name", "age"],
-        "title": "User"
-      }
+    "components": {
+        "schemas": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"]
+                    },
+                    "age": {
+                        "type": ["number", "null"]
+                    }
+                },
+                "required": ["name", "age"],
+                "title": "User"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -160,30 +162,30 @@ This generates an OpenAPI schema with a `components.schemas` structure:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" },
-          "email": { "type": "string" }
-        },
-        "title": "User",
-        "required": ["id", "name", "email"]
-      },
-      "Product": {
-        "type": "object",
-        "properties": {
-          "sku": { "type": "string" },
-          "name": { "type": "string" },
-          "price": { "type": "number" }
-        },
-        "title": "Product",
-        "required": ["sku", "name", "price"]
-      }
+    "components": {
+        "schemas": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" },
+                    "email": { "type": "string" }
+                },
+                "title": "User",
+                "required": ["id", "name", "email"]
+            },
+            "Product": {
+                "type": "object",
+                "properties": {
+                    "sku": { "type": "string" },
+                    "name": { "type": "string" },
+                    "price": { "type": "number" }
+                },
+                "title": "Product",
+                "required": ["sku", "name", "price"]
+            }
+        }
     }
-  }
 }
 ```
 
@@ -200,7 +202,7 @@ type Author = {
 type Post = {
     title: string;
     content: string;
-    author: Author;  // References Author type
+    author: Author; // References Author type
 };
 
 export const schema = createOpenApiSchema<[Author, Post], "3.0">();
@@ -210,31 +212,31 @@ This generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Author": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" }
-        },
-        "required": ["id", "name"],
-        "title": "Author"
-      },
-      "Post": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "content": { "type": "string" },
-          "author": {
-            "$ref": "#/components/schemas/Author"
-          }
-        },
-        "required": ["title", "content", "author"],
-        "title": "Post"
-      }
+    "components": {
+        "schemas": {
+            "Author": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" }
+                },
+                "required": ["id", "name"],
+                "title": "Author"
+            },
+            "Post": {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string" },
+                    "content": { "type": "string" },
+                    "author": {
+                        "$ref": "#/components/schemas/Author"
+                    }
+                },
+                "required": ["title", "content", "author"],
+                "title": "Post"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -256,7 +258,7 @@ type Tag = {
 
 type Article = {
     title: string;
-    tags: Tag[];  // Array of Tag references
+    tags: Tag[]; // Array of Tag references
 };
 
 export const schema = createOpenApiSchema<[Tag, Article], "3.0">();
@@ -266,25 +268,27 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Tag": { /* ... */ },
-      "Article": {
-        "type": "object",
-        "properties": {
-          "title": { "type": "string" },
-          "tags": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Tag"
+    "components": {
+        "schemas": {
+            "Tag": {
+                /* ... */
+            },
+            "Article": {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string" },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Tag"
+                        }
+                    }
+                },
+                "required": ["title", "tags"],
+                "title": "Article"
             }
-          }
-        },
-        "required": ["title", "tags"],
-        "title": "Article"
-      }
+        }
     }
-  }
 }
 ```
 
@@ -293,7 +297,7 @@ Generates:
 ```typescript
 type Node = {
     value: string;
-    next?: Node;  // Self-reference
+    next?: Node; // Self-reference
 };
 
 export const schema = createOpenApiSchema<[Node], "3.0">();
@@ -303,21 +307,21 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Node": {
-        "type": "object",
-        "properties": {
-          "value": { "type": "string" },
-          "next": {
-            "$ref": "#/components/schemas/Node"
-          }
-        },
-        "required": ["value"],
-        "title": "Node"
-      }
+    "components": {
+        "schemas": {
+            "Node": {
+                "type": "object",
+                "properties": {
+                    "value": { "type": "string" },
+                    "next": {
+                        "$ref": "#/components/schemas/Node"
+                    }
+                },
+                "required": ["value"],
+                "title": "Node"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -353,37 +357,37 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Drawing": {
-        "type": "object",
-        "properties": {
-          "shape": {
-            "oneOf": [
-              {
+    "components": {
+        "schemas": {
+            "Drawing": {
                 "type": "object",
                 "properties": {
-                  "kind": { "type": "string", "enum": ["circle"] },
-                  "radius": { "type": "number" }
+                    "shape": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": { "type": "string", "enum": ["circle"] },
+                                    "radius": { "type": "number" }
+                                },
+                                "required": ["kind", "radius"]
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": { "type": "string", "enum": ["square"] },
+                                    "side": { "type": "number" }
+                                },
+                                "required": ["kind", "side"]
+                            }
+                        ]
+                    }
                 },
-                "required": ["kind", "radius"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": { "type": "string", "enum": ["square"] },
-                  "side": { "type": "number" }
-                },
-                "required": ["kind", "side"]
-              }
-            ]
-          }
-        },
-        "required": ["shape"],
-        "title": "Drawing"
-      }
+                "required": ["shape"],
+                "title": "Drawing"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -413,23 +417,24 @@ Generates schemas with `$ref` in the `oneOf`:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Owner": {
-        "type": "object",
-        "properties": {
-          "pet": {
-            "oneOf": [
-              { "$ref": "#/components/schemas/Dog" },
-              { "$ref": "#/components/schemas/Cat" }
-            ]
-          }
+    "components": {
+        "schemas": {
+            "Owner": {
+                "type": "object",
+                "properties": {
+                    "pet": {
+                        "oneOf": [{ "$ref": "#/components/schemas/Dog" }, { "$ref": "#/components/schemas/Cat" }]
+                    }
+                }
+            },
+            "Dog": {
+                /* ... */
+            },
+            "Cat": {
+                /* ... */
+            }
         }
-      },
-      "Dog": { /* ... */ },
-      "Cat": { /* ... */ }
     }
-  }
 }
 ```
 
@@ -447,15 +452,11 @@ Generates a `oneOf` with primitive types:
 
 ```json
 {
-  "properties": {
-    "value": {
-      "oneOf": [
-        { "type": "string" },
-        { "type": "number" },
-        { "type": "boolean" }
-      ]
+    "properties": {
+        "value": {
+            "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }]
+        }
     }
-  }
 }
 ```
 
@@ -474,12 +475,12 @@ By default, Wiz generates `oneOf` for union types, which requires that a value v
 import wizPlugin from "wiz/plugin";
 
 Bun.build({
-  entrypoints: ["./src/index.ts"],
-  plugins: [
-    wizPlugin({
-      unionStyle: "anyOf"  // Use anyOf instead of oneOf for union types
-    })
-  ]
+    entrypoints: ["./src/index.ts"],
+    plugins: [
+        wizPlugin({
+            unionStyle: "anyOf", // Use anyOf instead of oneOf for union types
+        }),
+    ],
 });
 ```
 
@@ -509,37 +510,37 @@ With `unionStyle: "anyOf"`, this generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Drawing": {
-        "type": "object",
-        "properties": {
-          "shape": {
-            "anyOf": [
-              {
+    "components": {
+        "schemas": {
+            "Drawing": {
                 "type": "object",
                 "properties": {
-                  "kind": { "type": "string", "enum": ["circle"] },
-                  "radius": { "type": "number" }
+                    "shape": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": { "type": "string", "enum": ["circle"] },
+                                    "radius": { "type": "number" }
+                                },
+                                "required": ["kind", "radius"]
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": { "type": "string", "enum": ["square"] },
+                                    "side": { "type": "number" }
+                                },
+                                "required": ["kind", "side"]
+                            }
+                        ]
+                    }
                 },
-                "required": ["kind", "radius"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": { "type": "string", "enum": ["square"] },
-                  "side": { "type": "number" }
-                },
-                "required": ["kind", "side"]
-              }
-            ]
-          }
-        },
-        "required": ["shape"],
-        "title": "Drawing"
-      }
+                "required": ["shape"],
+                "title": "Drawing"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -572,34 +573,34 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Record": {
-        "type": "object",
-        "properties": {
-          "entity": {
-            "allOf": [
-              {
+    "components": {
+        "schemas": {
+            "Record": {
                 "type": "object",
                 "properties": {
-                  "createdAt": { "type": "string" },
-                  "updatedAt": { "type": "string" }
-                },
-                "required": ["createdAt", "updatedAt"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "name": { "type": "string" }
-                },
-                "required": ["name"]
-              }
-            ]
-          }
+                    "entity": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "createdAt": { "type": "string" },
+                                    "updatedAt": { "type": "string" }
+                                },
+                                "required": ["createdAt", "updatedAt"]
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "name": { "type": "string" }
+                                },
+                                "required": ["name"]
+                            }
+                        ]
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -618,17 +619,17 @@ Generates:
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "nullable": true
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "nullable": true
+        },
+        "email": {
+            "type": "string"
+        }
     },
-    "email": {
-      "type": "string"
-    }
-  },
-  "required": ["name", "email"]
+    "required": ["name", "email"]
 }
 ```
 
@@ -648,11 +649,8 @@ Generates:
 
 ```json
 {
-  "oneOf": [
-    { "type": "string" },
-    { "type": "number" }
-  ],
-  "nullable": true
+    "oneOf": [{ "type": "string" }, { "type": "number" }],
+    "nullable": true
 }
 ```
 
@@ -673,12 +671,12 @@ Generates:
 
 ```json
 {
-  "properties": {
-    "author": {
-      "$ref": "#/components/schemas/Author",
-      "nullable": true
+    "properties": {
+        "author": {
+            "$ref": "#/components/schemas/Author",
+            "nullable": true
+        }
     }
-  }
 }
 ```
 
@@ -700,10 +698,10 @@ Generates:
 
 ```json
 {
-  "oneOf": [
-    { "type": "array", "items": { "type": "string" } },
-    { "type": "array", "items": { "type": "number" } }
-  ]
+    "oneOf": [
+        { "type": "array", "items": { "type": "string" } },
+        { "type": "array", "items": { "type": "number" } }
+    ]
 }
 ```
 
@@ -715,12 +713,12 @@ Wiz automatically detects and generates discriminator metadata for union types w
 
 ```typescript
 type Circle = {
-    kind: "circle";  // discriminator property
+    kind: "circle"; // discriminator property
     radius: number;
 };
 
 type Square = {
-    kind: "square";  // discriminator property
+    kind: "square"; // discriminator property
     side: number;
 };
 
@@ -781,23 +779,20 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Pet": {
-        "oneOf": [
-          { "$ref": "#/components/schemas/Dog" },
-          { "$ref": "#/components/schemas/Cat" }
-        ],
-        "discriminator": {
-          "propertyName": "petType",
-          "mapping": {
-            "dog": "#/components/schemas/Dog",
-            "cat": "#/components/schemas/Cat"
-          }
+    "components": {
+        "schemas": {
+            "Pet": {
+                "oneOf": [{ "$ref": "#/components/schemas/Dog" }, { "$ref": "#/components/schemas/Cat" }],
+                "discriminator": {
+                    "propertyName": "petType",
+                    "mapping": {
+                        "dog": "#/components/schemas/Dog",
+                        "cat": "#/components/schemas/Cat"
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
 ```
 
@@ -822,7 +817,7 @@ type User = {
      * Unique identifier for the user
      */
     id: number;
-    
+
     /**
      * @description The user's email address
      */
@@ -831,19 +826,20 @@ type User = {
 ```
 
 Generated schema:
+
 ```json
 {
-  "type": "object",
-  "properties": {
-    "id": {
-      "type": "number",
-      "description": "Unique identifier for the user"
-    },
-    "email": {
-      "type": "string",
-      "description": "The user's email address"
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "number",
+            "description": "Unique identifier for the user"
+        },
+        "email": {
+            "type": "string",
+            "description": "The user's email address"
+        }
     }
-  }
 }
 ```
 
@@ -855,12 +851,12 @@ type Config = {
      * @default "guest"
      */
     role: string;
-    
+
     /**
      * @default 100
      */
     maxConnections: number;
-    
+
     /**
      * @default true
      */
@@ -885,7 +881,7 @@ type User = {
 type User = {
     /** @deprecated Use email instead */
     username: string;
-    
+
     email: string;
 };
 ```
@@ -950,13 +946,13 @@ Use these tags to exclude fields from the generated schema:
 type User = {
     id: number;
     name: string;
-    
+
     /** @private Internal use only */
     internalId: string;
-    
+
     /** @ignore */
     temporaryData: any;
-    
+
     /** @package */
     packageField: string;
 };
@@ -989,10 +985,10 @@ type User = {
     profile: {
         /** User's first name */
         firstName: string;
-        
+
         /** User's last name */
         lastName: string;
-        
+
         /**
          * @minimum 0
          * @maximum 150
@@ -1037,24 +1033,24 @@ Both syntaxes generate the same OpenAPI schema:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "StringMap": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "string"
-        },
-        "title": "StringMap"
-      },
-      "NumberMap": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "number"
-        },
-        "title": "NumberMap"
-      }
+    "components": {
+        "schemas": {
+            "StringMap": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string"
+                },
+                "title": "StringMap"
+            },
+            "NumberMap": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "number"
+                },
+                "title": "NumberMap"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -1083,26 +1079,26 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "UserMap": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/components/schemas/User"
-        },
-        "title": "UserMap"
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" }
-        },
-        "required": ["id", "name"],
-        "title": "User"
-      }
+    "components": {
+        "schemas": {
+            "UserMap": {
+                "type": "object",
+                "additionalProperties": {
+                    "$ref": "#/components/schemas/User"
+                },
+                "title": "UserMap"
+            },
+            "User": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" }
+                },
+                "required": ["id", "name"],
+                "title": "User"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -1124,20 +1120,20 @@ Generates:
 
 ```json
 {
-  "components": {
-    "schemas": {
-      "Config": {
-        "type": "object",
-        "properties": {
-          "version": { "type": "number" },
-          "enabled": { "type": "boolean" }
-        },
-        "required": ["version", "enabled"],
-        "additionalProperties": true,
-        "title": "Config"
-      }
+    "components": {
+        "schemas": {
+            "Config": {
+                "type": "object",
+                "properties": {
+                    "version": { "type": "number" },
+                    "enabled": { "type": "boolean" }
+                },
+                "required": ["version", "enabled"],
+                "additionalProperties": true,
+                "title": "Config"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -1157,13 +1153,10 @@ Generates:
 
 ```json
 {
-  "type": "object",
-  "additionalProperties": {
-    "oneOf": [
-      { "type": "string" },
-      { "type": "number" }
-    ]
-  }
+    "type": "object",
+    "additionalProperties": {
+        "oneOf": [{ "type": "string" }, { "type": "number" }]
+    }
 }
 ```
 
@@ -1183,16 +1176,16 @@ Generates:
 
 ```json
 {
-  "type": "object",
-  "properties": {
-    "metadata": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
-    }
-  },
-  "required": ["metadata"]
+    "type": "object",
+    "properties": {
+        "metadata": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        }
+    },
+    "required": ["metadata"]
 }
 ```
 
@@ -1216,19 +1209,19 @@ Generates `oneOf` schemas:
 
 ```json
 {
-  "properties": {
-    "settings": {
-      "oneOf": [
-        { "type": "string" },
-        {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
+    "properties": {
+        "settings": {
+            "oneOf": [
+                { "type": "string" },
+                {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            ]
         }
-      ]
     }
-  }
 }
 ```
 

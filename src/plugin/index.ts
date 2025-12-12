@@ -5,28 +5,27 @@ import { transformOpenApiSchema } from "./openApiSchema/transform";
 import { transformValidator } from "./validator/transform";
 
 export type WizPluginOptions = {
-    log?: boolean
-    coerceSymbolsToStrings?: boolean
-    transformDate?: (type: Type) => unknown
+    log?: boolean;
+    coerceSymbolsToStrings?: boolean;
+    transformDate?: (type: Type) => unknown;
     /**
      * Controls which OpenAPI keyword to use for union types.
      * - "oneOf": validates against exactly one schema (default, stricter)
      * - "anyOf": validates against one or more schemas (more permissive)
      */
-    unionStyle?: "oneOf" | "anyOf"
-}
+    unionStyle?: "oneOf" | "anyOf";
+};
 
 export type WizPluginContext = {
     opt: WizPluginOptions;
     path: string;
     log: (...args: any[]) => void;
-}
+};
 
 export type WizTransformer = (src: SourceFile, context: WizPluginContext) => void | Promise<void>;
 
-
 const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
-    const log = opt.log ? (...args: any) => console.log("[wiz]", ...args) : () => { };
+    const log = opt.log ? (...args: any) => console.log("[wiz]", ...args) : () => {};
 
     return {
         name: "bun-generate-schema",
@@ -50,7 +49,7 @@ const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
 
                 const sourceFile = project.createSourceFile(args.path, source, { overwrite: true });
 
-                transformOpenApiSchema(sourceFile, { log, opt,path:args.path });
+                transformOpenApiSchema(sourceFile, { log, opt, path: args.path });
                 transformValidator(sourceFile, { log, opt, path: args.path });
 
                 return {
@@ -59,8 +58,8 @@ const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
                 };
             });
         },
-    }
-}
+    };
+};
 
 export default wizPlugin;
 

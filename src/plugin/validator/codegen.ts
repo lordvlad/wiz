@@ -4,7 +4,7 @@ import { Type, ts } from "ts-morph";
  * Escapes a string for use in generated code
  */
 function escapeString(str: string): string {
-    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 }
 
 /**
@@ -14,10 +14,10 @@ function getTypeName(type: Type): string {
     const text = type.getText();
     // Simplify complex types for error messages
     if (text.length > 50) {
-        if (type.isObject()) return 'object';
-        if (type.isArray()) return 'array';
-        if (type.isUnion()) return 'union';
-        return 'complex type';
+        if (type.isObject()) return "object";
+        if (type.isArray()) return "array";
+        if (type.isUnion()) return "union";
+        return "complex type";
     }
     return text;
 }
@@ -27,7 +27,7 @@ function getTypeName(type: Type): string {
  */
 export function generateValidatorCode(type: Type): string {
     const validatorFn = generateTypeCheck(type, "value", "");
-    
+
     return `(function(value) {
         const errors = [];
         ${validatorFn}
@@ -40,7 +40,7 @@ export function generateValidatorCode(type: Type): string {
  */
 function generateTypeCheck(type: Type, varName: string, path: string): string {
     const checks: string[] = [];
-    
+
     // Handle primitive types first (before union, since boolean is both)
     if (type.isString()) {
         checks.push(`if (typeof ${varName} !== "string") {
@@ -53,7 +53,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     if (type.isNumber()) {
         checks.push(`if (typeof ${varName} !== "number") {
             errors.push({
@@ -65,7 +65,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     if (type.isBoolean()) {
         checks.push(`if (typeof ${varName} !== "boolean") {
             errors.push({
@@ -77,7 +77,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     // Handle undefined/null
     if (type.isUndefined()) {
         checks.push(`if (${varName} !== undefined) {
@@ -90,7 +90,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     if (type.isNull()) {
         checks.push(`if (${varName} !== null) {
             errors.push({
@@ -102,22 +102,22 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     // Handle union types
     if (type.isUnion()) {
         return generateUnionCheck(type, varName, path);
     }
-    
+
     // Handle intersection types
     if (type.isIntersection()) {
         return generateIntersectionCheck(type, varName, path);
     }
-    
+
     // Handle array types
     if (type.isArray()) {
         return generateArrayCheck(type, varName, path);
     }
-    
+
     // Handle literal types
     if (type.isLiteral()) {
         const literalValue = type.getLiteralValue();
@@ -133,12 +133,12 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         }`);
         return checks.join("\n");
     }
-    
+
     // Handle object types
     if (type.isObject()) {
         return generateObjectCheck(type, varName, path);
     }
-    
+
     // Fallback for unknown types
     return `// Type check not implemented for: ${type.getText()}`;
 }
@@ -148,12 +148,12 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
  */
 function generateUnionCheck(type: Type, varName: string, path: string): string {
     const unionTypes = type.getUnionTypes();
-    
+
     // Filter out null and undefined for special handling
-    const nullType = unionTypes.find(t => t.isNull());
-    const undefinedType = unionTypes.find(t => t.isUndefined());
-    const otherTypes = unionTypes.filter(t => !t.isNull() && !t.isUndefined());
-    
+    const nullType = unionTypes.find((t) => t.isNull());
+    const undefinedType = unionTypes.find((t) => t.isUndefined());
+    const otherTypes = unionTypes.filter((t) => !t.isNull() && !t.isUndefined());
+
     if (otherTypes.length === 0) {
         // Only null and/or undefined
         const checks: string[] = [];
@@ -173,18 +173,18 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         }
         return checks.join("\n");
     }
-    
+
     // Generate checks for each union member
     const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    
+
     let code = `const ${errorCountVar} = errors.length;\n`;
     code += `let ${tempVar} = false;\n`;
-    
+
     for (let i = 0; i < otherTypes.length; i++) {
-        const unionType = otherTypes[i];
+        const unionType = otherTypes[i]!;
         const checkCode = generateTypeCheck(unionType, varName, path);
-        
+
         code += `if (!${tempVar}) {\n`;
         code += `    const _errLen_${i} = errors.length;\n`;
         code += `    ${checkCode}\n`;
@@ -195,7 +195,7 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         code += `    }\n`;
         code += `}\n`;
     }
-    
+
     // Handle nullable unions
     if (nullType || undefinedType) {
         const conditions: string[] = [];
@@ -206,7 +206,7 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         code += `    errors.length = ${errorCountVar};\n`;
         code += `}\n`;
     }
-    
+
     code += `if (!${tempVar}) {\n`;
     code += `    errors.push({
         path: "${path}",
@@ -215,7 +215,7 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         actual: { type: typeof ${varName}, value: ${varName} }
     });\n`;
     code += `}\n`;
-    
+
     return code;
 }
 
@@ -224,7 +224,7 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
  */
 function generateIntersectionCheck(type: Type, varName: string, path: string): string {
     const intersectionTypes = type.getIntersectionTypes();
-    const checks = intersectionTypes.map(t => generateTypeCheck(t, varName, path));
+    const checks = intersectionTypes.map((t) => generateTypeCheck(t, varName, path));
     return checks.join("\n");
 }
 
@@ -234,7 +234,7 @@ function generateIntersectionCheck(type: Type, varName: string, path: string): s
  */
 function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefix: string, indexVar: string): string {
     const dynamicPath = pathPrefix ? `"${pathPrefix}" + ${indexVar}` : `String(${indexVar})`;
-    
+
     // Primitives
     if (type.isString()) {
         return `if (typeof ${varName} !== "string") {
@@ -246,7 +246,7 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             });
         }`;
     }
-    
+
     if (type.isNumber()) {
         return `if (typeof ${varName} !== "number") {
             errors.push({
@@ -257,7 +257,7 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             });
         }`;
     }
-    
+
     if (type.isBoolean()) {
         return `if (typeof ${varName} !== "boolean") {
             errors.push({
@@ -268,7 +268,7 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             });
         }`;
     }
-    
+
     // Objects - handle nested objects in arrays
     if (type.isObject()) {
         const checks: string[] = [];
@@ -280,17 +280,17 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         } else {`);
-        
+
         const properties = type.getProperties();
         for (const prop of properties) {
             const propName = prop.getName();
             const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
             const isOptional = prop.isOptional();
             const typeName = escapeString(getTypeName(propType));
-            
+
             const propVarName = `${varName}.${propName}`;
             const propDynamicPath = `${dynamicPath} + ".${propName}"`;
-            
+
             if (isOptional) {
                 checks.push(`if (${propVarName} !== undefined) {
                     ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
@@ -308,11 +308,11 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
                 }`);
             }
         }
-        
+
         checks.push(`}`);
         return checks.join("\n");
     }
-    
+
     return `// Unsupported array element type: ${type.getText()}`;
 }
 
@@ -331,7 +331,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
             });
         }`;
     }
-    
+
     if (type.isNumber()) {
         return `if (typeof ${varName} !== "number") {
             errors.push({
@@ -342,7 +342,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
             });
         }`;
     }
-    
+
     if (type.isBoolean()) {
         return `if (typeof ${varName} !== "boolean") {
             errors.push({
@@ -353,7 +353,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
             });
         }`;
     }
-    
+
     // For complex types, we'd need to recursively handle them
     // For now, return a basic check
     return `// Complex nested property type`;
@@ -374,15 +374,15 @@ function generateArrayCheck(type: Type, varName: string, path: string): string {
             });
         }`;
     }
-    
+
     const itemVarName = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const indexVarName = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    
+
     // For array elements, we need to build the path at runtime using string concatenation
     // Pass a placeholder that will be replaced with the actual concatenation expression
     const elementPathBase = path ? `${path}.` : "";
     const elementCheck = generateTypeCheckForArrayElement(arrayElementType, itemVarName, elementPathBase, indexVarName);
-    
+
     return `if (!Array.isArray(${varName})) {
         errors.push({
             path: "${path}",
@@ -403,7 +403,7 @@ function generateArrayCheck(type: Type, varName: string, path: string): string {
  */
 function generateObjectCheck(type: Type, varName: string, path: string): string {
     const checks: string[] = [];
-    
+
     checks.push(`if (typeof ${varName} !== "object" || ${varName} === null) {
         errors.push({
             path: "${path}",
@@ -412,25 +412,25 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
             actual: { type: typeof ${varName}, value: ${varName} }
         });
     } else {`);
-    
+
     const properties = type.getProperties();
     const requiredProps: string[] = [];
     const propertyChecks: string[] = [];
-    
+
     for (const prop of properties) {
         const propName = prop.getName();
         const propType = prop.getTypeAtLocation(prop.getValueDeclaration()!);
         const isOptional = prop.isOptional();
-        
+
         if (!isOptional) {
             requiredProps.push(propName);
         }
-        
+
         const propPath = path ? `${path}.${propName}` : propName;
         const propVarName = `${varName}.${propName}`;
-        
+
         const typeName = escapeString(getTypeName(propType));
-        
+
         if (isOptional) {
             propertyChecks.push(`if (${propVarName} !== undefined) {
                 ${generateTypeCheck(propType, propVarName, propPath)}
@@ -448,10 +448,10 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
             }`);
         }
     }
-    
+
     checks.push(...propertyChecks);
     checks.push(`}`);
-    
+
     return checks.join("\n");
 }
 
@@ -471,7 +471,7 @@ export function generateIsCode(type: Type): string {
  */
 export function generateAssertCode(type: Type, hasErrorFactory: boolean): string {
     const validatorCode = generateValidatorCode(type);
-    
+
     if (hasErrorFactory) {
         return `(function(errorFactory) {
             const validator = ${validatorCode};
@@ -483,7 +483,7 @@ export function generateAssertCode(type: Type, hasErrorFactory: boolean): string
             };
         })`;
     }
-    
+
     return `(function(value) {
         const validator = ${validatorCode};
         const errors = validator(value);

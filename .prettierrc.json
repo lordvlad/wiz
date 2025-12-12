@@ -1,0 +1,23 @@
+{
+    "printWidth": 120,
+    "tabWidth": 4,
+    "semi": true,
+    "trailingComma": "all",
+    "endOfLine": "lf",
+    "overrides": [
+        {
+            "files": ["*.yml", "*.yaml"],
+            "options": {
+                "tabWidth": 2
+            }
+        }
+    ],
+    "importOrder": ["^[^@.][^/](.*)$", "^@[^/]+(.*)$", "^(.*)$"],
+    "importOrderSeparation": true,
+    "plugins": [
+        "@babel/plugin-proposal-explicit-resource-management",
+        "@trivago/prettier-plugin-sort-imports",
+        "prettier-plugin-packagejson"
+    ],
+    "importOrderParserPlugins": ["typescript", "jsx", "explicitResourceManagement"]
+}

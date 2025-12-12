@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'bun:test';
-import type { WizPluginOptions } from '../plugin/index';
-import { compile, dedent } from './util';
+import { describe, expect, it } from "bun:test";
+
+import type { WizPluginOptions } from "../plugin/index";
+import { compile, dedent } from "./util";
 
 // Type definition for test cases
 type TestCase = {
@@ -75,7 +76,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "optional properties",
@@ -147,7 +148,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "all primitives",
@@ -181,7 +182,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "arrays of primitives",
@@ -224,7 +225,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "deeply nested objects",
@@ -352,7 +353,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "bigint formats",
@@ -382,7 +383,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "number formats",
@@ -434,7 +435,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "date defaults to date-time string",
@@ -459,7 +460,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "date uses custom transformer",
@@ -469,8 +470,8 @@ const cases: TestCase[] = [
         pluginOptions: {
             transformDate: () => ({
                 type: "integer",
-                format: "unix-ms"
-            })
+                format: "unix-ms",
+            }),
         },
         schema: `{
             components: {
@@ -490,14 +491,14 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "symbol unsupported by default",
         type: `type Type = {
                     token: symbol;
                 };`,
-        expectError: /coerceSymbolsToStrings/
+        expectError: /coerceSymbolsToStrings/,
     },
     {
         title: "symbol coerced to string",
@@ -522,7 +523,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc description on properties",
@@ -555,7 +556,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @description tag",
@@ -583,7 +584,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @default value",
@@ -629,7 +630,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @example value",
@@ -657,7 +658,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @deprecated field",
@@ -688,7 +689,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @deprecated on schema",
@@ -719,7 +720,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc description on schema",
@@ -752,7 +753,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc combined tags on schema",
@@ -792,7 +793,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @minimum and @maximum",
@@ -822,7 +823,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc combined tags",
@@ -854,7 +855,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @private excludes field",
@@ -885,7 +886,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @ignore excludes field",
@@ -916,7 +917,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @package excludes field",
@@ -947,7 +948,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc on nested objects",
@@ -990,7 +991,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc with minLength and maxLength",
@@ -1020,7 +1021,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @format email",
@@ -1048,7 +1049,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @format uuid",
@@ -1076,7 +1077,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @format uri",
@@ -1104,7 +1105,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @format with other tags",
@@ -1136,7 +1137,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "StrFormat type with email",
@@ -1162,7 +1163,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "StrFormat type with uuid",
@@ -1188,7 +1189,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "StrFormat type with uri",
@@ -1214,7 +1215,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "StrFormat type with ipv4",
@@ -1240,7 +1241,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "StrFormat type with hostname",
@@ -1266,7 +1267,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @pattern for string validation",
@@ -1294,7 +1295,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @multipleOf for number validation",
@@ -1322,7 +1323,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc @exclusiveMinimum and @exclusiveMaximum",
@@ -1352,7 +1353,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc combined number validation keywords",
@@ -1397,7 +1398,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "jsdoc combined string validation keywords",
@@ -1431,7 +1432,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "string literal union",
@@ -1461,7 +1462,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "inline string literal union",
@@ -1490,7 +1491,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "typescript string enum",
@@ -1524,7 +1525,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "typescript numeric enum",
@@ -1558,7 +1559,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "mixed enum types in one schema",
@@ -1610,7 +1611,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "array with single type",
@@ -1619,7 +1620,7 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['User'],
+        arrayTypes: ["User"],
         schema: `{
             components: {
                 schemas: {
@@ -1641,7 +1642,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "array with multiple types",
@@ -1654,7 +1655,7 @@ const cases: TestCase[] = [
                     price: number;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['User', 'Product'],
+        arrayTypes: ["User", "Product"],
         schema: `{
             components: {
                 schemas: {
@@ -1692,7 +1693,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "array with duplicate type names",
@@ -1701,8 +1702,8 @@ const cases: TestCase[] = [
                     name: string;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['User', 'User'],
-        expectError: "Duplicate type name 'User' detected in tuple"
+        arrayTypes: ["User", "User"],
+        expectError: "Duplicate type name 'User' detected in tuple",
     },
     {
         title: "$ref for type reference in property",
@@ -1715,7 +1716,7 @@ const cases: TestCase[] = [
                     author: User;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['User', 'Post'],
+        arrayTypes: ["User", "Post"],
         schema: `{
             components: {
                 schemas: {
@@ -1753,7 +1754,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "$ref for array of referenced type",
@@ -1766,7 +1767,7 @@ const cases: TestCase[] = [
                     tags: Tag[];
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Tag', 'Article'],
+        arrayTypes: ["Tag", "Article"],
         schema: `{
             components: {
                 schemas: {
@@ -1807,7 +1808,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "$ref for optional referenced type",
@@ -1819,7 +1820,7 @@ const cases: TestCase[] = [
                     profile?: Profile;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Profile', 'User'],
+        arrayTypes: ["Profile", "User"],
         schema: `{
             components: {
                 schemas: {
@@ -1852,7 +1853,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "$ref with multiple references",
@@ -1868,7 +1869,7 @@ const cases: TestCase[] = [
                     category: Category;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Author', 'Category', 'Post'],
+        arrayTypes: ["Author", "Category", "Post"],
         schema: `{
             components: {
                 schemas: {
@@ -1918,7 +1919,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "$ref circular reference",
@@ -1927,7 +1928,7 @@ const cases: TestCase[] = [
                     next?: Node;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Node'],
+        arrayTypes: ["Node"],
         schema: `{
             components: {
                 schemas: {
@@ -1948,7 +1949,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "inline type when not in components",
@@ -1963,7 +1964,7 @@ const cases: TestCase[] = [
                     };
                 }`,
         isArrayTest: true,
-        arrayTypes: ['User', 'Post'],
+        arrayTypes: ["User", "Post"],
         schema: `{
             components: {
                 schemas: {
@@ -2009,7 +2010,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf for type union",
@@ -2082,7 +2083,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf for mixed type union",
@@ -2116,7 +2117,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "allOf for intersection type",
@@ -2175,7 +2176,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf with $ref for named types",
@@ -2191,7 +2192,7 @@ const cases: TestCase[] = [
                 type Type = {
                     pet: Pet;
                 }`,
-        arrayTypes: ['Type', 'Dog', 'Cat'],
+        arrayTypes: ["Type", "Dog", "Cat"],
         schema: `{
             components: {
                 schemas: {
@@ -2248,7 +2249,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf with nullable union",
@@ -2280,7 +2281,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nested oneOf",
@@ -2351,7 +2352,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "allOf with multiple intersections",
@@ -2413,7 +2414,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "union of arrays",
@@ -2450,7 +2451,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf with discriminator for inline types",
@@ -2523,7 +2524,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf with discriminator and mapping for named types",
@@ -2541,7 +2542,7 @@ const cases: TestCase[] = [
                 type Type = {
                     pet: Pet;
                 }`,
-        arrayTypes: ['Type', 'Dog', 'Cat'],
+        arrayTypes: ["Type", "Dog", "Cat"],
         schema: `{
             components: {
                 schemas: {
@@ -2619,7 +2620,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "oneOf with numeric discriminator",
@@ -2692,7 +2693,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with string values",
@@ -2711,7 +2712,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with number values",
@@ -2730,7 +2731,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with boolean values",
@@ -2749,7 +2750,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with object values",
@@ -2783,7 +2784,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with array values",
@@ -2805,7 +2806,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with $ref values",
@@ -2817,7 +2818,7 @@ const cases: TestCase[] = [
                     [key: string]: Item;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Type', 'Item'],
+        arrayTypes: ["Type", "Item"],
         schema: `{
             components: {
                 schemas: {
@@ -2846,7 +2847,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "mixed properties and map",
@@ -2877,7 +2878,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "map with union values",
@@ -2903,7 +2904,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nested map",
@@ -2932,7 +2933,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "Record type with string values",
@@ -2949,7 +2950,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "Record type with number values",
@@ -2966,7 +2967,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "Record type with object values",
@@ -2995,7 +2996,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "Record type with $ref values",
@@ -3005,7 +3006,7 @@ const cases: TestCase[] = [
                 }
                 type Type = Record<string, User>`,
         isArrayTest: true,
-        arrayTypes: ['Type', 'User'],
+        arrayTypes: ["Type", "User"],
         schema: `{
             components: {
                 schemas: {
@@ -3034,7 +3035,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "Record type with union values",
@@ -3058,7 +3059,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "union with index signature - string map or string",
@@ -3092,7 +3093,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "union with index signature - Record or number",
@@ -3126,7 +3127,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "union of different index signatures",
@@ -3163,7 +3164,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "union of Record types",
@@ -3200,7 +3201,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable property with null",
@@ -3225,7 +3226,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable property with both null and undefined",
@@ -3250,7 +3251,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable number property",
@@ -3275,7 +3276,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable boolean property",
@@ -3300,7 +3301,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable array property",
@@ -3328,7 +3329,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable object property",
@@ -3361,7 +3362,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "optional nullable property",
@@ -3383,7 +3384,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable union type (oneOf with nullable)",
@@ -3415,7 +3416,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "nullable $ref property",
@@ -3426,7 +3427,7 @@ const cases: TestCase[] = [
                     user: User | null;
                 }`,
         isArrayTest: true,
-        arrayTypes: ['Type', 'User'],
+        arrayTypes: ["Type", "User"],
         schema: `{
             components: {
                 schemas: {
@@ -3457,7 +3458,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "anyOf for type union with anyOf option",
@@ -3531,7 +3532,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "anyOf for mixed type union with anyOf option",
@@ -3566,7 +3567,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "anyOf with $ref for named types",
@@ -3583,7 +3584,7 @@ const cases: TestCase[] = [
                     pet: Pet;
                 }`,
         pluginOptions: { unionStyle: "anyOf" },
-        arrayTypes: ['Owner', 'Dog', 'Cat'],
+        arrayTypes: ["Owner", "Dog", "Cat"],
         schema: `{
             components: {
                 schemas: {
@@ -3653,7 +3654,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "anyOf with nullable union",
@@ -3686,7 +3687,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.0 nullable property with null",
@@ -3712,7 +3713,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.1 nullable property with null",
@@ -3740,7 +3741,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.0 nullable number property",
@@ -3766,7 +3767,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.1 nullable number property",
@@ -3794,7 +3795,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.0 oneOf with nullable union",
@@ -3827,7 +3828,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.1 oneOf with nullable union",
@@ -3862,7 +3863,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.0 nullable enum",
@@ -3892,7 +3893,7 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
+        }`,
     },
     {
         title: "OpenAPI 3.1 nullable enum",
@@ -3924,39 +3925,41 @@ const cases: TestCase[] = [
                     }
                 }
             }
-        }`
-    }
+        }`,
+    },
 ];
 
 describe("openApiSchema plugin", () => {
-    it.each(cases)(`must create schema for $title`, async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes, version }) => {
-        const needsTags = type.includes("tags.");
+    it.each(cases)(
+        `must create schema for $title`,
+        async ({ type, schema, title, pluginOptions, expectError, isArrayTest, arrayTypes, version }) => {
+            const needsTags = type.includes("tags.");
 
-        // All tests now use tuple syntax
-        const types = arrayTypes || ['Type'];
-        // Default to "3.0" for backward compatibility with existing tests
-        const apiVersion = version || "3.0";
-        const code = `
-            ${needsTags ? 'import * as tags from "../../tags/index";' : ''}
+            // All tests now use tuple syntax
+            const types = arrayTypes || ["Type"];
+            // Default to "3.0" for backward compatibility with existing tests
+            const apiVersion = version || "3.0";
+            const code = `
+            ${needsTags ? 'import * as tags from "../../tags/index";' : ""}
             import { createOpenApiSchema } from "../../openApiSchema/index";
             ${type}
-            export const schema = createOpenApiSchema<[${types.join(', ')}], "${apiVersion}">();
+            export const schema = createOpenApiSchema<[${types.join(", ")}], "${apiVersion}">();
         `;
 
-        if (schema) {
-            const transformed = `var schema = ${schema};`;
-            const actual = await compile(code, pluginOptions)
-            const expected = dedent(transformed);
-            expect(actual).toInclude(expected);
-            return;
-        }
+            if (schema) {
+                const transformed = `var schema = ${schema};`;
+                const actual = await compile(code, pluginOptions);
+                const expected = dedent(transformed);
+                expect(actual).toInclude(expected);
+                return;
+            }
 
-        if (expectError) {
-            await expect(compile(code, pluginOptions)).rejects.toThrow(expectError);
-            return;
-        }
+            if (expectError) {
+                await expect(compile(code, pluginOptions)).rejects.toThrow(expectError);
+                return;
+            }
 
-        throw new Error(`Test case for ${title} must specify either schema or expectError`);
-    });
+            throw new Error(`Test case for ${title} must specify either schema or expectError`);
+        },
+    );
 });
-
