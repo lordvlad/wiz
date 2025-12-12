@@ -367,4 +367,71 @@ describe("createOpenApi function", () => {
         expect(actual).toInclude('User:');
         expect(actual).toInclude('Post:');
     });
+    
+    it("must create fully typed OpenAPI paths with type parameters", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+                email: string;
+            }
+            
+            type Post = {
+                id: number;
+                title: string;
+                content: string;
+            }
+            
+            export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
+                info: {
+                    title: "Typed API",
+                    version: "1.0.0"
+                },
+                paths: [
+                    path.get<{ id: number }, never, never, User>("/users/:id"),
+                    path.get<never, { search?: string }, never, User[]>("/users"),
+                    path.post<never, never, User, User>("/users"),
+                    path.get<{ id: number }, never, never, Post>("/posts/:id")
+                ]
+            }));
+        `;
+        
+        const actual = await compile(code);
+        
+        // Check basic structure
+        expect(actual).toInclude('openapi: "3.0.3"');
+        expect(actual).toInclude('title: "Typed API"');
+        
+        // Check paths with typed parameters
+        expect(actual).toInclude('"/users/:id"');
+        expect(actual).toInclude('"/users"');
+        expect(actual).toInclude('"/posts/:id"');
+        
+        // Check for parameters in path operations
+        expect(actual).toInclude('parameters:');
+        
+        // Check for path parameter with id
+        expect(actual).toInclude('name: "id"');
+        expect(actual).toInclude('in: "path"');
+        expect(actual).toInclude('required: true');
+        
+        // Check for query parameter with search
+        expect(actual).toInclude('name: "search"');
+        expect(actual).toInclude('in: "query"');
+        
+        // Check for request body
+        expect(actual).toInclude('requestBody:');
+        expect(actual).toInclude('content:');
+        expect(actual).toInclude('"application/json"');
+        
+        // Check for response with schema reference to User
+        expect(actual).toInclude('responses:');
+        expect(actual).toInclude('$ref: "#/components/schemas/User"');
+        
+        // Check schemas are included
+        expect(actual).toInclude('User:');
+        expect(actual).toInclude('Post:');
+    });
 });

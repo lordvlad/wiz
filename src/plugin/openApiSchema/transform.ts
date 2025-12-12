@@ -21,6 +21,12 @@ type SchemaValue = {
 interface ParsedPathOperation {
     method: string;
     path: string;
+    typeParameters?: {
+        pathParams?: Type;
+        queryParams?: Type;
+        requestBody?: Type;
+        responseBody?: Type;
+    };
 }
 
 interface ConfigParseResult {
@@ -162,7 +168,17 @@ function extractPathOperations(arrayLiteral: Node): ParsedPathOperation[] {
                 
                 if (args.length > 0) {
                     const pathValue = extractPathString(args[0]);
-                    operations.push({ method, path: pathValue });
+                    
+                    // Extract type parameters if present
+                    const typeArgs = callExpr.getTypeArguments();
+                    const typeParameters = typeArgs.length >= 4 ? {
+                        pathParams: typeArgs[0]?.getType(),
+                        queryParams: typeArgs[1]?.getType(),
+                        requestBody: typeArgs[2]?.getType(),
+                        responseBody: typeArgs[3]?.getType()
+                    } : undefined;
+                    
+                    operations.push({ method, path: pathValue, typeParameters });
                 }
             }
         }
@@ -259,13 +275,152 @@ function parseConfigParameter(configArg: Node, log: (msg: string) => void, callP
     }
 }
 
-// Helper: Build OpenAPI paths from operations
-function buildOpenApiPaths(pathOperations: ParsedPathOperation[]): Record<string, Record<string, unknown>> {
-    interface OpenApiOperation {
-        responses: Record<string, { description: string }>;
+// Helper: Check if type is 'never'
+function isNeverType(type: Type | undefined): boolean {
+    if (!type) return true;
+    return type.isNever?.() || type.getText() === 'never';
+}
+
+// Helper: Check if type should use $ref
+function shouldUseRef(type: Type, availableSchemas: Set<string>): boolean {
+    const typeName = type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
+    return typeName ? availableSchemas.has(typeName) : false;
+}
+
+// Helper: Get schema name for reference
+function getSchemaName(type: Type): string | undefined {
+    return type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
+}
+
+// Helper: Build parameter schema from type
+function buildParameterSchema(type: Type, openApiVersion: "3.0" | "3.1", opt: WizPluginContext["opt"], availableSchemas: Set<string>): unknown {
+    if (shouldUseRef(type, availableSchemas)) {
+        const schemaName = getSchemaName(type);
+        return { $ref: `#/components/schemas/${schemaName}` };
     }
     
-    const paths: Record<string, Record<string, OpenApiOperation>> = {};
+    // Generate inline schema
+    return codegen(type, {
+        typeNode: undefined,
+        settings: {
+            coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
+            transformDate: opt?.transformDate,
+            unionStyle: opt?.unionStyle,
+            openApiVersion
+        },
+        availableTypes: availableSchemas,
+        processingStack: new Set<string>(),
+        typeAliasDeclaration: undefined
+    });
+}
+
+// Helper: Extract parameters from path and query types
+function extractParameters(
+    pathParamsType: Type | undefined,
+    queryParamsType: Type | undefined,
+    pathString: string,
+    openApiVersion: "3.0" | "3.1",
+    opt: WizPluginContext["opt"],
+    availableSchemas: Set<string>
+): unknown[] | undefined {
+    const parameters: unknown[] = [];
+    
+    // Extract path parameters
+    if (pathParamsType && !isNeverType(pathParamsType)) {
+        const properties = pathParamsType.getProperties();
+        for (const prop of properties) {
+            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
+            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas);
+            
+            parameters.push({
+                name: prop.getName(),
+                in: "path",
+                required: true,
+                schema
+            });
+        }
+    }
+    
+    // Extract query parameters
+    if (queryParamsType && !isNeverType(queryParamsType)) {
+        const properties = queryParamsType.getProperties();
+        for (const prop of properties) {
+            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
+            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas);
+            const isOptional = prop.isOptional?.() || false;
+            
+            parameters.push({
+                name: prop.getName(),
+                in: "query",
+                required: !isOptional,
+                schema
+            });
+        }
+    }
+    
+    return parameters.length > 0 ? parameters : undefined;
+}
+
+// Helper: Build request body from type
+function buildRequestBody(
+    requestBodyType: Type | undefined,
+    openApiVersion: "3.0" | "3.1",
+    opt: WizPluginContext["opt"],
+    availableSchemas: Set<string>
+): unknown | undefined {
+    if (!requestBodyType || isNeverType(requestBodyType)) {
+        return undefined;
+    }
+    
+    const schema = buildParameterSchema(requestBodyType, openApiVersion, opt, availableSchemas);
+    
+    return {
+        required: true,
+        content: {
+            "application/json": {
+                schema
+            }
+        }
+    };
+}
+
+// Helper: Build responses from type
+function buildResponses(
+    responseBodyType: Type | undefined,
+    openApiVersion: "3.0" | "3.1",
+    opt: WizPluginContext["opt"],
+    availableSchemas: Set<string>
+): unknown {
+    if (!responseBodyType || isNeverType(responseBodyType)) {
+        return {
+            "200": {
+                description: "Successful response"
+            }
+        };
+    }
+    
+    const schema = buildParameterSchema(responseBodyType, openApiVersion, opt, availableSchemas);
+    
+    return {
+        "200": {
+            description: "Successful response",
+            content: {
+                "application/json": {
+                    schema
+                }
+            }
+        }
+    };
+}
+
+// Helper: Build OpenAPI paths from operations
+function buildOpenApiPaths(
+    pathOperations: ParsedPathOperation[],
+    openApiVersion: "3.0" | "3.1",
+    opt: WizPluginContext["opt"],
+    availableSchemas: Set<string>
+): Record<string, Record<string, unknown>> {
+    const paths: Record<string, Record<string, unknown>> = {};
     
     for (const operation of pathOperations) {
         const pathKey = operation.path;
@@ -275,13 +430,41 @@ function buildOpenApiPaths(pathOperations: ParsedPathOperation[]): Record<string
             paths[pathKey] = {};
         }
         
-        paths[pathKey][method] = {
-            responses: {
+        const operationObj: Record<string, unknown> = {};
+        
+        // Add parameters if type parameters are provided
+        if (operation.typeParameters) {
+            const { pathParams, queryParams, requestBody, responseBody } = operation.typeParameters;
+            
+            const parameters = extractParameters(
+                pathParams,
+                queryParams,
+                pathKey,
+                openApiVersion,
+                opt,
+                availableSchemas
+            );
+            
+            if (parameters) {
+                operationObj.parameters = parameters;
+            }
+            
+            const requestBodyObj = buildRequestBody(requestBody, openApiVersion, opt, availableSchemas);
+            if (requestBodyObj) {
+                operationObj.requestBody = requestBodyObj;
+            }
+            
+            operationObj.responses = buildResponses(responseBody, openApiVersion, opt, availableSchemas);
+        } else {
+            // Default response when no type parameters
+            operationObj.responses = {
                 "200": {
                     description: "Successful response"
                 }
-            }
-        };
+            };
+        }
+        
+        paths[pathKey][method] = operationObj;
     }
     
     return paths;
@@ -292,7 +475,8 @@ function buildOpenApiSpec(
     openApiVersion: "3.0" | "3.1",
     config: Record<string, unknown>,
     schemas: Record<string, SchemaValue>,
-    pathOperations: ParsedPathOperation[]
+    pathOperations: ParsedPathOperation[],
+    opt: WizPluginContext["opt"]
 ): Record<string, unknown> {
     const spec: Record<string, unknown> = {
         openapi: openApiVersion === "3.1" ? OPENAPI_VERSION_3_1 : OPENAPI_VERSION_3_0,
@@ -312,7 +496,10 @@ function buildOpenApiSpec(
     if (config.externalDocs) spec.externalDocs = config.externalDocs;
     
     // Add paths
-    spec.paths = pathOperations.length > 0 ? buildOpenApiPaths(pathOperations) : {};
+    const availableSchemas = new Set(Object.keys(schemas));
+    spec.paths = pathOperations.length > 0 
+        ? buildOpenApiPaths(pathOperations, openApiVersion, opt, availableSchemas) 
+        : {};
     
     return spec;
 }
@@ -397,7 +584,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         const schemas = generateSchemas(tupleElements, typeNames, openApiVersion, opt);
         
         // Build the full OpenAPI spec
-        const openApiSpec = buildOpenApiSpec(openApiVersion, configObj, schemas, pathOperations);
+        const openApiSpec = buildOpenApiSpec(openApiVersion, configObj, schemas, pathOperations, opt);
         
         call.replaceWithText(JSON.stringify(openApiSpec, null, 2));
     }
