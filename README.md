@@ -216,7 +216,108 @@ The `createOpenApi` function accepts an optional configuration object with the f
   - `description`: Description text
   - `url`: Documentation URL
 
-**Note:** The `components` and `paths` fields are managed automatically by Wiz and cannot be provided in the configuration. The `components.schemas` are generated from the type parameters, and `paths` is initialized as an empty object for future extension.
+**Note:** The `components` field is managed automatically by Wiz. The `components.schemas` are generated from the type parameters.
+
+#### Typed Path Builder API
+
+The `createOpenApi` function also supports a callback-based API that allows you to define typed paths with a fluent path builder interface:
+
+```typescript
+import { createOpenApi } from "wiz/openApiSchema";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type Post = {
+    id: number;
+    title: string;
+    content: string;
+};
+
+export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
+    info: {
+        title: "My API",
+        description: "API with typed paths",
+        version: "1.0.0"
+    },
+    servers: [
+        {
+            url: "https://api.example.com"
+        }
+    ],
+    tags: [
+        {
+            name: "users",
+            description: "User operations"
+        },
+        {
+            name: "posts",
+            description: "Post operations"
+        }
+    ],
+    paths: [
+        // Type arguments: PathParams, QueryParams, RequestBody, ResponseBody
+        path.get<{ id: number }, never, never, User>("/users/:id"),
+        path.get<never, { username?: string }, never, User[]>("/users"),
+        path.post<never, never, User, User>("/users"),
+        path.get<{ id: number }, never, never, Post>("/posts/:id"),
+        path.post<never, never, Post, Post>("/posts")
+    ]
+}));
+```
+
+The path builder provides methods for all HTTP verbs:
+- `path.get<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.post<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.put<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.patch<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.delete<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.head<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.options<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.trace<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+
+Each method accepts type parameters for:
+1. **PathParams**: Path parameter types (e.g., `{ id: number }` for `/users/:id`)
+2. **QueryParams**: Query parameter types (e.g., `{ search?: string }`)
+3. **RequestBody**: Request body type for methods that accept a body
+4. **ResponseBody**: Response body type
+
+This generates OpenAPI paths with the specified operations:
+
+```json
+{
+  "paths": {
+    "/users/:id": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 #### OpenAPI Version Support
 

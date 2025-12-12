@@ -85,6 +85,51 @@ export type OpenApiExternalDocs = {
     url: string;
 };
 
+// OpenAPI path operation types
+export type PathOperation<PathParams = any, QueryParams = any, RequestBody = any, ResponseBody = any> = {
+    method: "get" | "post" | "put" | "patch" | "delete" | "head" | "options" | "trace";
+    path: string;
+    pathParams?: PathParams;
+    queryParams?: QueryParams;
+    requestBody?: RequestBody;
+    responseBody?: ResponseBody;
+};
+
+// Path builder interface for typed path definitions
+export type PathBuilder = {
+    get<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    post<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    put<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    patch<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    delete<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    head<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = never>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    options<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+    
+    trace<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
+        path: string
+    ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
+};
+
 // OpenAPI configuration options (excludes components and paths)
 export type OpenApiConfig = {
     info?: OpenApiInfo;
@@ -92,6 +137,11 @@ export type OpenApiConfig = {
     security?: Record<string, string[]>[];
     tags?: OpenApiTag[];
     externalDocs?: OpenApiExternalDocs;
+};
+
+// OpenAPI configuration with paths support (for callback-based API)
+export type OpenApiConfigWithPaths = OpenApiConfig & {
+    paths?: PathOperation[];
 };
 
 // Full OpenAPI specification

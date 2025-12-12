@@ -304,4 +304,67 @@ describe("createOpenApi function", () => {
         expect(actual).toInclude('Post:');
         expect(actual).toInclude('paths: {}');
     });
+    
+    it("must create full OpenAPI spec with callback-based path builder API", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+                email: string;
+            }
+            
+            type Post = {
+                id: number;
+                title: string;
+                content: string;
+            }
+            
+            export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
+                info: {
+                    title: "My API",
+                    description: "API with typed paths",
+                    version: "1.0.0"
+                },
+                servers: [
+                    {
+                        url: "https://api.example.com"
+                    }
+                ],
+                tags: [
+                    {
+                        name: "users"
+                    },
+                    {
+                        name: "posts"
+                    }
+                ],
+                paths: [
+                    path.get("/users/:id"),
+                    path.get("/users"),
+                    path.post("/users")
+                ]
+            }));
+        `;
+        
+        const actual = await compile(code);
+        
+        // Check that it includes the basic structure
+        expect(actual).toInclude('openapi: "3.0.3"');
+        expect(actual).toInclude('title: "My API"');
+        expect(actual).toInclude('description: "API with typed paths"');
+        
+        // Check that paths are generated
+        expect(actual).toInclude('paths:');
+        expect(actual).toInclude('"/users/:id"');
+        expect(actual).toInclude('"/users"');
+        expect(actual).toInclude('get:');
+        expect(actual).toInclude('post:');
+        
+        // Check schemas are still included
+        expect(actual).toInclude('components:');
+        expect(actual).toInclude('User:');
+        expect(actual).toInclude('Post:');
+    });
 });

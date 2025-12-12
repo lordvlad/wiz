@@ -172,12 +172,101 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         // Extract the config parameter if provided
         const args = call.getArguments();
         let configObj: Record<string, unknown> = {};
+        let pathOperations: any[] = [];
         
         if (args.length > 0) {
             const configArg = args[0];
             
+            // Check if it's an arrow function (callback-based API)
+            if (configArg.getKind() === SyntaxKind.ArrowFunction) {
+                try {
+                    // For arrow function, we need to extract the returned object
+                    const arrowFunc = configArg;
+                    const body = arrowFunc.getBody();
+                    
+                    // Handle both block body and expression body
+                    let returnedObj: any = null;
+                    if (body.getKind() === SyntaxKind.Block) {
+                        // Find return statement
+                        const returnStmt = body.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
+                        if (returnStmt) {
+                            returnedObj = returnStmt.getExpression();
+                        }
+                    } else if (body.getKind() === SyntaxKind.ObjectLiteralExpression) {
+                        // Direct object return
+                        returnedObj = body;
+                    } else if (body.getKind() === SyntaxKind.ParenthesizedExpression) {
+                        // Parenthesized expression (e.g., (path) => ({ ... }))
+                        const inner = body.getExpression();
+                        if (inner.getKind() === SyntaxKind.ObjectLiteralExpression) {
+                            returnedObj = inner;
+                        }
+                    }
+                    
+                    if (returnedObj && returnedObj.getKind() === SyntaxKind.ObjectLiteralExpression) {
+                        // Parse properties from the object literal
+                        const properties = returnedObj.getProperties();
+                        
+                        for (const prop of properties) {
+                            if (prop.getKind() === SyntaxKind.PropertyAssignment) {
+                                const propName = prop.getName();
+                                
+                                if (propName === 'paths') {
+                                    // Extract path operations from the paths array
+                                    const initializer = prop.getInitializer();
+                                    if (initializer && initializer.getKind() === SyntaxKind.ArrayLiteralExpression) {
+                                        const elements = initializer.getElements();
+                                        
+                                        for (const element of elements) {
+                                            // Each element should be a call expression like path.get("/users")
+                                            if (element.getKind() === SyntaxKind.CallExpression) {
+                                                const callExpr = element;
+                                                const expression = callExpr.getExpression();
+                                                
+                                                // Extract method (get, post, etc.) and path argument
+                                                if (expression.getKind() === SyntaxKind.PropertyAccessExpression) {
+                                                    const propAccess = expression;
+                                                    const method = propAccess.getName();
+                                                    const args = callExpr.getArguments();
+                                                    
+                                                    if (args.length > 0) {
+                                                        const pathArg = args[0];
+                                                        let pathValue = pathArg.getText().replace(/['"]/g, '');
+                                                        
+                                                        pathOperations.push({
+                                                            method,
+                                                            path: pathValue
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Parse other properties as JSON
+                                    const initializer = prop.getInitializer();
+                                    if (initializer) {
+                                        const propText = initializer.getText();
+                                        try {
+                                            const jsonText = propText
+                                                .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
+                                                .replace(/'/g, '"');
+                                            configObj[propName] = JSON.parse(jsonText);
+                                        } catch (e) {
+                                            log(`Warning: Could not parse property ${propName} at ${path}:${call.getStartLineNumber()}`);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    const error = e as Error;
+                    log(`Warning: Could not parse callback parameter at ${path}:${call.getStartLineNumber()}: ${error.message}. Using empty config.`);
+                }
+            }
             // Check if it's an object literal expression using ts-morph
-            if (configArg.getKind() === SyntaxKind.ObjectLiteralExpression) {
+            else if (configArg.getKind() === SyntaxKind.ObjectLiteralExpression) {
                 try {
                     // Parse the object literal safely using JSON
                     const configText = configArg.getText();
@@ -192,7 +281,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
                     log(`Warning: Could not parse config parameter at ${path}:${call.getStartLineNumber()}: ${error.message}. Using empty config.`);
                 }
             } else {
-                log(`Warning: Config parameter at ${path}:${call.getStartLineNumber()} is not an object literal. Using empty config.`);
+                log(`Warning: Config parameter at ${path}:${call.getStartLineNumber()} is not an object literal or arrow function. Using empty config.`);
             }
         }
         
@@ -285,8 +374,39 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         if (configObj.tags) openApiSpec.tags = configObj.tags;
         if (configObj.externalDocs) openApiSpec.externalDocs = configObj.externalDocs;
         
-        // Add paths as empty object (can be extended in future)
-        openApiSpec.paths = {};
+        // Generate paths from path operations if provided
+        if (pathOperations.length > 0) {
+            const paths: Record<string, any> = {};
+            
+            for (const operation of pathOperations) {
+                const pathKey = operation.path;
+                const method = operation.method.toLowerCase();
+                
+                if (!paths[pathKey]) {
+                    paths[pathKey] = {};
+                }
+                
+                // Build operation object
+                const operationObj: Record<string, any> = {
+                    responses: {
+                        "200": {
+                            description: "Successful response"
+                        }
+                    }
+                };
+                
+                // Add parameters if path or query params exist
+                // Note: This is a simplified implementation
+                // Full implementation would need to parse the types and generate proper parameter schemas
+                
+                paths[pathKey][method] = operationObj;
+            }
+            
+            openApiSpec.paths = paths;
+        } else {
+            // Add paths as empty object if no operations provided
+            openApiSpec.paths = {};
+        }
         
         call.replaceWithText(JSON.stringify(openApiSpec, null, 2));
     }
