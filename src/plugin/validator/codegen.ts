@@ -229,6 +229,137 @@ function generateIntersectionCheck(type: Type, varName: string, path: string): s
 }
 
 /**
+ * Generates type check for array element with dynamic path
+ * This is a specialized version of generateTypeCheck that handles dynamic paths
+ */
+function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefix: string, indexVar: string): string {
+    const dynamicPath = pathPrefix ? `"${pathPrefix}" + ${indexVar}` : `String(${indexVar})`;
+    
+    // Primitives
+    if (type.isString()) {
+        return `if (typeof ${varName} !== "string") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "string" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    if (type.isNumber()) {
+        return `if (typeof ${varName} !== "number") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "number" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    if (type.isBoolean()) {
+        return `if (typeof ${varName} !== "boolean") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "boolean" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    // Objects - handle nested objects in arrays
+    if (type.isObject()) {
+        const checks: string[] = [];
+        checks.push(`if (typeof ${varName} !== "object" || ${varName} === null) {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected object, saw " + typeof ${varName},
+                expected: { type: "object" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        } else {`);
+        
+        const properties = type.getProperties();
+        for (const prop of properties) {
+            const propName = prop.getName();
+            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
+            const isOptional = prop.isOptional();
+            const typeName = escapeString(getTypeName(propType));
+            
+            const propVarName = `${varName}.${propName}`;
+            const propDynamicPath = `${dynamicPath} + ".${propName}"`;
+            
+            if (isOptional) {
+                checks.push(`if (${propVarName} !== undefined) {
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                }`);
+            } else {
+                checks.push(`if (${propVarName} === undefined) {
+                    errors.push({
+                        path: ${propDynamicPath},
+                        error: "expected type '${typeName}', saw undefined",
+                        expected: { type: "${typeName}" },
+                        actual: { type: "undefined", value: undefined }
+                    });
+                } else {
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                }`);
+            }
+        }
+        
+        checks.push(`}`);
+        return checks.join("\n");
+    }
+    
+    return `// Unsupported array element type: ${type.getText()}`;
+}
+
+/**
+ * Generates type check for object property with dynamic path
+ */
+function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: string): string {
+    // Handle primitives with dynamic paths
+    if (type.isString()) {
+        return `if (typeof ${varName} !== "string") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "string" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    if (type.isNumber()) {
+        return `if (typeof ${varName} !== "number") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "number" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    if (type.isBoolean()) {
+        return `if (typeof ${varName} !== "boolean") {
+            errors.push({
+                path: ${dynamicPath},
+                error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "boolean" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    // For complex types, we'd need to recursively handle them
+    // For now, return a basic check
+    return `// Complex nested property type`;
+}
+
+/**
  * Generates check for array types
  */
 function generateArrayCheck(type: Type, varName: string, path: string): string {
@@ -247,7 +378,10 @@ function generateArrayCheck(type: Type, varName: string, path: string): string {
     const itemVarName = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const indexVarName = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     
-    const elementCheck = generateTypeCheck(arrayElementType, itemVarName, `${path}.\${${indexVarName}}`);
+    // For array elements, we need to build the path at runtime using string concatenation
+    // Pass a placeholder that will be replaced with the actual concatenation expression
+    const elementPathBase = path ? `${path}.` : "";
+    const elementCheck = generateTypeCheckForArrayElement(arrayElementType, itemVarName, elementPathBase, indexVarName);
     
     return `if (!Array.isArray(${varName})) {
         errors.push({
@@ -277,8 +411,7 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
             expected: { type: "object" },
             actual: { type: typeof ${varName}, value: ${varName} }
         });
-        return errors;
-    }`);
+    } else {`);
     
     const properties = type.getProperties();
     const requiredProps: string[] = [];
@@ -317,6 +450,7 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
     }
     
     checks.push(...propertyChecks);
+    checks.push(`}`);
     
     return checks.join("\n");
 }
