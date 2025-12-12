@@ -3,6 +3,10 @@ import { createOpenApiSchema as codegen } from "./codegen";
 import { createOpenApiSchema, createOpenApi } from "../../openApiSchema/index";
 import type { WizPluginContext } from "..";
 
+// OpenAPI version constants
+const OPENAPI_VERSION_3_0 = "3.0.3";
+const OPENAPI_VERSION_3_1 = "3.1.0";
+
 // Type for individual schema in components.schemas
 type SchemaValue = {
     type?: string;
@@ -171,20 +175,24 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         
         if (args.length > 0) {
             const configArg = args[0];
-            const configText = configArg.getText();
             
-            // Try to evaluate the config object
-            try {
-                // For simple object literals, we can parse them
-                // This is a basic implementation - for complex cases might need more sophisticated parsing
-                if (configText.startsWith('{') && configText.endsWith('}')) {
-                    // Use a safe eval approach via Function constructor
-                    // Note: This only works for literal objects without variables
-                    const evalFunc = new Function(`return ${configText}`);
-                    configObj = evalFunc();
+            // Check if it's an object literal expression using ts-morph
+            if (configArg.getKind() === SyntaxKind.ObjectLiteralExpression) {
+                try {
+                    // Parse the object literal safely using JSON
+                    const configText = configArg.getText();
+                    // Convert JavaScript object notation to JSON by wrapping property names in quotes
+                    // This is still a simple approach but safer than Function constructor
+                    const jsonText = configText
+                        .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
+                        .replace(/'/g, '"');
+                    configObj = JSON.parse(jsonText);
+                } catch (e) {
+                    const error = e as Error;
+                    log(`Warning: Could not parse config parameter at ${path}:${call.getStartLineNumber()}: ${error.message}. Using empty config.`);
                 }
-            } catch (e) {
-                log(`Warning: Could not evaluate config parameter at ${path}:${call.getStartLineNumber()}. Using empty config.`);
+            } else {
+                log(`Warning: Config parameter at ${path}:${call.getStartLineNumber()} is not an object literal. Using empty config.`);
             }
         }
         
@@ -261,7 +269,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         
         // Build the full OpenAPI spec
         const openApiSpec: Record<string, unknown> = {
-            openapi: openApiVersion === "3.1" ? "3.1.0" : "3.0.3",
+            openapi: openApiVersion === "3.1" ? OPENAPI_VERSION_3_1 : OPENAPI_VERSION_3_0,
             info: configObj.info || {
                 title: "API",
                 version: "1.0.0"

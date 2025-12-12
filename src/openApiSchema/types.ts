@@ -46,6 +46,20 @@ export type OpenApiServer = {
     }>;
 };
 
+export type OpenApiOAuthFlow = {
+    authorizationUrl?: string;
+    tokenUrl?: string;
+    refreshUrl?: string;
+    scopes: Record<string, string>;
+};
+
+export type OpenApiOAuthFlows = {
+    implicit?: OpenApiOAuthFlow;
+    password?: OpenApiOAuthFlow;
+    clientCredentials?: OpenApiOAuthFlow;
+    authorizationCode?: OpenApiOAuthFlow;
+};
+
 export type OpenApiSecurityScheme = {
     type: "apiKey" | "http" | "oauth2" | "openIdConnect";
     description?: string;
@@ -53,7 +67,7 @@ export type OpenApiSecurityScheme = {
     in?: "query" | "header" | "cookie";
     scheme?: string;
     bearerFormat?: string;
-    flows?: Record<string, unknown>;
+    flows?: OpenApiOAuthFlows;
     openIdConnectUrl?: string;
 };
 
