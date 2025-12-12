@@ -1,6 +1,6 @@
 import { Type, SyntaxKind, type SourceFile } from "ts-morph";
 import { createOpenApiSchema as codegen } from "./codegen";
-import { createOpenApiSchema } from "../../openApiSchema/index";
+import { createOpenApiSchema, createOpenApi } from "../../openApiSchema/index";
 import type { WizPluginContext } from "..";
 
 // Type for individual schema in components.schemas
@@ -19,7 +19,11 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
     const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)
         .filter(call => (call.getExpression()).getText() === createOpenApiSchema.name && call.getTypeArguments().length >= 1);
 
-    if (calls.length === 0) return;
+    if (calls.length === 0) {
+        // Still check for createOpenApi calls even if no createOpenApiSchema calls
+        transformCreateOpenApi(sourceFile, { log, path, opt });
+        return;
+    }
 
     for (const call of calls) {
         log(`Transforming createOpenApiSchema call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
@@ -132,5 +136,150 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         };
         
         call.replaceWithText(JSON.stringify(compositeSchema, null, 2));
+    }
+    
+    // Also transform createOpenApi calls
+    transformCreateOpenApi(sourceFile, { log, path, opt });
+}
+
+// Transform createOpenApi calls to generate full OpenAPI spec
+export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt }: WizPluginContext) {
+    const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter(call => (call.getExpression()).getText() === createOpenApi.name && call.getTypeArguments().length >= 1);
+
+    if (calls.length === 0) return;
+
+    for (const call of calls) {
+        log(`Transforming createOpenApi call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+        
+        // Extract version from second type parameter (defaults to "3.0" if not provided)
+        const typeArgs = call.getTypeArguments();
+        let openApiVersion: "3.0" | "3.1" = "3.0"; // default
+        
+        if (typeArgs.length >= 2) {
+            const versionTypeArg = typeArgs[1];
+            const versionText = versionTypeArg.getText().replace(/['"]/g, '');
+            if (versionText !== "3.0" && versionText !== "3.1") {
+                throw new Error(`createOpenApi version type parameter must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
+            }
+            openApiVersion = versionText as "3.0" | "3.1";
+        }
+        
+        // Extract the config parameter if provided
+        const args = call.getArguments();
+        let configObj: Record<string, unknown> = {};
+        
+        if (args.length > 0) {
+            const configArg = args[0];
+            const configText = configArg.getText();
+            
+            // Try to evaluate the config object
+            try {
+                // For simple object literals, we can parse them
+                // This is a basic implementation - for complex cases might need more sophisticated parsing
+                if (configText.startsWith('{') && configText.endsWith('}')) {
+                    // Use a safe eval approach via Function constructor
+                    // Note: This only works for literal objects without variables
+                    const evalFunc = new Function(`return ${configText}`);
+                    configObj = evalFunc();
+                }
+            } catch (e) {
+                log(`Warning: Could not evaluate config parameter at ${path}:${call.getStartLineNumber()}. Using empty config.`);
+            }
+        }
+        
+        // Get the type argument
+        const typeArg = call.getTypeArguments()[0]!;
+        const type = typeArg.getType();
+        
+        // Only tuple types are supported
+        if (!type.isTuple()) {
+            throw new Error(`createOpenApi only accepts tuple types. Use createOpenApi<[YourType]>() instead of createOpenApi<YourType>(). Found at ${path}:${call.getStartLineNumber()}`);
+        }
+        
+        // Generate component schemas (same as createOpenApiSchema)
+        const tupleElements = type.getTupleElements();
+        const schemas: Record<string, SchemaValue> = {};
+        const usedNames = new Set<string>();
+        
+        // First pass: collect all type names
+        const typeNames = new Map<Type, string>();
+        for (const element of tupleElements) {
+            const aliasSymbol = element.getAliasSymbol();
+            let typeName: string | undefined = aliasSymbol?.getName();
+            
+            if (!typeName) {
+                const symbol = element.getSymbol();
+                typeName = symbol?.getName();
+                
+                if (!typeName || typeName === '__type') {
+                    typeName = element.getText();
+                    typeName = typeName.replace(/\s+/g, '');
+                }
+            }
+            
+            if (!typeName || typeName === '__type') {
+                throw new Error(`Unable to determine a valid type name for tuple element: ${element.getText()}`);
+            }
+            
+            if (usedNames.has(typeName)) {
+                throw new Error(`Duplicate type name '${typeName}' detected in tuple. Each type in the tuple must have a unique name.`);
+            }
+            usedNames.add(typeName);
+            typeNames.set(element, typeName);
+        }
+        
+        // Second pass: generate schemas
+        const availableTypes = new Set(usedNames);
+        for (const element of tupleElements) {
+            const typeName = typeNames.get(element)!;
+            const processingStack = new Set<string>();
+            
+            const aliasSymbol = element.getAliasSymbol();
+            const typeAliasDeclaration = aliasSymbol?.getDeclarations()[0];
+            
+            const schema = codegen(element, {
+                typeNode: undefined,
+                settings: {
+                    coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
+                    transformDate: opt?.transformDate,
+                    unionStyle: opt?.unionStyle,
+                    openApiVersion
+                },
+                availableTypes,
+                processingStack,
+                typeAliasDeclaration
+            });
+            
+            const schemaObj = schema as SchemaValue;
+            if (typeof schemaObj === 'object' && schemaObj !== null && !('title' in schemaObj)) {
+                schemaObj.title = typeName;
+            }
+            
+            schemas[typeName] = schemaObj;
+        }
+        
+        // Build the full OpenAPI spec
+        const openApiSpec: Record<string, unknown> = {
+            openapi: openApiVersion === "3.1" ? "3.1.0" : "3.0.3",
+            info: configObj.info || {
+                title: "API",
+                version: "1.0.0"
+            },
+            components: {
+                schemas
+            }
+        };
+        
+        // Add optional fields from config if they exist
+        if (configObj.servers) openApiSpec.servers = configObj.servers;
+        if (configObj.security) openApiSpec.security = configObj.security;
+        if (configObj.tags) openApiSpec.tags = configObj.tags;
+        if (configObj.externalDocs) openApiSpec.externalDocs = configObj.externalDocs;
+        
+        // Add paths as empty object (can be extended in future)
+        openApiSpec.paths = {};
+        
+        call.replaceWithText(JSON.stringify(openApiSpec, null, 2));
     }
 }
