@@ -1,0 +1,347 @@
+import { Type, ts } from "ts-morph";
+
+/**
+ * Generates runtime validator code for a given TypeScript type
+ */
+export function generateValidatorCode(type: Type): string {
+    const validatorFn = generateTypeCheck(type, "value", "");
+    
+    return `(function(value) {
+        const errors = [];
+        ${validatorFn}
+        return errors;
+    })`;
+}
+
+/**
+ * Generates type check code for a type at a given path
+ */
+function generateTypeCheck(type: Type, varName: string, path: string): string {
+    const checks: string[] = [];
+    
+    // Handle undefined/null
+    if (type.isUndefined()) {
+        checks.push(`if (${varName} !== undefined) {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'undefined', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "undefined" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    if (type.isNull()) {
+        checks.push(`if (${varName} !== null) {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'null', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "null" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    // Handle union types
+    if (type.isUnion()) {
+        return generateUnionCheck(type, varName, path);
+    }
+    
+    // Handle intersection types
+    if (type.isIntersection()) {
+        return generateIntersectionCheck(type, varName, path);
+    }
+    
+    // Handle array types
+    if (type.isArray()) {
+        return generateArrayCheck(type, varName, path);
+    }
+    
+    // Handle primitive types
+    if (type.isString()) {
+        checks.push(`if (typeof ${varName} !== "string") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "string" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    if (type.isNumber()) {
+        checks.push(`if (typeof ${varName} !== "number") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "number" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    if (type.isBoolean()) {
+        checks.push(`if (typeof ${varName} !== "boolean") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "boolean" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    // Handle literal types
+    if (type.isLiteral()) {
+        const literalValue = type.getLiteralValue();
+        const literalStr = typeof literalValue === "string" ? `"${literalValue}"` : String(literalValue);
+        checks.push(`if (${varName} !== ${literalStr}) {
+            errors.push({
+                path: "${path}",
+                error: "expected literal value ${literalStr}, saw " + JSON.stringify(${varName}),
+                expected: { type: "literal", value: ${literalStr} },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    // Handle object types
+    if (type.isObject()) {
+        return generateObjectCheck(type, varName, path);
+    }
+    
+    // Fallback for unknown types
+    return `// Type check not implemented for: ${type.getText()}`;
+}
+
+/**
+ * Generates check for union types (A | B)
+ */
+function generateUnionCheck(type: Type, varName: string, path: string): string {
+    const unionTypes = type.getUnionTypes();
+    
+    // Filter out null and undefined for special handling
+    const nullType = unionTypes.find(t => t.isNull());
+    const undefinedType = unionTypes.find(t => t.isUndefined());
+    const otherTypes = unionTypes.filter(t => !t.isNull() && !t.isUndefined());
+    
+    if (otherTypes.length === 0) {
+        // Only null and/or undefined
+        const checks: string[] = [];
+        if (nullType && undefinedType) {
+            checks.push(`if (${varName} !== null && ${varName} !== undefined) {
+                errors.push({
+                    path: "${path}",
+                    error: "expected null or undefined, saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                    expected: { type: "null | undefined" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        } else if (nullType) {
+            return generateTypeCheck(nullType, varName, path);
+        } else if (undefinedType) {
+            return generateTypeCheck(undefinedType, varName, path);
+        }
+        return checks.join("\n");
+    }
+    
+    // Generate checks for each union member
+    const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    
+    let code = `const ${errorCountVar} = errors.length;\n`;
+    code += `let ${tempVar} = false;\n`;
+    
+    for (let i = 0; i < otherTypes.length; i++) {
+        const unionType = otherTypes[i];
+        const checkCode = generateTypeCheck(unionType, varName, path);
+        
+        code += `if (!${tempVar}) {\n`;
+        code += `    const _errLen_${i} = errors.length;\n`;
+        code += `    ${checkCode}\n`;
+        code += `    if (errors.length === _errLen_${i}) {\n`;
+        code += `        ${tempVar} = true;\n`;
+        code += `    } else {\n`;
+        code += `        errors.length = _errLen_${i};\n`;
+        code += `    }\n`;
+        code += `}\n`;
+    }
+    
+    // Handle nullable unions
+    if (nullType || undefinedType) {
+        const conditions: string[] = [];
+        if (nullType) conditions.push(`${varName} === null`);
+        if (undefinedType) conditions.push(`${varName} === undefined`);
+        code += `if (${conditions.join(" || ")}) {\n`;
+        code += `    ${tempVar} = true;\n`;
+        code += `    errors.length = ${errorCountVar};\n`;
+        code += `}\n`;
+    }
+    
+    code += `if (!${tempVar}) {\n`;
+    code += `    errors.push({
+        path: "${path}",
+        error: "value does not match any union member",
+        expected: { type: "union" },
+        actual: { type: typeof ${varName}, value: ${varName} }
+    });\n`;
+    code += `}\n`;
+    
+    return code;
+}
+
+/**
+ * Generates check for intersection types (A & B)
+ */
+function generateIntersectionCheck(type: Type, varName: string, path: string): string {
+    const intersectionTypes = type.getIntersectionTypes();
+    const checks = intersectionTypes.map(t => generateTypeCheck(t, varName, path));
+    return checks.join("\n");
+}
+
+/**
+ * Generates check for array types
+ */
+function generateArrayCheck(type: Type, varName: string, path: string): string {
+    const arrayElementType = type.getArrayElementType();
+    if (!arrayElementType) {
+        return `if (!Array.isArray(${varName})) {
+            errors.push({
+                path: "${path}",
+                error: "expected array, saw " + typeof ${varName},
+                expected: { type: "array" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`;
+    }
+    
+    const itemVarName = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const indexVarName = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    
+    const elementCheck = generateTypeCheck(arrayElementType, itemVarName, `${path}.\${${indexVarName}}`);
+    
+    return `if (!Array.isArray(${varName})) {
+        errors.push({
+            path: "${path}",
+            error: "expected array, saw " + typeof ${varName},
+            expected: { type: "array" },
+            actual: { type: typeof ${varName}, value: ${varName} }
+        });
+    } else {
+        for (let ${indexVarName} = 0; ${indexVarName} < ${varName}.length; ${indexVarName}++) {
+            const ${itemVarName} = ${varName}[${indexVarName}];
+            ${elementCheck}
+        }
+    }`;
+}
+
+/**
+ * Generates check for object types
+ */
+function generateObjectCheck(type: Type, varName: string, path: string): string {
+    const checks: string[] = [];
+    
+    checks.push(`if (typeof ${varName} !== "object" || ${varName} === null) {
+        errors.push({
+            path: "${path}",
+            error: "expected object, saw " + typeof ${varName},
+            expected: { type: "object" },
+            actual: { type: typeof ${varName}, value: ${varName} }
+        });
+        return errors;
+    }`);
+    
+    const properties = type.getProperties();
+    const requiredProps: string[] = [];
+    const propertyChecks: string[] = [];
+    
+    for (const prop of properties) {
+        const propName = prop.getName();
+        const propType = prop.getTypeAtLocation(prop.getValueDeclaration()!);
+        const isOptional = prop.isOptional();
+        
+        if (!isOptional) {
+            requiredProps.push(propName);
+        }
+        
+        const propPath = path ? `${path}.${propName}` : propName;
+        const propVarName = `${varName}.${propName}`;
+        
+        if (isOptional) {
+            propertyChecks.push(`if (${propVarName} !== undefined) {
+                ${generateTypeCheck(propType, propVarName, propPath)}
+            }`);
+        } else {
+            propertyChecks.push(`if (${propVarName} === undefined) {
+                errors.push({
+                    path: "${propPath}",
+                    error: "expected type '${propType.getText()}', saw undefined",
+                    expected: { type: "${propType.getText()}" },
+                    actual: { type: "undefined", value: undefined }
+                });
+            } else {
+                ${generateTypeCheck(propType, propVarName, propPath)}
+            }`);
+        }
+    }
+    
+    checks.push(...propertyChecks);
+    
+    return checks.join("\n");
+}
+
+/**
+ * Generates a type guard (is) function
+ */
+export function generateIsCode(type: Type): string {
+    const validatorCode = generateValidatorCode(type);
+    return `(function(value) {
+        const validator = ${validatorCode};
+        return validator(value).length === 0;
+    })`;
+}
+
+/**
+ * Generates an assert function
+ */
+export function generateAssertCode(type: Type, hasErrorFactory: boolean): string {
+    const validatorCode = generateValidatorCode(type);
+    
+    if (hasErrorFactory) {
+        return `(function(errorFactory) {
+            const validator = ${validatorCode};
+            return function(value) {
+                const errors = validator(value);
+                if (errors.length > 0) {
+                    throw errorFactory(errors);
+                }
+            };
+        })`;
+    }
+    
+    return `(function(value) {
+        const validator = ${validatorCode};
+        const errors = validator(value);
+        if (errors.length > 0) {
+            const errorMsg = errors.map(e => e.error + " at " + e.path).join("; ");
+            throw new TypeError("Validation failed: " + errorMsg);
+        }
+    })`;
+}
+
+/**
+ * Generates inline validate code
+ */
+export function generateValidateCode(type: Type): string {
+    const validatorCode = generateValidatorCode(type);
+    return `(function(value) {
+        const validator = ${validatorCode};
+        return validator(value);
+    })`;
+}
