@@ -49,4 +49,14 @@ export function createIs<T>(): TypeGuard<T> {
     throw pluginNotEnabled();
 }
 
+/**
+ * Checks if a value conforms to type T (inline type guard)
+ * @param value The value to check
+ * @returns True if value conforms to type T, false otherwise
+ */
+export function is<T>(value: unknown): value is T {
+    // intentionally empty, will be replaced at build time
+    throw pluginNotEnabled();
+}
+
 export type { ValidationError, Validator, Asserter, TypeGuard };

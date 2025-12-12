@@ -7,7 +7,8 @@ const VALIDATOR_FUNCTIONS = [
     "validate", 
     "assert",
     "createAssert",
-    "createIs"
+    "createIs",
+    "is"
 ] as const;
 
 export function transformValidator(src: SourceFile, context: WizPluginContext): void {
@@ -76,6 +77,16 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                     
                 case "createIs":
                     replacementCode = generateIsCode(type);
+                    break;
+                    
+                case "is":
+                    // is<T>(value) - needs to wrap with immediate invocation
+                    const isArg = callExpr.getArguments()[0];
+                    if (!isArg) {
+                        throw new Error("is requires a value argument");
+                    }
+                    const isValueCode = isArg.getText();
+                    replacementCode = `${generateIsCode(type)}(${isValueCode})`;
                     break;
                     
                 default:

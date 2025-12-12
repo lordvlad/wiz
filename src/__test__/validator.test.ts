@@ -213,6 +213,50 @@ describe('validator plugin', () => {
         });
     });
     
+    describe('is', () => {
+        it('should check type inline and return boolean', async () => {
+            const source = `
+                import { is } from '../validator/index';
+                
+                type User = {
+                    id: number;
+                    username: string;
+                };
+                
+                export const result1 = is<User>({ id: 10, username: "test" });
+                export const result2 = is<User>({ id: "bad", username: "test" });
+                export const result3 = is<User>(null);
+            `;
+            
+            const output = await compile(source);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            
+            expect(module.result1).toBe(true);
+            expect(module.result2).toBe(false);
+            expect(module.result3).toBe(false);
+        });
+        
+        it('should work with complex types', async () => {
+            const source = `
+                import { is } from '../validator/index';
+                
+                type Data = {
+                    items: string[];
+                    count: number;
+                };
+                
+                export const validResult = is<Data>({ items: ["a", "b"], count: 2 });
+                export const invalidResult = is<Data>({ items: [1, 2], count: 2 });
+            `;
+            
+            const output = await compile(source);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            
+            expect(module.validResult).toBe(true);
+            expect(module.invalidResult).toBe(false);
+        });
+    });
+    
     describe('assert', () => {
         it('should not throw for valid values', async () => {
             const source = `
