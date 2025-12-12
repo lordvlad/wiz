@@ -1,6 +1,28 @@
 import { Type, ts } from "ts-morph";
 
 /**
+ * Escapes a string for use in generated code
+ */
+function escapeString(str: string): string {
+    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+
+/**
+ * Gets a safe type name for error messages
+ */
+function getTypeName(type: Type): string {
+    const text = type.getText();
+    // Simplify complex types for error messages
+    if (text.length > 50) {
+        if (type.isObject()) return 'object';
+        if (type.isArray()) return 'array';
+        if (type.isUnion()) return 'union';
+        return 'complex type';
+    }
+    return text;
+}
+
+/**
  * Generates runtime validator code for a given TypeScript type
  */
 export function generateValidatorCode(type: Type): string {
@@ -18,6 +40,43 @@ export function generateValidatorCode(type: Type): string {
  */
 function generateTypeCheck(type: Type, varName: string, path: string): string {
     const checks: string[] = [];
+    
+    // Handle primitive types first (before union, since boolean is both)
+    if (type.isString()) {
+        checks.push(`if (typeof ${varName} !== "string") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "string" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    if (type.isNumber()) {
+        checks.push(`if (typeof ${varName} !== "number") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "number" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
+    
+    if (type.isBoolean()) {
+        checks.push(`if (typeof ${varName} !== "boolean") {
+            errors.push({
+                path: "${path}",
+                error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+                expected: { type: "boolean" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }`);
+        return checks.join("\n");
+    }
     
     // Handle undefined/null
     if (type.isUndefined()) {
@@ -59,51 +118,15 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
         return generateArrayCheck(type, varName, path);
     }
     
-    // Handle primitive types
-    if (type.isString()) {
-        checks.push(`if (typeof ${varName} !== "string") {
-            errors.push({
-                path: "${path}",
-                error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
-                expected: { type: "string" },
-                actual: { type: typeof ${varName}, value: ${varName} }
-            });
-        }`);
-        return checks.join("\n");
-    }
-    
-    if (type.isNumber()) {
-        checks.push(`if (typeof ${varName} !== "number") {
-            errors.push({
-                path: "${path}",
-                error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
-                expected: { type: "number" },
-                actual: { type: typeof ${varName}, value: ${varName} }
-            });
-        }`);
-        return checks.join("\n");
-    }
-    
-    if (type.isBoolean()) {
-        checks.push(`if (typeof ${varName} !== "boolean") {
-            errors.push({
-                path: "${path}",
-                error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
-                expected: { type: "boolean" },
-                actual: { type: typeof ${varName}, value: ${varName} }
-            });
-        }`);
-        return checks.join("\n");
-    }
-    
     // Handle literal types
     if (type.isLiteral()) {
         const literalValue = type.getLiteralValue();
-        const literalStr = typeof literalValue === "string" ? `"${literalValue}"` : String(literalValue);
+        const literalStr = typeof literalValue === "string" ? `"${escapeString(literalValue)}"` : String(literalValue);
+        const literalDisplay = typeof literalValue === "string" ? literalValue : String(literalValue);
         checks.push(`if (${varName} !== ${literalStr}) {
             errors.push({
                 path: "${path}",
-                error: "expected literal value ${literalStr}, saw " + JSON.stringify(${varName}),
+                error: "expected literal value " + ${literalStr} + ", saw " + JSON.stringify(${varName}),
                 expected: { type: "literal", value: ${literalStr} },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
@@ -273,6 +296,8 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
         const propPath = path ? `${path}.${propName}` : propName;
         const propVarName = `${varName}.${propName}`;
         
+        const typeName = escapeString(getTypeName(propType));
+        
         if (isOptional) {
             propertyChecks.push(`if (${propVarName} !== undefined) {
                 ${generateTypeCheck(propType, propVarName, propPath)}
@@ -281,8 +306,8 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
             propertyChecks.push(`if (${propVarName} === undefined) {
                 errors.push({
                     path: "${propPath}",
-                    error: "expected type '${propType.getText()}', saw undefined",
-                    expected: { type: "${propType.getText()}" },
+                    error: "expected type '${typeName}', saw undefined",
+                    expected: { type: "${typeName}" },
                     actual: { type: "undefined", value: undefined }
                 });
             } else {

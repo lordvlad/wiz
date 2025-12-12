@@ -21,8 +21,8 @@ describe('validator plugin', () => {
             expect(output).toContain('function(value)');
             expect(output).toContain('errors');
             
-            // Test the actual validator by evaluating it
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            // Test the actual validator by importing from file
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid object
@@ -53,7 +53,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid object
@@ -88,7 +88,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Missing username
@@ -113,7 +113,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid
@@ -138,7 +138,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid
@@ -165,7 +165,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             
             expect(module.result).toEqual([]);
         });
@@ -183,7 +183,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             
             expect(module.result.length).toBeGreaterThan(0);
         });
@@ -203,7 +203,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const isUser = module.isUser;
             
             expect(isUser({ id: 10, username: "test" })).toBe(true);
@@ -229,7 +229,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             
             expect(module.result).toBe("success");
         });
@@ -250,7 +250,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             
             expect(() => module.testAssert()).toThrow(TypeError);
         });
@@ -270,7 +270,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const assertUser = module.assertUser;
             
             // Should not throw for valid
@@ -299,7 +299,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const assertUser = module.assertUser;
             
             // Should not throw for valid
@@ -331,7 +331,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid without optional field
@@ -363,7 +363,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid with string
@@ -389,7 +389,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid with string
@@ -417,7 +417,7 @@ describe('validator plugin', () => {
             `;
             
             const output = await compile(source);
-            const module = await import('data:text/javascript,' + encodeURIComponent(output));
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
             const validator = module.validator;
             
             // Valid
