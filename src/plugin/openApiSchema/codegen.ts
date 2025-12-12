@@ -6,6 +6,7 @@ type SchemaSettings = {
     coerceSymbolsToStrings?: boolean;
     transformDate?: (type: Type) => unknown;
     unionStyle?: "oneOf" | "anyOf";
+    openApiVersion?: "3.0" | "3.1";
 }
 
 type SchemaContext = {
@@ -55,14 +56,14 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         if (narrowed.length === 1) {
             const schema = createOpenApiSchema(narrowed[0]!, { ...context, availableTypes, processingStack });
             if (hasExplicitNull && typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
-                return { ...(schema as object), nullable: true };
+                return makeNullable(schema, settings.openApiVersion);
             }
             return schema;
         }
         if (narrowed.length > 1 && narrowed.every(t => t.isBooleanLiteral())) {
             const baseSchema: any = { type: "boolean" };
             if (hasExplicitNull) {
-                baseSchema.nullable = true;
+                return makeNullable(baseSchema, settings.openApiVersion);
             }
             return baseSchema;
         }
@@ -76,7 +77,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             if (enumValues.length === narrowed.length) {
                 const baseSchema: any = { type: "string", enum: enumValues };
                 if (hasExplicitNull) {
-                    baseSchema.nullable = true;
+                    return makeNullable(baseSchema, settings.openApiVersion);
                 }
                 return baseSchema;
             }
@@ -91,7 +92,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
             if (enumValues.length === narrowed.length) {
                 const baseSchema: any = { type: "number", enum: enumValues };
                 if (hasExplicitNull) {
-                    baseSchema.nullable = true;
+                    return makeNullable(baseSchema, settings.openApiVersion);
                 }
                 return baseSchema;
             }
@@ -135,7 +136,7 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
                 result.discriminator = discriminator;
             }
             if (hasExplicitNull) {
-                result.nullable = true;
+                return makeNullable(result, settings.openApiVersion);
             }
             
             return result;
@@ -408,6 +409,47 @@ function isExplicitlyNull(type: Type) {
 
     return type.getText() === "null";
 }
+
+/**
+ * Adds nullable handling to a schema based on OpenAPI version.
+ * - OpenAPI 3.0: adds `nullable: true` property
+ * - OpenAPI 3.1: 
+ *   - For simple types: wraps type in an array with "null" (e.g., type: ["string", "null"])
+ *   - For oneOf/anyOf: adds { type: "null" } to the array
+ */
+function makeNullable(schema: any, openApiVersion: "3.0" | "3.1" = "3.0"): any {
+    if (openApiVersion === "3.1") {
+        // OpenAPI 3.1: use type arrays or add null schema
+        if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+            // For oneOf/anyOf schemas, add { type: "null" } to the array
+            if (schema.oneOf) {
+                return { ...schema, oneOf: [...schema.oneOf, { type: "null" }] };
+            }
+            if (schema.anyOf) {
+                return { ...schema, anyOf: [...schema.anyOf, { type: "null" }] };
+            }
+            
+            // For regular schemas with a type field
+            const currentType = schema.type;
+            if (currentType) {
+                // If type is already an array, add "null" to it
+                if (Array.isArray(currentType)) {
+                    return { ...schema, type: [...currentType, "null"] };
+                }
+                // Otherwise, create an array with the current type and "null"
+                return { ...schema, type: [currentType, "null"] };
+            }
+        }
+        return schema;
+    } else {
+        // OpenAPI 3.0: use nullable property
+        if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
+            return { ...schema, nullable: true };
+        }
+        return schema;
+    }
+}
+
 
 function isDateType(type: Type) {
     const symbol = type.getSymbol();

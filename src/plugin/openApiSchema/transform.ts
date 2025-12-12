@@ -17,12 +17,27 @@ type SchemaValue = {
 export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt }: WizPluginContext) {
 
     const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)
-        .filter(call => (call.getExpression()).getText() === createOpenApiSchema.name && call.getTypeArguments().length === 1);
+        .filter(call => (call.getExpression()).getText() === createOpenApiSchema.name && call.getTypeArguments().length >= 1);
 
     if (calls.length === 0) return;
 
     for (const call of calls) {
         log(`Transforming createOpenApiSchema call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+        
+        // Extract version from second type parameter (defaults to "3.0" if not provided)
+        const typeArgs = call.getTypeArguments();
+        let openApiVersion: "3.0" | "3.1" = "3.0"; // default
+        
+        if (typeArgs.length >= 2) {
+            // Second type argument is the version
+            const versionTypeArg = typeArgs[1];
+            const versionText = versionTypeArg.getText().replace(/['"]/g, '');
+            if (versionText !== "3.0" && versionText !== "3.1") {
+                throw new Error(`createOpenApiSchema version type parameter must be "3.0" or "3.1". Got: ${versionText}. Found at ${path}:${call.getStartLineNumber()}`);
+            }
+            openApiVersion = versionText as "3.0" | "3.1";
+        }
+        
         // FIXME guard instead of using non-null assertion
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
@@ -93,7 +108,8 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
                 settings: {
                     coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
                     transformDate: opt?.transformDate,
-                    unionStyle: opt?.unionStyle
+                    unionStyle: opt?.unionStyle,
+                    openApiVersion
                 },
                 availableTypes,
                 processingStack,
