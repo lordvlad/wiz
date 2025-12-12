@@ -172,7 +172,12 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         // Extract the config parameter if provided
         const args = call.getArguments();
         let configObj: Record<string, unknown> = {};
-        let pathOperations: any[] = [];
+        
+        interface ParsedPathOperation {
+            method: string;
+            path: string;
+        }
+        let pathOperations: ParsedPathOperation[] = [];
         
         if (args.length > 0) {
             const configArg = args[0];
@@ -185,7 +190,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
                     const body = arrowFunc.getBody();
                     
                     // Handle both block body and expression body
-                    let returnedObj: any = null;
+                    let returnedObj: import("ts-morph").Node | undefined = undefined;
                     if (body.getKind() === SyntaxKind.Block) {
                         // Find return statement
                         const returnStmt = body.getDescendantsOfKind(SyntaxKind.ReturnStatement)[0];
@@ -231,7 +236,14 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
                                                     
                                                     if (args.length > 0) {
                                                         const pathArg = args[0];
-                                                        let pathValue = pathArg.getText().replace(/['"]/g, '');
+                                                        // Extract string value safely - handle both single and double quotes
+                                                        let pathValue = pathArg.getText();
+                                                        if (pathArg.getKind() === SyntaxKind.StringLiteral) {
+                                                            pathValue = pathArg.getLiteralText();
+                                                        } else {
+                                                            // Fallback: strip quotes manually
+                                                            pathValue = pathValue.replace(/^['"]|['"]$/g, '');
+                                                        }
                                                         
                                                         pathOperations.push({
                                                             method,
@@ -376,7 +388,11 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         
         // Generate paths from path operations if provided
         if (pathOperations.length > 0) {
-            const paths: Record<string, any> = {};
+            interface OpenApiOperation {
+                responses: Record<string, { description: string }>;
+            }
+            
+            const paths: Record<string, Record<string, OpenApiOperation>> = {};
             
             for (const operation of pathOperations) {
                 const pathKey = operation.path;
@@ -387,7 +403,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
                 }
                 
                 // Build operation object
-                const operationObj: Record<string, any> = {
+                const operationObj: OpenApiOperation = {
                     responses: {
                         "200": {
                             description: "Successful response"

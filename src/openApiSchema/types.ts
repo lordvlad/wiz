@@ -86,7 +86,7 @@ export type OpenApiExternalDocs = {
 };
 
 // OpenAPI path operation types
-export type PathOperation<PathParams = any, QueryParams = any, RequestBody = any, ResponseBody = any> = {
+export type PathOperation<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = unknown> = {
     method: "get" | "post" | "put" | "patch" | "delete" | "head" | "options" | "trace";
     path: string;
     pathParams?: PathParams;
