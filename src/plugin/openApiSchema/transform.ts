@@ -2,6 +2,8 @@ import { Type, SyntaxKind, type SourceFile, type CallExpression, type Node } fro
 import { createOpenApiSchema as codegen } from "./codegen";
 import { createOpenApiSchema, createOpenApi } from "../../openApiSchema/index";
 import type { WizPluginContext } from "..";
+import { createOpenApiSchema } from "../../openApiSchema/index";
+import { createOpenApiSchema as codegen } from "./codegen";
 
 // OpenAPI version constants
 const OPENAPI_VERSION_3_0 = "3.0.3";
@@ -535,10 +537,10 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         
         const compositeSchema = {
             components: {
-                schemas
-            }
+                schemas,
+            },
         };
-        
+
         call.replaceWithText(JSON.stringify(compositeSchema, null, 2));
     }
     

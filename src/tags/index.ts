@@ -1,6 +1,22 @@
-export type BigIntFormatType = "string" | "int64"
-export type NumFormatType = "string" | "int64" | "int32" | "float" | "double"
-export type StrFormatType = "binary" | "byte" | "date" | "date-time" | "password" | "email" | "uuid" | "uri" | "uri-reference" | "uri-template" | "hostname" | "ipv4" | "ipv6" | "regex" | "json-pointer" | "relative-json-pointer";
+export type BigIntFormatType = "string" | "int64";
+export type NumFormatType = "string" | "int64" | "int32" | "float" | "double";
+export type StrFormatType =
+    | "binary"
+    | "byte"
+    | "date"
+    | "date-time"
+    | "password"
+    | "email"
+    | "uuid"
+    | "uri"
+    | "uri-reference"
+    | "uri-template"
+    | "hostname"
+    | "ipv4"
+    | "ipv6"
+    | "regex"
+    | "json-pointer"
+    | "relative-json-pointer";
 export type DateFormatType = "date" | "date-time" | "unix-s" | "unix-ms";
 
 export type StrFormat<T extends StrFormatType> = string & { __str_format: T };
