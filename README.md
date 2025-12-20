@@ -60,6 +60,265 @@ export const userSchema = createOpenApiSchema<[User], "3.0">();
 export const schema31 = createOpenApiSchema<[User, Product], "3.1">();
 ```
 
+### Full OpenAPI Specification Generation
+
+In addition to generating just the schemas, Wiz can also generate complete OpenAPI specification documents with additional metadata such as info, servers, tags, security, and more using the `createOpenApi` function.
+
+```typescript
+import { createOpenApi } from "wiz/openApiSchema";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type Post = {
+    id: number;
+    title: string;
+    content: string;
+    authorId: number;
+};
+
+// Generate a full OpenAPI specification
+export const spec = createOpenApi<[User, Post], "3.0">({
+    info: {
+        title: "My API",
+        description: "A comprehensive API for users and posts",
+        version: "1.0.0"
+    },
+    servers: [
+        {
+            url: "https://api.example.com/v1",
+            description: "Production server"
+        },
+        {
+            url: "https://staging.example.com/v1",
+            description: "Staging server"
+        }
+    ],
+    tags: [
+        {
+            name: "users",
+            description: "User management operations"
+        },
+        {
+            name: "posts",
+            description: "Post management operations"
+        }
+    ],
+    security: [
+        {
+            "bearerAuth": []
+        }
+    ],
+    externalDocs: {
+        description: "Find more info here",
+        url: "https://docs.example.com"
+    }
+});
+```
+
+This generates a complete OpenAPI specification:
+
+```json
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "My API",
+    "description": "A comprehensive API for users and posts",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com/v1",
+      "description": "Production server"
+    },
+    {
+      "url": "https://staging.example.com/v1",
+      "description": "Staging server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number" },
+          "name": { "type": "string" },
+          "email": { "type": "string" }
+        },
+        "required": ["id", "name", "email"],
+        "title": "User"
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number" },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "authorId": { "type": "number" }
+        },
+        "required": ["id", "title", "content", "authorId"],
+        "title": "Post"
+      }
+    }
+  },
+  "paths": {},
+  "tags": [
+    {
+      "name": "users",
+      "description": "User management operations"
+    },
+    {
+      "name": "posts",
+      "description": "Post management operations"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "externalDocs": {
+    "description": "Find more info here",
+    "url": "https://docs.example.com"
+  }
+}
+```
+
+#### Configuration Options
+
+The `createOpenApi` function accepts an optional configuration object with the following fields:
+
+- **`info`** (required in output, defaults to `{ title: "API", version: "1.0.0" }`): API metadata
+  - `title`: The title of the API
+  - `description`: A description of the API
+  - `version`: The version of the API
+  - `termsOfService`: A URL to the Terms of Service
+  - `contact`: Contact information (name, url, email)
+  - `license`: License information (name, url)
+
+- **`servers`** (optional): Array of server objects
+  - `url`: Server URL
+  - `description`: Server description
+  - `variables`: Server variables for templating
+
+- **`tags`** (optional): Array of tags for grouping operations
+  - `name`: Tag name
+  - `description`: Tag description
+  - `externalDocs`: External documentation reference
+
+- **`security`** (optional): Array of security requirements
+  - Each item is an object with security scheme names as keys
+
+- **`externalDocs`** (optional): External documentation reference
+  - `description`: Description text
+  - `url`: Documentation URL
+
+**Note:** The `components` field is managed automatically by Wiz. The `components.schemas` are generated from the type parameters.
+
+#### Typed Path Builder API
+
+The `createOpenApi` function also supports a callback-based API that allows you to define typed paths with a fluent path builder interface:
+
+```typescript
+import { createOpenApi } from "wiz/openApiSchema";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type Post = {
+    id: number;
+    title: string;
+    content: string;
+};
+
+export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
+    info: {
+        title: "My API",
+        description: "API with typed paths",
+        version: "1.0.0"
+    },
+    servers: [
+        {
+            url: "https://api.example.com"
+        }
+    ],
+    tags: [
+        {
+            name: "users",
+            description: "User operations"
+        },
+        {
+            name: "posts",
+            description: "Post operations"
+        }
+    ],
+    paths: [
+        // Type arguments: PathParams, QueryParams, RequestBody, ResponseBody
+        path.get<{ id: number }, never, never, User>("/users/:id"),
+        path.get<never, { username?: string }, never, User[]>("/users"),
+        path.post<never, never, User, User>("/users"),
+        path.get<{ id: number }, never, never, Post>("/posts/:id"),
+        path.post<never, never, Post, Post>("/posts")
+    ]
+}));
+```
+
+The path builder provides methods for all HTTP verbs:
+- `path.get<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.post<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.put<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.patch<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.delete<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.head<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.options<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+- `path.trace<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
+
+Each method accepts type parameters for:
+1. **PathParams**: Path parameter types (e.g., `{ id: number }` for `/users/:id`)
+2. **QueryParams**: Query parameter types (e.g., `{ search?: string }`)
+3. **RequestBody**: Request body type for methods that accept a body
+4. **ResponseBody**: Response body type
+
+This generates OpenAPI paths with the specified operations:
+
+```json
+{
+  "paths": {
+    "/users/:id": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 #### OpenAPI Version Support
 
 Wiz supports both **OpenAPI 3.0** and **OpenAPI 3.1** specifications. The version is specified as a required parameter to `createOpenApiSchema()`.
