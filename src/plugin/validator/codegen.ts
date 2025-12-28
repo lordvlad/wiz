@@ -1,4 +1,4 @@
-import { Node, Type, ts } from "ts-morph";
+import { Node, Symbol as MorphSymbol, Type, ts } from "ts-morph";
 
 type JSDocConstraints = {
     minimum?: number;
@@ -13,7 +13,11 @@ type JSDocConstraints = {
 };
 
 function hasJsDocs(node: Node): node is Node & { getJsDocs(): ReturnType<Node["getJsDocs"]> } {
-    return "getJsDocs" in node && typeof (node as Node & { getJsDocs?: unknown }).getJsDocs === "function";
+    return typeof (node as { getJsDocs?: unknown }).getJsDocs === "function";
+}
+
+function getFirstDeclaration(symbol: MorphSymbol): Node | undefined {
+    return symbol.getValueDeclaration?.() ?? symbol.getDeclarations()[0];
 }
 
 /**
@@ -109,7 +113,7 @@ function extractJSDocConstraints(node?: Node): JSDocConstraints {
 function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
     switch (format) {
         case "email":
-            return `if (typeof ${varName} === "string" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(${varName})) {
+            return `if (typeof ${varName} === "string" && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$/i.test(${varName})) {
                 errors.push({
                     path: ${pathExpr},
                     error: "expected value to match email format",
@@ -530,10 +534,12 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
         const properties = type.getProperties();
         for (const prop of properties) {
             const propName = prop.getName();
-            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
+            const declaration = getFirstDeclaration(prop);
+            if (!declaration) continue;
+            const propType = prop.getTypeAtLocation(declaration);
             const isOptional = prop.isOptional();
             const typeName = escapeString(getTypeName(propType));
-            const constraints = extractJSDocConstraints(prop.getDeclarations()[0]);
+            const constraints = extractJSDocConstraints(declaration);
 
             const propVarName = `${varName}.${propName}`;
             const propDynamicPath = `${dynamicPath} + ".${propName}"`;
@@ -671,7 +677,7 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
 
     for (const prop of properties) {
         const propName = prop.getName();
-        const declaration = prop.getValueDeclaration?.() ?? prop.getDeclarations()[0];
+        const declaration = getFirstDeclaration(prop);
         if (!declaration) {
             continue;
         }
