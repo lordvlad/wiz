@@ -12,6 +12,10 @@ type JSDocConstraints = {
     format?: string;
 };
 
+function hasJsDocs(node: Node): node is Node & { getJsDocs(): ReturnType<Node["getJsDocs"]> } {
+    return "getJsDocs" in node && typeof (node as Node & { getJsDocs?: unknown }).getJsDocs === "function";
+}
+
 /**
  * Escapes a string for use in generated code
  */
@@ -38,13 +42,9 @@ function extractJSDocConstraints(node?: Node): JSDocConstraints {
     const constraints: JSDocConstraints = {};
 
     if (!node) return constraints;
+    if (!hasJsDocs(node)) return constraints;
 
-    const jsDocableNode = node as any;
-    if (typeof jsDocableNode.getJsDocs !== "function") {
-        return constraints;
-    }
-
-    const jsDocs = jsDocableNode.getJsDocs?.() ?? [];
+    const jsDocs = node.getJsDocs?.() ?? [];
 
     for (const jsDoc of jsDocs) {
         const tags = jsDoc.getTags?.() ?? [];
@@ -127,8 +127,6 @@ function generateFormatCheck(format: string, varName: string, pathExpr: string):
                 });
             }`;
         case "uri":
-        case "uri-reference":
-        case "uri-template":
             return `if (typeof ${varName} === "string") {
                 try {
                     new URL(${varName});
@@ -136,11 +134,26 @@ function generateFormatCheck(format: string, varName: string, pathExpr: string):
                     errors.push({
                         path: ${pathExpr},
                         error: "expected value to match uri format",
-                        expected: { type: "string", format: "${format}" },
+                        expected: { type: "string", format: "uri" },
                         actual: { type: typeof ${varName}, value: ${varName} }
                     });
                 }
             }`;
+        case "uri-reference":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new URL(${varName}, "http://example.com");
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match uri-reference format",
+                        expected: { type: "string", format: "uri-reference" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "uri-template":
+            return undefined;
         default:
             return undefined;
     }
@@ -659,7 +672,10 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
     for (const prop of properties) {
         const propName = prop.getName();
         const declaration = prop.getValueDeclaration?.() ?? prop.getDeclarations()[0];
-        const propType = declaration ? prop.getTypeAtLocation(declaration) : prop.getTypeAtLocation(prop.getValueDeclaration()!);
+        if (!declaration) {
+            continue;
+        }
+        const propType = prop.getTypeAtLocation(declaration);
         const isOptional = prop.isOptional();
         const constraints = extractJSDocConstraints(declaration);
 
