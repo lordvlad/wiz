@@ -177,7 +177,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "number" && ${varName} < ${constraints.minimum}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "value is below minimum ${constraints.minimum}",
+                    error: "value is below minimum " + ${constraints.minimum},
                     expected: { type: "number", minimum: ${constraints.minimum} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -187,7 +187,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "number" && ${varName} > ${constraints.maximum}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "value exceeds maximum ${constraints.maximum}",
+                    error: "value exceeds maximum " + ${constraints.maximum},
                     expected: { type: "number", maximum: ${constraints.maximum} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -197,7 +197,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "number" && ${varName} <= ${constraints.exclusiveMinimum}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "value must be greater than ${constraints.exclusiveMinimum}",
+                    error: "value must be greater than " + ${constraints.exclusiveMinimum},
                     expected: { type: "number", exclusiveMinimum: ${constraints.exclusiveMinimum} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -207,7 +207,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "number" && ${varName} >= ${constraints.exclusiveMaximum}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "value must be less than ${constraints.exclusiveMaximum}",
+                    error: "value must be less than " + ${constraints.exclusiveMaximum},
                     expected: { type: "number", exclusiveMaximum: ${constraints.exclusiveMaximum} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -217,7 +217,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "number" && ${varName} % ${constraints.multipleOf} !== 0) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "value must be a multiple of ${constraints.multipleOf}",
+                    error: "value must be a multiple of " + ${constraints.multipleOf},
                     expected: { type: "number", multipleOf: ${constraints.multipleOf} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -230,7 +230,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "string" && ${varName}.length < ${constraints.minLength}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "string is shorter than minimum length ${constraints.minLength}",
+                    error: "string is shorter than minimum length " + ${constraints.minLength},
                     expected: { type: "string", minLength: ${constraints.minLength} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
@@ -240,7 +240,7 @@ function generateConstraintChecks(
             checks.push(`if (typeof ${varName} === "string" && ${varName}.length > ${constraints.maxLength}) {
                 errors.push({
                     path: ${pathExpr},
-                    error: "string exceeds maximum length ${constraints.maxLength}",
+                    error: "string exceeds maximum length " + ${constraints.maxLength},
                     expected: { type: "string", maxLength: ${constraints.maxLength} },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
