@@ -1,4 +1,16 @@
-import { Type, ts } from "ts-morph";
+import { Node, Type, ts } from "ts-morph";
+
+type JSDocConstraints = {
+    minimum?: number;
+    maximum?: number;
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
+    multipleOf?: number;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
+    format?: string;
+};
 
 /**
  * Escapes a string for use in generated code
@@ -20,6 +32,227 @@ function getTypeName(type: Type): string {
         return "complex type";
     }
     return text;
+}
+
+function extractJSDocConstraints(node?: Node): JSDocConstraints {
+    const constraints: JSDocConstraints = {};
+
+    if (!node) return constraints;
+
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== "function") {
+        return constraints;
+    }
+
+    const jsDocs = jsDocableNode.getJsDocs?.() ?? [];
+
+    for (const jsDoc of jsDocs) {
+        const tags = jsDoc.getTags?.() ?? [];
+        for (const tag of tags) {
+            const name = tag.getTagName();
+            const comment = tag.getComment?.();
+            const commentText = typeof comment === "string" ? comment.trim() : "";
+
+            switch (name) {
+                case "minimum":
+                case "min": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.minimum = num;
+                    break;
+                }
+                case "maximum":
+                case "max": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.maximum = num;
+                    break;
+                }
+                case "exclusiveMinimum": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.exclusiveMinimum = num;
+                    break;
+                }
+                case "exclusiveMaximum": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.exclusiveMaximum = num;
+                    break;
+                }
+                case "multipleOf": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num) && num > 0) constraints.multipleOf = num;
+                    break;
+                }
+                case "minLength": {
+                    const num = parseInt(commentText, 10);
+                    if (!isNaN(num)) constraints.minLength = num;
+                    break;
+                }
+                case "maxLength": {
+                    const num = parseInt(commentText, 10);
+                    if (!isNaN(num)) constraints.maxLength = num;
+                    break;
+                }
+                case "pattern": {
+                    if (commentText) constraints.pattern = commentText;
+                    break;
+                }
+                case "format": {
+                    if (commentText) constraints.format = commentText;
+                    break;
+                }
+            }
+        }
+    }
+
+    return constraints;
+}
+
+function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
+    switch (format) {
+        case "email":
+            return `if (typeof ${varName} === "string" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match email format",
+                    expected: { type: "string", format: "email" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "uuid":
+            return `if (typeof ${varName} === "string" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match uuid format",
+                    expected: { type: "string", format: "uuid" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "uri":
+        case "uri-reference":
+        case "uri-template":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new URL(${varName});
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match uri format",
+                        expected: { type: "string", format: "${format}" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        default:
+            return undefined;
+    }
+}
+
+function generateConstraintChecks(
+    type: Type,
+    varName: string,
+    path: string,
+    constraints: JSDocConstraints,
+    pathIsExpression = false,
+): string {
+    const checks: string[] = [];
+    const pathExpr = pathIsExpression ? path : `"${path}"`;
+
+    const isNumberType = type.isNumber() || type.isNumberLiteral();
+    const isStringType = type.isString() || type.isStringLiteral();
+
+    if (isNumberType) {
+        if (constraints.minimum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} < ${constraints.minimum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value is below minimum ${constraints.minimum}",
+                    expected: { type: "number", minimum: ${constraints.minimum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.maximum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} > ${constraints.maximum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value exceeds maximum ${constraints.maximum}",
+                    expected: { type: "number", maximum: ${constraints.maximum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.exclusiveMinimum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} <= ${constraints.exclusiveMinimum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be greater than ${constraints.exclusiveMinimum}",
+                    expected: { type: "number", exclusiveMinimum: ${constraints.exclusiveMinimum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.exclusiveMaximum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} >= ${constraints.exclusiveMaximum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be less than ${constraints.exclusiveMaximum}",
+                    expected: { type: "number", exclusiveMaximum: ${constraints.exclusiveMaximum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.multipleOf !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} % ${constraints.multipleOf} !== 0) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be a multiple of ${constraints.multipleOf}",
+                    expected: { type: "number", multipleOf: ${constraints.multipleOf} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+    }
+
+    if (isStringType) {
+        if (constraints.minLength !== undefined) {
+            checks.push(`if (typeof ${varName} === "string" && ${varName}.length < ${constraints.minLength}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string is shorter than minimum length ${constraints.minLength}",
+                    expected: { type: "string", minLength: ${constraints.minLength} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.maxLength !== undefined) {
+            checks.push(`if (typeof ${varName} === "string" && ${varName}.length > ${constraints.maxLength}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string exceeds maximum length ${constraints.maxLength}",
+                    expected: { type: "string", maxLength: ${constraints.maxLength} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.pattern !== undefined) {
+            const pattern = escapeString(constraints.pattern);
+            checks.push(`if (typeof ${varName} === "string" && !new RegExp("${pattern}").test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string does not match required pattern",
+                    expected: { type: "string", pattern: "${pattern}" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.format) {
+            const formatCheck = generateFormatCheck(constraints.format, varName, pathExpr);
+            if (formatCheck) {
+                checks.push(formatCheck);
+            }
+        }
+    }
+
+    return checks.join("\n");
 }
 
 /**
@@ -287,13 +520,14 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
             const isOptional = prop.isOptional();
             const typeName = escapeString(getTypeName(propType));
+            const constraints = extractJSDocConstraints(prop.getDeclarations()[0]);
 
             const propVarName = `${varName}.${propName}`;
             const propDynamicPath = `${dynamicPath} + ".${propName}"`;
 
             if (isOptional) {
                 checks.push(`if (${propVarName} !== undefined) {
-                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath, constraints)}
                 }`);
             } else {
                 checks.push(`if (${propVarName} === undefined) {
@@ -304,7 +538,7 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
                         actual: { type: "undefined", value: undefined }
                     });
                 } else {
-                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath, constraints)}
                 }`);
             }
         }
@@ -319,7 +553,12 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
 /**
  * Generates type check for object property with dynamic path
  */
-function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: string): string {
+function generateTypeCheckForProperty(
+    type: Type,
+    varName: string,
+    dynamicPath: string,
+    constraints: JSDocConstraints = {},
+): string {
     // Handle primitives with dynamic paths
     if (type.isString()) {
         return `if (typeof ${varName} !== "string") {
@@ -329,7 +568,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
                 expected: { type: "string" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
     }
 
     if (type.isNumber()) {
@@ -340,7 +579,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
                 expected: { type: "number" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
     }
 
     if (type.isBoolean()) {
@@ -419,8 +658,10 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
 
     for (const prop of properties) {
         const propName = prop.getName();
-        const propType = prop.getTypeAtLocation(prop.getValueDeclaration()!);
+        const declaration = prop.getValueDeclaration?.() ?? prop.getDeclarations()[0];
+        const propType = declaration ? prop.getTypeAtLocation(declaration) : prop.getTypeAtLocation(prop.getValueDeclaration()!);
         const isOptional = prop.isOptional();
+        const constraints = extractJSDocConstraints(declaration);
 
         if (!isOptional) {
             requiredProps.push(propName);
@@ -428,12 +669,14 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
 
         const propPath = path ? `${path}.${propName}` : propName;
         const propVarName = `${varName}.${propName}`;
+        const constraintChecks = generateConstraintChecks(propType, propVarName, propPath, constraints);
 
         const typeName = escapeString(getTypeName(propType));
 
         if (isOptional) {
             propertyChecks.push(`if (${propVarName} !== undefined) {
                 ${generateTypeCheck(propType, propVarName, propPath)}
+                ${constraintChecks}
             }`);
         } else {
             propertyChecks.push(`if (${propVarName} === undefined) {
@@ -445,6 +688,7 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
                 });
             } else {
                 ${generateTypeCheck(propType, propVarName, propPath)}
+                ${constraintChecks}
             }`);
         }
     }

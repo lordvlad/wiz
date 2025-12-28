@@ -152,6 +152,62 @@ describe("validator plugin", () => {
         });
     });
 
+    describe("jsdoc tags", () => {
+        it("should enforce numeric and string constraints from jsdoc", async () => {
+            const source = `
+                import { createValidator } from '../validator/index';
+
+                type Payload = {
+                    /**
+                     * @minimum 1
+                     * @maximum 10
+                     */
+                    count: number;
+                    /**
+                     * @minLength 3
+                     * @maxLength 5
+                     * @pattern ^[a-z]+$
+                     */
+                    name: string;
+                };
+
+                export const validator = createValidator<Payload>();
+            `;
+
+            await compile(source);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            const validator = module.validator as (value: unknown) => any[];
+
+            expect(validator({ count: 5, name: "abc" })).toEqual([]);
+
+            const errors = validator({ count: 0, name: "A" });
+            expect(errors.some((e) => e.path === "count")).toBe(true);
+            expect(errors.some((e) => e.path === "name")).toBe(true);
+        });
+
+        it("should validate @format email from jsdoc", async () => {
+            const source = `
+                import { createValidator } from '../validator/index';
+
+                type Payload = {
+                    /**
+                     * @format email
+                     */
+                    email: string;
+                };
+
+                export const validator = createValidator<Payload>();
+            `;
+
+            await compile(source);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            const validator = module.validator as (value: unknown) => any[];
+
+            expect(validator({ email: "user@example.com" })).toEqual([]);
+            expect(validator({ email: "not-an-email" }).some((e) => e.path === "email")).toBe(true);
+        });
+    });
+
     describe("validate", () => {
         it("should validate inline with value", async () => {
             const source = `
