@@ -85,37 +85,37 @@ export const spec = createOpenApi<[User, Post], "3.0">({
     info: {
         title: "My API",
         description: "A comprehensive API for users and posts",
-        version: "1.0.0"
+        version: "1.0.0",
     },
     servers: [
         {
             url: "https://api.example.com/v1",
-            description: "Production server"
+            description: "Production server",
         },
         {
             url: "https://staging.example.com/v1",
-            description: "Staging server"
-        }
+            description: "Staging server",
+        },
     ],
     tags: [
         {
             name: "users",
-            description: "User management operations"
+            description: "User management operations",
         },
         {
             name: "posts",
-            description: "Post management operations"
-        }
+            description: "Post management operations",
+        },
     ],
     security: [
         {
-            "bearerAuth": []
-        }
+            bearerAuth: [],
+        },
     ],
     externalDocs: {
         description: "Find more info here",
-        url: "https://docs.example.com"
-    }
+        url: "https://docs.example.com",
+    },
 });
 ```
 
@@ -123,67 +123,67 @@ This generates a complete OpenAPI specification:
 
 ```json
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "My API",
-    "description": "A comprehensive API for users and posts",
-    "version": "1.0.0"
-  },
-  "servers": [
-    {
-      "url": "https://api.example.com/v1",
-      "description": "Production server"
+    "openapi": "3.0.3",
+    "info": {
+        "title": "My API",
+        "description": "A comprehensive API for users and posts",
+        "version": "1.0.0"
     },
-    {
-      "url": "https://staging.example.com/v1",
-      "description": "Staging server"
-    }
-  ],
-  "components": {
-    "schemas": {
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "number" },
-          "name": { "type": "string" },
-          "email": { "type": "string" }
+    "servers": [
+        {
+            "url": "https://api.example.com/v1",
+            "description": "Production server"
         },
-        "required": ["id", "name", "email"],
-        "title": "User"
-      },
-      "Post": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "number" },
-          "title": { "type": "string" },
-          "content": { "type": "string" },
-          "authorId": { "type": "number" }
-        },
-        "required": ["id", "title", "content", "authorId"],
-        "title": "Post"
-      }
-    }
-  },
-  "paths": {},
-  "tags": [
-    {
-      "name": "users",
-      "description": "User management operations"
+        {
+            "url": "https://staging.example.com/v1",
+            "description": "Staging server"
+        }
+    ],
+    "components": {
+        "schemas": {
+            "User": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "number" },
+                    "name": { "type": "string" },
+                    "email": { "type": "string" }
+                },
+                "required": ["id", "name", "email"],
+                "title": "User"
+            },
+            "Post": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "number" },
+                    "title": { "type": "string" },
+                    "content": { "type": "string" },
+                    "authorId": { "type": "number" }
+                },
+                "required": ["id", "title", "content", "authorId"],
+                "title": "Post"
+            }
+        }
     },
-    {
-      "name": "posts",
-      "description": "Post management operations"
+    "paths": {},
+    "tags": [
+        {
+            "name": "users",
+            "description": "User management operations"
+        },
+        {
+            "name": "posts",
+            "description": "Post management operations"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "externalDocs": {
+        "description": "Find more info here",
+        "url": "https://docs.example.com"
     }
-  ],
-  "security": [
-    {
-      "bearerAuth": []
-    }
-  ],
-  "externalDocs": {
-    "description": "Find more info here",
-    "url": "https://docs.example.com"
-  }
 }
 ```
 
@@ -192,29 +192,29 @@ This generates a complete OpenAPI specification:
 The `createOpenApi` function accepts an optional configuration object with the following fields:
 
 - **`info`** (required in output, defaults to `{ title: "API", version: "1.0.0" }`): API metadata
-  - `title`: The title of the API
-  - `description`: A description of the API
-  - `version`: The version of the API
-  - `termsOfService`: A URL to the Terms of Service
-  - `contact`: Contact information (name, url, email)
-  - `license`: License information (name, url)
+    - `title`: The title of the API
+    - `description`: A description of the API
+    - `version`: The version of the API
+    - `termsOfService`: A URL to the Terms of Service
+    - `contact`: Contact information (name, url, email)
+    - `license`: License information (name, url)
 
 - **`servers`** (optional): Array of server objects
-  - `url`: Server URL
-  - `description`: Server description
-  - `variables`: Server variables for templating
+    - `url`: Server URL
+    - `description`: Server description
+    - `variables`: Server variables for templating
 
 - **`tags`** (optional): Array of tags for grouping operations
-  - `name`: Tag name
-  - `description`: Tag description
-  - `externalDocs`: External documentation reference
+    - `name`: Tag name
+    - `description`: Tag description
+    - `externalDocs`: External documentation reference
 
 - **`security`** (optional): Array of security requirements
-  - Each item is an object with security scheme names as keys
+    - Each item is an object with security scheme names as keys
 
 - **`externalDocs`** (optional): External documentation reference
-  - `description`: Description text
-  - `url`: Documentation URL
+    - `description`: Description text
+    - `url`: Documentation URL
 
 **Note:** The `components` field is managed automatically by Wiz. The `components.schemas` are generated from the type parameters.
 
@@ -241,22 +241,22 @@ export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
     info: {
         title: "My API",
         description: "API with typed paths",
-        version: "1.0.0"
+        version: "1.0.0",
     },
     servers: [
         {
-            url: "https://api.example.com"
-        }
+            url: "https://api.example.com",
+        },
     ],
     tags: [
         {
             name: "users",
-            description: "User operations"
+            description: "User operations",
         },
         {
             name: "posts",
-            description: "Post operations"
-        }
+            description: "Post operations",
+        },
     ],
     paths: [
         // Type arguments: PathParams, QueryParams, RequestBody, ResponseBody
@@ -264,12 +264,13 @@ export const spec = createOpenApi<[User, Post], "3.0">((path) => ({
         path.get<never, { username?: string }, never, User[]>("/users"),
         path.post<never, never, User, User>("/users"),
         path.get<{ id: number }, never, never, Post>("/posts/:id"),
-        path.post<never, never, Post, Post>("/posts")
-    ]
+        path.post<never, never, Post, Post>("/posts"),
+    ],
 }));
 ```
 
 The path builder provides methods for all HTTP verbs:
+
 - `path.get<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
 - `path.post<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
 - `path.put<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
@@ -280,6 +281,7 @@ The path builder provides methods for all HTTP verbs:
 - `path.trace<PathParams, QueryParams, RequestBody, ResponseBody>(path: string)`
 
 Each method accepts type parameters for:
+
 1. **PathParams**: Path parameter types (e.g., `{ id: number }` for `/users/:id`)
 2. **QueryParams**: Query parameter types (e.g., `{ search?: string }`)
 3. **RequestBody**: Request body type for methods that accept a body
@@ -289,33 +291,33 @@ This generates OpenAPI paths with the specified operations:
 
 ```json
 {
-  "paths": {
-    "/users/:id": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Successful response"
-          }
+    "paths": {
+        "/users/:id": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Successful response"
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Successful response"
+                    }
+                }
+            },
+            "post": {
+                "responses": {
+                    "200": {
+                        "description": "Successful response"
+                    }
+                }
+            }
         }
-      }
-    },
-    "/users": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Successful response"
-          }
-        }
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Successful response"
-          }
-        }
-      }
     }
-  }
 }
 ```
 
