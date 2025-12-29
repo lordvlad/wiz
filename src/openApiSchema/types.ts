@@ -39,11 +39,14 @@ export type OpenApiInfo = {
 export type OpenApiServer = {
     url: string;
     description?: string;
-    variables?: Record<string, {
-        default: string;
-        enum?: string[];
-        description?: string;
-    }>;
+    variables?: Record<
+        string,
+        {
+            default: string;
+            enum?: string[];
+            description?: string;
+        }
+    >;
 };
 
 export type OpenApiOAuthFlow = {
@@ -98,35 +101,35 @@ export type PathOperation<PathParams = never, QueryParams = never, RequestBody =
 // Path builder interface for typed path definitions
 export type PathBuilder = {
     get<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     post<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     put<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     patch<PathParams = never, QueryParams = never, RequestBody = any, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     delete<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     head<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = never>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     options<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
-    
+
     trace<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = any>(
-        path: string
+        path: string,
     ): PathOperation<PathParams, QueryParams, RequestBody, ResponseBody>;
 };
 

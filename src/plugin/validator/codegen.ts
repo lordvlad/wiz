@@ -1,4 +1,4 @@
-import { Node, Symbol as MorphSymbol, Type, ts } from "ts-morph";
+import { Node, Symbol as MorphSymbol, Type, Project } from "ts-morph";
 
 type JSDocConstraints = {
     minimum?: number;
@@ -108,6 +108,41 @@ function extractJSDocConstraints(node?: Node): JSDocConstraints {
     }
 
     return constraints;
+}
+
+/**
+ * Helper class to build validator code using ts-morph
+ */
+class ValidatorBuilder {
+    private project: Project;
+    private sourceFile: ReturnType<Project["createSourceFile"]>;
+
+    constructor() {
+        this.project = new Project({ useInMemoryFileSystem: true });
+        this.sourceFile = this.project.createSourceFile("validator.ts", "", { overwrite: true });
+    }
+
+    /**
+     * Add a statement to the validator
+     */
+    addStatement(code: string) {
+        this.sourceFile.addStatements(code);
+    }
+
+    /**
+     * Get the generated code
+     */
+    getCode(): string {
+        this.sourceFile.formatText();
+        return this.sourceFile.getFullText().trim();
+    }
+
+    /**
+     * Clear all statements
+     */
+    clear() {
+        this.sourceFile.removeText();
+    }
 }
 
 function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
@@ -271,7 +306,7 @@ function generateConstraintChecks(
     constraints: JSDocConstraints,
     pathIsExpression = false,
 ): string {
-    const checks: string[] = [];
+    const builder = new ValidatorBuilder();
     const pathExpr = pathIsExpression ? path : `"${path}"`;
 
     const isNumberType = type.isNumber() || type.isNumberLiteral();
@@ -279,7 +314,7 @@ function generateConstraintChecks(
 
     if (isNumberType) {
         if (constraints.minimum !== undefined) {
-            checks.push(`if (typeof ${varName} === "number" && ${varName} < ${constraints.minimum}) {
+            builder.addStatement(`if (typeof ${varName} === "number" && ${varName} < ${constraints.minimum}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "value is below minimum " + ${constraints.minimum},
@@ -289,7 +324,7 @@ function generateConstraintChecks(
             }`);
         }
         if (constraints.maximum !== undefined) {
-            checks.push(`if (typeof ${varName} === "number" && ${varName} > ${constraints.maximum}) {
+            builder.addStatement(`if (typeof ${varName} === "number" && ${varName} > ${constraints.maximum}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "value exceeds maximum " + ${constraints.maximum},
@@ -299,7 +334,7 @@ function generateConstraintChecks(
             }`);
         }
         if (constraints.exclusiveMinimum !== undefined) {
-            checks.push(`if (typeof ${varName} === "number" && ${varName} <= ${constraints.exclusiveMinimum}) {
+            builder.addStatement(`if (typeof ${varName} === "number" && ${varName} <= ${constraints.exclusiveMinimum}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "value must be greater than " + ${constraints.exclusiveMinimum},
@@ -309,7 +344,7 @@ function generateConstraintChecks(
             }`);
         }
         if (constraints.exclusiveMaximum !== undefined) {
-            checks.push(`if (typeof ${varName} === "number" && ${varName} >= ${constraints.exclusiveMaximum}) {
+            builder.addStatement(`if (typeof ${varName} === "number" && ${varName} >= ${constraints.exclusiveMaximum}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "value must be less than " + ${constraints.exclusiveMaximum},
@@ -319,7 +354,7 @@ function generateConstraintChecks(
             }`);
         }
         if (constraints.multipleOf !== undefined) {
-            checks.push(`if (typeof ${varName} === "number" && ${varName} % ${constraints.multipleOf} !== 0) {
+            builder.addStatement(`if (typeof ${varName} === "number" && ${varName} % ${constraints.multipleOf} !== 0) {
                 errors.push({
                     path: ${pathExpr},
                     error: "value must be a multiple of " + ${constraints.multipleOf},
@@ -332,7 +367,7 @@ function generateConstraintChecks(
 
     if (isStringType) {
         if (constraints.minLength !== undefined) {
-            checks.push(`if (typeof ${varName} === "string" && ${varName}.length < ${constraints.minLength}) {
+            builder.addStatement(`if (typeof ${varName} === "string" && ${varName}.length < ${constraints.minLength}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "string is shorter than minimum length " + ${constraints.minLength},
@@ -342,7 +377,7 @@ function generateConstraintChecks(
             }`);
         }
         if (constraints.maxLength !== undefined) {
-            checks.push(`if (typeof ${varName} === "string" && ${varName}.length > ${constraints.maxLength}) {
+            builder.addStatement(`if (typeof ${varName} === "string" && ${varName}.length > ${constraints.maxLength}) {
                 errors.push({
                     path: ${pathExpr},
                     error: "string exceeds maximum length " + ${constraints.maxLength},
@@ -353,7 +388,7 @@ function generateConstraintChecks(
         }
         if (constraints.pattern !== undefined) {
             const pattern = escapeString(constraints.pattern);
-            checks.push(`if (typeof ${varName} === "string" && !new RegExp("${pattern}").test(${varName})) {
+            builder.addStatement(`if (typeof ${varName} === "string" && !new RegExp("${pattern}").test(${varName})) {
                 errors.push({
                     path: ${pathExpr},
                     error: "string does not match required pattern",
@@ -365,36 +400,42 @@ function generateConstraintChecks(
         if (constraints.format) {
             const formatCheck = generateFormatCheck(constraints.format, varName, pathExpr);
             if (formatCheck) {
-                checks.push(formatCheck);
+                builder.addStatement(formatCheck);
             }
         }
     }
 
-    return checks.join("\n");
+    return builder.getCode();
 }
 
 /**
  * Generates runtime validator code for a given TypeScript type
  */
 export function generateValidatorCode(type: Type): string {
-    const validatorFn = generateTypeCheck(type, "value", "");
+    const builder = new ValidatorBuilder();
 
-    return `(function(value) {
+    // Build the validator function body
+    const validatorBody = generateTypeCheck(type, "value", "");
+
+    // Create the function using ts-morph
+    builder.addStatement(`(function(value) {
         const errors = [];
-        ${validatorFn}
+        ${validatorBody}
         return errors;
-    })`;
+    })`);
+
+    return builder.getCode();
 }
 
 /**
  * Generates type check code for a type at a given path
  */
 function generateTypeCheck(type: Type, varName: string, path: string): string {
-    const checks: string[] = [];
+    const builder = new ValidatorBuilder();
 
     // Handle primitive types first (before union, since boolean is both)
     if (type.isString()) {
-        checks.push(`if (typeof ${varName} !== "string") {
+        builder.addStatement(`if (typeof ${varName} !== "string") {
             errors.push({
                 path: "${path}",
                 error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -402,11 +443,11 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     if (type.isNumber()) {
-        checks.push(`if (typeof ${varName} !== "number") {
+        builder.addStatement(`if (typeof ${varName} !== "number") {
             errors.push({
                 path: "${path}",
                 error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -414,11 +455,11 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     if (type.isBoolean()) {
-        checks.push(`if (typeof ${varName} !== "boolean") {
+        builder.addStatement(`if (typeof ${varName} !== "boolean") {
             errors.push({
                 path: "${path}",
                 error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -426,12 +467,12 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     // Handle undefined/null
     if (type.isUndefined()) {
-        checks.push(`if (${varName} !== undefined) {
+        builder.addStatement(`if (${varName} !== undefined) {
             errors.push({
                 path: "${path}",
                 error: "expected type 'undefined', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -439,11 +480,11 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     if (type.isNull()) {
-        checks.push(`if (${varName} !== null) {
+        builder.addStatement(`if (${varName} !== null) {
             errors.push({
                 path: "${path}",
                 error: "expected type 'null', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -451,7 +492,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     // Handle union types
@@ -473,8 +514,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
     if (type.isLiteral()) {
         const literalValue = type.getLiteralValue();
         const literalStr = typeof literalValue === "string" ? `"${escapeString(literalValue)}"` : String(literalValue);
-        const literalDisplay = typeof literalValue === "string" ? literalValue : String(literalValue);
-        checks.push(`if (${varName} !== ${literalStr}) {
+        builder.addStatement(`if (${varName} !== ${literalStr}) {
             errors.push({
                 path: "${path}",
                 error: "expected literal value " + ${literalStr} + ", saw " + JSON.stringify(${varName}),
@@ -482,7 +522,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
         }`);
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     // Handle object types
@@ -498,6 +538,7 @@ function generateTypeCheck(type: Type, varName: string, path: string): string {
  * Generates check for union types (A | B)
  */
 function generateUnionCheck(type: Type, varName: string, path: string): string {
+    const builder = new ValidatorBuilder();
     const unionTypes = type.getUnionTypes();
 
     // Filter out null and undefined for special handling
@@ -507,9 +548,8 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
 
     if (otherTypes.length === 0) {
         // Only null and/or undefined
-        const checks: string[] = [];
         if (nullType && undefinedType) {
-            checks.push(`if (${varName} !== null && ${varName} !== undefined) {
+            builder.addStatement(`if (${varName} !== null && ${varName} !== undefined) {
                 errors.push({
                     path: "${path}",
                     error: "expected null or undefined, saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
@@ -522,29 +562,29 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         } else if (undefinedType) {
             return generateTypeCheck(undefinedType, varName, path);
         }
-        return checks.join("\n");
+        return builder.getCode();
     }
 
     // Generate checks for each union member
     const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-    let code = `const ${errorCountVar} = errors.length;\n`;
-    code += `let ${tempVar} = false;\n`;
+    builder.addStatement(`const ${errorCountVar} = errors.length;`);
+    builder.addStatement(`let ${tempVar} = false;`);
 
     for (let i = 0; i < otherTypes.length; i++) {
         const unionType = otherTypes[i]!;
         const checkCode = generateTypeCheck(unionType, varName, path);
 
-        code += `if (!${tempVar}) {\n`;
-        code += `    const _errLen_${i} = errors.length;\n`;
-        code += `    ${checkCode}\n`;
-        code += `    if (errors.length === _errLen_${i}) {\n`;
-        code += `        ${tempVar} = true;\n`;
-        code += `    } else {\n`;
-        code += `        errors.length = _errLen_${i};\n`;
-        code += `    }\n`;
-        code += `}\n`;
+        builder.addStatement(`if (!${tempVar}) {
+            const _errLen_${i} = errors.length;
+            ${checkCode}
+            if (errors.length === _errLen_${i}) {
+                ${tempVar} = true;
+            } else {
+                errors.length = _errLen_${i};
+            }
+        }`);
     }
 
     // Handle nullable unions
@@ -552,31 +592,36 @@ function generateUnionCheck(type: Type, varName: string, path: string): string {
         const conditions: string[] = [];
         if (nullType) conditions.push(`${varName} === null`);
         if (undefinedType) conditions.push(`${varName} === undefined`);
-        code += `if (${conditions.join(" || ")}) {\n`;
-        code += `    ${tempVar} = true;\n`;
-        code += `    errors.length = ${errorCountVar};\n`;
-        code += `}\n`;
+        builder.addStatement(`if (${conditions.join(" || ")}) {
+            ${tempVar} = true;
+            errors.length = ${errorCountVar};
+        }`);
     }
 
-    code += `if (!${tempVar}) {\n`;
-    code += `    errors.push({
-        path: "${path}",
-        error: "value does not match any union member",
-        expected: { type: "union" },
-        actual: { type: typeof ${varName}, value: ${varName} }
-    });\n`;
-    code += `}\n`;
+    builder.addStatement(`if (!${tempVar}) {
+        errors.push({
+            path: "${path}",
+            error: "value does not match any union member",
+            expected: { type: "union" },
+            actual: { type: typeof ${varName}, value: ${varName} }
+        });
+    }`);
 
-    return code;
+    return builder.getCode();
 }
 
 /**
  * Generates check for intersection types (A & B)
  */
 function generateIntersectionCheck(type: Type, varName: string, path: string): string {
+    const builder = new ValidatorBuilder();
     const intersectionTypes = type.getIntersectionTypes();
-    const checks = intersectionTypes.map((t) => generateTypeCheck(t, varName, path));
-    return checks.join("\n");
+
+    for (const t of intersectionTypes) {
+        builder.addStatement(generateTypeCheck(t, varName, path));
+    }
+
+    return builder.getCode();
 }
 
 /**
@@ -584,46 +629,49 @@ function generateIntersectionCheck(type: Type, varName: string, path: string): s
  * This is a specialized version of generateTypeCheck that handles dynamic paths
  */
 function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefix: string, indexVar: string): string {
+    const builder = new ValidatorBuilder();
     const dynamicPath = pathPrefix ? `"${pathPrefix}" + ${indexVar}` : `String(${indexVar})`;
 
     // Primitives
     if (type.isString()) {
-        return `if (typeof ${varName} !== "string") {
+        builder.addStatement(`if (typeof ${varName} !== "string") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "string" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        }`);
+        return builder.getCode();
     }
 
     if (type.isNumber()) {
-        return `if (typeof ${varName} !== "number") {
+        builder.addStatement(`if (typeof ${varName} !== "number") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "number" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        }`);
+        return builder.getCode();
     }
 
     if (type.isBoolean()) {
-        return `if (typeof ${varName} !== "boolean") {
+        builder.addStatement(`if (typeof ${varName} !== "boolean") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "boolean" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        }`);
+        return builder.getCode();
     }
 
     // Objects - handle nested objects in arrays
     if (type.isObject()) {
-        const checks: string[] = [];
-        checks.push(`if (typeof ${varName} !== "object" || ${varName} === null) {
+        builder.addStatement(`if (typeof ${varName} !== "object" || ${varName} === null) {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected object, saw " + typeof ${varName},
@@ -646,11 +694,11 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             const propDynamicPath = `${dynamicPath} + ".${propName}"`;
 
             if (isOptional) {
-                checks.push(`if (${propVarName} !== undefined) {
+                builder.addStatement(`if (${propVarName} !== undefined) {
                     ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath, constraints)}
                 }`);
             } else {
-                checks.push(`if (${propVarName} === undefined) {
+                builder.addStatement(`if (${propVarName} === undefined) {
                     errors.push({
                         path: ${propDynamicPath},
                         error: "expected type '${typeName}', saw undefined",
@@ -663,8 +711,8 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
             }
         }
 
-        checks.push(`}`);
-        return checks.join("\n");
+        builder.addStatement(`}`);
+        return builder.getCode();
     }
 
     return `// Unsupported array element type: ${type.getText()}`;
@@ -679,38 +727,43 @@ function generateTypeCheckForProperty(
     dynamicPath: string,
     constraints: JSDocConstraints = {},
 ): string {
+    const builder = new ValidatorBuilder();
+
     // Handle primitives with dynamic paths
     if (type.isString()) {
-        return `if (typeof ${varName} !== "string") {
+        builder.addStatement(`if (typeof ${varName} !== "string") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'string', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "string" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`);
+        return builder.getCode();
     }
 
     if (type.isNumber()) {
-        return `if (typeof ${varName} !== "number") {
+        builder.addStatement(`if (typeof ${varName} !== "number") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'number', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "number" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`);
+        return builder.getCode();
     }
 
     if (type.isBoolean()) {
-        return `if (typeof ${varName} !== "boolean") {
+        builder.addStatement(`if (typeof ${varName} !== "boolean") {
             errors.push({
                 path: ${dynamicPath},
                 error: "expected type 'boolean', saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
                 expected: { type: "boolean" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        }`);
+        return builder.getCode();
     }
 
     // For complex types, we'd need to recursively handle them
@@ -722,27 +775,28 @@ function generateTypeCheckForProperty(
  * Generates check for array types
  */
 function generateArrayCheck(type: Type, varName: string, path: string): string {
+    const builder = new ValidatorBuilder();
     const arrayElementType = type.getArrayElementType();
+
     if (!arrayElementType) {
-        return `if (!Array.isArray(${varName})) {
+        builder.addStatement(`if (!Array.isArray(${varName})) {
             errors.push({
                 path: "${path}",
                 error: "expected array, saw " + typeof ${varName},
                 expected: { type: "array" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        }`);
+        return builder.getCode();
     }
 
     const itemVarName = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const indexVarName = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-    // For array elements, we need to build the path at runtime using string concatenation
-    // Pass a placeholder that will be replaced with the actual concatenation expression
     const elementPathBase = path ? `${path}.` : "";
     const elementCheck = generateTypeCheckForArrayElement(arrayElementType, itemVarName, elementPathBase, indexVarName);
 
-    return `if (!Array.isArray(${varName})) {
+    builder.addStatement(`if (!Array.isArray(${varName})) {
         errors.push({
             path: "${path}",
             error: "expected array, saw " + typeof ${varName},
@@ -754,16 +808,18 @@ function generateArrayCheck(type: Type, varName: string, path: string): string {
             const ${itemVarName} = ${varName}[${indexVarName}];
             ${elementCheck}
         }
-    }`;
+    }`);
+
+    return builder.getCode();
 }
 
 /**
  * Generates check for object types
  */
 function generateObjectCheck(type: Type, varName: string, path: string): string {
-    const checks: string[] = [];
+    const builder = new ValidatorBuilder();
 
-    checks.push(`if (typeof ${varName} !== "object" || ${varName} === null) {
+    builder.addStatement(`if (typeof ${varName} !== "object" || ${varName} === null) {
         errors.push({
             path: "${path}",
             error: "expected object, saw " + typeof ${varName},
@@ -773,8 +829,6 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
     } else {`);
 
     const properties = type.getProperties();
-    const requiredProps: string[] = [];
-    const propertyChecks: string[] = [];
 
     for (const prop of properties) {
         const propName = prop.getName();
@@ -786,10 +840,6 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
         const isOptional = prop.isOptional();
         const constraints = extractJSDocConstraints(declaration);
 
-        if (!isOptional) {
-            requiredProps.push(propName);
-        }
-
         const propPath = path ? `${path}.${propName}` : propName;
         const propVarName = `${varName}.${propName}`;
         const constraintChecks = generateConstraintChecks(propType, propVarName, propPath, constraints);
@@ -797,12 +847,12 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
         const typeName = escapeString(getTypeName(propType));
 
         if (isOptional) {
-            propertyChecks.push(`if (${propVarName} !== undefined) {
+            builder.addStatement(`if (${propVarName} !== undefined) {
                 ${generateTypeCheck(propType, propVarName, propPath)}
                 ${constraintChecks}
             }`);
         } else {
-            propertyChecks.push(`if (${propVarName} === undefined) {
+            builder.addStatement(`if (${propVarName} === undefined) {
                 errors.push({
                     path: "${propPath}",
                     error: "expected type '${typeName}', saw undefined",
@@ -816,31 +866,33 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
         }
     }
 
-    checks.push(...propertyChecks);
-    checks.push(`}`);
+    builder.addStatement(`}`);
 
-    return checks.join("\n");
+    return builder.getCode();
 }
 
 /**
  * Generates a type guard (is) function
  */
 export function generateIsCode(type: Type): string {
+    const builder = new ValidatorBuilder();
     const validatorCode = generateValidatorCode(type);
-    return `(function(value) {
+    builder.addStatement(`(function(value) {
         const validator = ${validatorCode};
         return validator(value).length === 0;
-    })`;
+    })`);
+    return builder.getCode();
 }
 
 /**
  * Generates an assert function
  */
 export function generateAssertCode(type: Type, hasErrorFactory: boolean): string {
+    const builder = new ValidatorBuilder();
     const validatorCode = generateValidatorCode(type);
 
     if (hasErrorFactory) {
-        return `(function(errorFactory) {
+        builder.addStatement(`(function(errorFactory) {
             const validator = ${validatorCode};
             return function(value) {
                 const errors = validator(value);
@@ -848,26 +900,30 @@ export function generateAssertCode(type: Type, hasErrorFactory: boolean): string
                     throw errorFactory(errors);
                 }
             };
-        })`;
+        })`);
+    } else {
+        builder.addStatement(`(function(value) {
+            const validator = ${validatorCode};
+            const errors = validator(value);
+            if (errors.length > 0) {
+                const errorMsg = errors.map(e => e.error + " at " + e.path).join("; ");
+                throw new TypeError("Validation failed: " + errorMsg);
+            }
+        })`);
     }
 
-    return `(function(value) {
-        const validator = ${validatorCode};
-        const errors = validator(value);
-        if (errors.length > 0) {
-            const errorMsg = errors.map(e => e.error + " at " + e.path).join("; ");
-            throw new TypeError("Validation failed: " + errorMsg);
-        }
-    })`;
+    return builder.getCode();
 }
 
 /**
  * Generates inline validate code
  */
 export function generateValidateCode(type: Type): string {
+    const builder = new ValidatorBuilder();
     const validatorCode = generateValidatorCode(type);
-    return `(function(value) {
+    builder.addStatement(`(function(value) {
         const validator = ${validatorCode};
         return validator(value);
-    })`;
+    })`);
+    return builder.getCode();
 }
