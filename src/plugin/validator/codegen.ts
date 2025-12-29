@@ -1,4 +1,24 @@
-import { Type, ts } from "ts-morph";
+import { Node, Symbol as MorphSymbol, Type, ts } from "ts-morph";
+
+type JSDocConstraints = {
+    minimum?: number;
+    maximum?: number;
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
+    multipleOf?: number;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
+    format?: string;
+};
+
+function hasJsDocs(node: Node): node is Node & { getJsDocs(): ReturnType<Node["getJsDocs"]> } {
+    return typeof (node as { getJsDocs?: unknown }).getJsDocs === "function";
+}
+
+function getFirstDeclaration(symbol: MorphSymbol): Node | undefined {
+    return symbol.getValueDeclaration?.() ?? symbol.getDeclarations()[0];
+}
 
 /**
  * Escapes a string for use in generated code
@@ -20,6 +40,337 @@ function getTypeName(type: Type): string {
         return "complex type";
     }
     return text;
+}
+
+function extractJSDocConstraints(node?: Node): JSDocConstraints {
+    const constraints: JSDocConstraints = {};
+
+    if (!node) return constraints;
+    if (!hasJsDocs(node)) return constraints;
+
+    const jsDocs = node.getJsDocs?.() ?? [];
+
+    for (const jsDoc of jsDocs) {
+        const tags = jsDoc.getTags?.() ?? [];
+        for (const tag of tags) {
+            const name = tag.getTagName();
+            const comment = tag.getComment?.();
+            const commentText = typeof comment === "string" ? comment.trim() : "";
+
+            switch (name) {
+                case "minimum":
+                case "min": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.minimum = num;
+                    break;
+                }
+                case "maximum":
+                case "max": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.maximum = num;
+                    break;
+                }
+                case "exclusiveMinimum": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.exclusiveMinimum = num;
+                    break;
+                }
+                case "exclusiveMaximum": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num)) constraints.exclusiveMaximum = num;
+                    break;
+                }
+                case "multipleOf": {
+                    const num = parseFloat(commentText);
+                    if (!isNaN(num) && num > 0) constraints.multipleOf = num;
+                    break;
+                }
+                case "minLength": {
+                    const num = parseInt(commentText, 10);
+                    if (!isNaN(num)) constraints.minLength = num;
+                    break;
+                }
+                case "maxLength": {
+                    const num = parseInt(commentText, 10);
+                    if (!isNaN(num)) constraints.maxLength = num;
+                    break;
+                }
+                case "pattern": {
+                    if (commentText) constraints.pattern = commentText;
+                    break;
+                }
+                case "format": {
+                    if (commentText) constraints.format = commentText;
+                    break;
+                }
+            }
+        }
+    }
+
+    return constraints;
+}
+
+function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
+    switch (format) {
+        case "binary":
+            return undefined;
+        case "byte":
+            return `if (typeof ${varName} === "string" && !/^[A-Za-z0-9+/]+={0,2}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match byte (base64) format",
+                    expected: { type: "string", format: "byte" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "date":
+            return `if (typeof ${varName} === "string") {
+                const _m = ${varName}.match(/^\\d{4}-\\d{2}-\\d{2}$/);
+                const _d = _m ? new Date(${varName}) : null;
+                if (!_m || Number.isNaN(_d!.getTime())) {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match date format (YYYY-MM-DD)",
+                        expected: { type: "string", format: "date" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "date-time":
+            return `if (typeof ${varName} === "string") {
+                const _t = Date.parse(${varName});
+                if (Number.isNaN(_t)) {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match date-time format",
+                        expected: { type: "string", format: "date-time" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "email":
+            return `if (typeof ${varName} === "string" && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$/i.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match email format",
+                    expected: { type: "string", format: "email" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "hostname":
+            return `if (typeof ${varName} === "string" && !/^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\\.)*[a-zA-Z0-9-]{1,63}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match hostname format",
+                    expected: { type: "string", format: "hostname" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "ipv4":
+            return `if (typeof ${varName} === "string" && !/^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.|$)){4}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match ipv4 format",
+                    expected: { type: "string", format: "ipv4" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "ipv6":
+            return `if (typeof ${varName} === "string" && !/^(([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,7}:|:([0-9A-Fa-f]{1,4}:){1,7}|([0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,5}(:[0-9A-Fa-f]{1,4}){1,2}|([0-9A-Fa-f]{1,4}:){1,4}(:[0-9A-Fa-f]{1,4}){1,3}|([0-9A-Fa-f]{1,4}:){1,3}(:[0-9A-Fa-f]{1,4}){1,4}|([0-9A-Fa-f]{1,4}:){1,2}(:[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:((:[0-9A-Fa-f]{1,4}){1,6})|:((:[0-9A-Fa-f]{1,4}){1,7}|:))$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match ipv6 format",
+                    expected: { type: "string", format: "ipv6" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "uuid":
+            return `if (typeof ${varName} === "string" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match uuid format",
+                    expected: { type: "string", format: "uuid" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "regex":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new RegExp(${varName});
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to be a valid regex",
+                        expected: { type: "string", format: "regex" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "json-pointer":
+            return `if (typeof ${varName} === "string" && !/^(\\/(?:[^~]|~0|~1)*)*$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match json-pointer format",
+                    expected: { type: "string", format: "json-pointer" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "relative-json-pointer":
+            return `if (typeof ${varName} === "string" && !/^([0-9]+)(#|(\\/(?:[^~]|~0|~1)*)*)$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match relative-json-pointer format",
+                    expected: { type: "string", format: "relative-json-pointer" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "uri":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new URL(${varName});
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match uri format",
+                        expected: { type: "string", format: "uri" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "uri-reference":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new URL(${varName}, "http://example.com");
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match uri-reference format",
+                        expected: { type: "string", format: "uri-reference" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "uri-template":
+            return `if (typeof ${varName} === "string" && /\\s/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match uri-template format",
+                    expected: { type: "string", format: "uri-template" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        default:
+            return undefined;
+    }
+}
+
+function generateConstraintChecks(
+    type: Type,
+    varName: string,
+    path: string,
+    constraints: JSDocConstraints,
+    pathIsExpression = false,
+): string {
+    const checks: string[] = [];
+    const pathExpr = pathIsExpression ? path : `"${path}"`;
+
+    const isNumberType = type.isNumber() || type.isNumberLiteral();
+    const isStringType = type.isString() || type.isStringLiteral();
+
+    if (isNumberType) {
+        if (constraints.minimum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} < ${constraints.minimum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value is below minimum " + ${constraints.minimum},
+                    expected: { type: "number", minimum: ${constraints.minimum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.maximum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} > ${constraints.maximum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value exceeds maximum " + ${constraints.maximum},
+                    expected: { type: "number", maximum: ${constraints.maximum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.exclusiveMinimum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} <= ${constraints.exclusiveMinimum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be greater than " + ${constraints.exclusiveMinimum},
+                    expected: { type: "number", exclusiveMinimum: ${constraints.exclusiveMinimum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.exclusiveMaximum !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} >= ${constraints.exclusiveMaximum}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be less than " + ${constraints.exclusiveMaximum},
+                    expected: { type: "number", exclusiveMaximum: ${constraints.exclusiveMaximum} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.multipleOf !== undefined) {
+            checks.push(`if (typeof ${varName} === "number" && ${varName} % ${constraints.multipleOf} !== 0) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "value must be a multiple of " + ${constraints.multipleOf},
+                    expected: { type: "number", multipleOf: ${constraints.multipleOf} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+    }
+
+    if (isStringType) {
+        if (constraints.minLength !== undefined) {
+            checks.push(`if (typeof ${varName} === "string" && ${varName}.length < ${constraints.minLength}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string is shorter than minimum length " + ${constraints.minLength},
+                    expected: { type: "string", minLength: ${constraints.minLength} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.maxLength !== undefined) {
+            checks.push(`if (typeof ${varName} === "string" && ${varName}.length > ${constraints.maxLength}) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string exceeds maximum length " + ${constraints.maxLength},
+                    expected: { type: "string", maxLength: ${constraints.maxLength} },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.pattern !== undefined) {
+            const pattern = escapeString(constraints.pattern);
+            checks.push(`if (typeof ${varName} === "string" && !new RegExp("${pattern}").test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "string does not match required pattern",
+                    expected: { type: "string", pattern: "${pattern}" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`);
+        }
+        if (constraints.format) {
+            const formatCheck = generateFormatCheck(constraints.format, varName, pathExpr);
+            if (formatCheck) {
+                checks.push(formatCheck);
+            }
+        }
+    }
+
+    return checks.join("\n");
 }
 
 /**
@@ -284,16 +635,19 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
         const properties = type.getProperties();
         for (const prop of properties) {
             const propName = prop.getName();
-            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
+            const declaration = getFirstDeclaration(prop);
+            if (!declaration) continue;
+            const propType = prop.getTypeAtLocation(declaration);
             const isOptional = prop.isOptional();
             const typeName = escapeString(getTypeName(propType));
+            const constraints = extractJSDocConstraints(declaration);
 
             const propVarName = `${varName}.${propName}`;
             const propDynamicPath = `${dynamicPath} + ".${propName}"`;
 
             if (isOptional) {
                 checks.push(`if (${propVarName} !== undefined) {
-                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath, constraints)}
                 }`);
             } else {
                 checks.push(`if (${propVarName} === undefined) {
@@ -304,7 +658,7 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
                         actual: { type: "undefined", value: undefined }
                     });
                 } else {
-                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath)}
+                    ${generateTypeCheckForProperty(propType, propVarName, propDynamicPath, constraints)}
                 }`);
             }
         }
@@ -319,7 +673,12 @@ function generateTypeCheckForArrayElement(type: Type, varName: string, pathPrefi
 /**
  * Generates type check for object property with dynamic path
  */
-function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: string): string {
+function generateTypeCheckForProperty(
+    type: Type,
+    varName: string,
+    dynamicPath: string,
+    constraints: JSDocConstraints = {},
+): string {
     // Handle primitives with dynamic paths
     if (type.isString()) {
         return `if (typeof ${varName} !== "string") {
@@ -329,7 +688,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
                 expected: { type: "string" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
     }
 
     if (type.isNumber()) {
@@ -340,7 +699,7 @@ function generateTypeCheckForProperty(type: Type, varName: string, dynamicPath: 
                 expected: { type: "number" },
                 actual: { type: typeof ${varName}, value: ${varName} }
             });
-        }`;
+        } ${generateConstraintChecks(type, varName, dynamicPath, constraints, true)}`;
     }
 
     if (type.isBoolean()) {
@@ -419,8 +778,13 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
 
     for (const prop of properties) {
         const propName = prop.getName();
-        const propType = prop.getTypeAtLocation(prop.getValueDeclaration()!);
+        const declaration = getFirstDeclaration(prop);
+        if (!declaration) {
+            continue;
+        }
+        const propType = prop.getTypeAtLocation(declaration);
         const isOptional = prop.isOptional();
+        const constraints = extractJSDocConstraints(declaration);
 
         if (!isOptional) {
             requiredProps.push(propName);
@@ -428,12 +792,14 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
 
         const propPath = path ? `${path}.${propName}` : propName;
         const propVarName = `${varName}.${propName}`;
+        const constraintChecks = generateConstraintChecks(propType, propVarName, propPath, constraints);
 
         const typeName = escapeString(getTypeName(propType));
 
         if (isOptional) {
             propertyChecks.push(`if (${propVarName} !== undefined) {
                 ${generateTypeCheck(propType, propVarName, propPath)}
+                ${constraintChecks}
             }`);
         } else {
             propertyChecks.push(`if (${propVarName} === undefined) {
@@ -445,6 +811,7 @@ function generateObjectCheck(type: Type, varName: string, path: string): string 
                 });
             } else {
                 ${generateTypeCheck(propType, propVarName, propPath)}
+                ${constraintChecks}
             }`);
         }
     }
