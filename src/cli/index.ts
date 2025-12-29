@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { parseArgs } from "util";
+
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
 
@@ -38,94 +40,73 @@ For more information, visit: https://github.com/lordvlad/wiz
 `;
 
 async function main() {
-    const args = process.argv.slice(2);
+    const rawArgs = process.argv.slice(2);
 
-    if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
+    if (rawArgs.length === 0 || rawArgs[0] === "--help" || rawArgs[0] === "-h") {
         console.log(HELP_TEXT);
         process.exit(0);
     }
 
-    const command = args[0];
-    const commandArgs = args.slice(1);
+    const command = rawArgs[0];
 
-    switch (command) {
-        case "openapi": {
-            const formatIndex = commandArgs.indexOf("--format");
-            let format: "json" | "yaml" = "yaml";
-            const paths: string[] = [];
+    // Parse arguments based on command
+    if (command === "openapi") {
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                format: {
+                    type: "string",
+                    default: "yaml",
+                },
+            },
+            allowPositionals: true,
+        });
 
-            for (let i = 0; i < commandArgs.length; i++) {
-                const arg = commandArgs[i];
-                if (!arg) continue;
-                if (arg === "--format") {
-                    const formatValue = commandArgs[i + 1];
-                    if (!formatValue) {
-                        console.error("Error: --format requires a value");
-                        process.exit(1);
-                    }
-                    if (formatValue === "json" || formatValue === "yaml") {
-                        format = formatValue;
-                    } else {
-                        console.error(`Error: Invalid format "${formatValue}". Must be "json" or "yaml".`);
-                        process.exit(1);
-                    }
-                    i++; // Skip the next arg
-                } else if (!arg.startsWith("-")) {
-                    paths.push(arg);
-                }
-            }
-
-            if (paths.length === 0) {
-                console.error("Error: No files or directories specified");
-                console.error("Usage: wiz openapi [files|dirs|globs...] [--format json|yaml]");
-                process.exit(1);
-            }
-
-            await generateOpenApi(paths, { format });
-            break;
-        }
-
-        case "inline": {
-            const outdirIndex = commandArgs.indexOf("--outdir");
-            let outdir: string | undefined;
-            const paths: string[] = [];
-
-            for (let i = 0; i < commandArgs.length; i++) {
-                const arg = commandArgs[i];
-                if (!arg) continue;
-                if (arg === "--outdir") {
-                    outdir = commandArgs[i + 1];
-                    if (!outdir) {
-                        console.error("Error: --outdir requires a value");
-                        process.exit(1);
-                    }
-                    i++; // Skip the next arg
-                } else if (!arg.startsWith("-")) {
-                    paths.push(arg);
-                }
-            }
-
-            if (paths.length === 0 || !outdir) {
-                console.error("Error: Missing required arguments");
-                console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
-                process.exit(1);
-            }
-
-            await inlineValidators(paths, { outdir });
-            break;
-        }
-
-        case "help":
-        case "--help":
-        case "-h":
-            console.log(HELP_TEXT);
-            break;
-
-        default:
-            console.error(`Error: Unknown command "${command}"`);
-            console.error("");
-            console.log(HELP_TEXT);
+        const format = values.format as "json" | "yaml";
+        if (format !== "json" && format !== "yaml") {
+            console.error(`Error: Invalid format "${format}". Must be "json" or "yaml".`);
             process.exit(1);
+        }
+
+        if (positionals.length === 0) {
+            console.error("Error: No files or directories specified");
+            console.error("Usage: wiz openapi [files|dirs|globs...] [--format json|yaml]");
+            process.exit(1);
+        }
+
+        await generateOpenApi(positionals, { format });
+    } else if (command === "inline") {
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                outdir: {
+                    type: "string",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        const outdir = values.outdir;
+        if (!outdir) {
+            console.error("Error: --outdir is required");
+            console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
+            process.exit(1);
+        }
+
+        if (positionals.length === 0) {
+            console.error("Error: No files or directories specified");
+            console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
+            process.exit(1);
+        }
+
+        await inlineValidators(positionals, { outdir });
+    } else if (command === "help" || command === "--help" || command === "-h") {
+        console.log(HELP_TEXT);
+    } else {
+        console.error(`Error: Unknown command "${command}"`);
+        console.error("");
+        console.log(HELP_TEXT);
+        process.exit(1);
     }
 }
 

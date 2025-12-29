@@ -51,8 +51,9 @@ export async function expandFilePaths(paths: string[]): Promise<string[]> {
  */
 export async function findNearestPackageJson(startPath: string): Promise<string | null> {
     let currentPath = resolve(startPath);
+    const root = resolve(currentPath, "/");
 
-    while (currentPath !== "/") {
+    while (true) {
         const packageJsonPath = resolve(currentPath, "package.json");
         try {
             await stat(packageJsonPath);
@@ -60,7 +61,7 @@ export async function findNearestPackageJson(startPath: string): Promise<string 
         } catch {
             // Move up one directory
             const parentPath = resolve(currentPath, "..");
-            if (parentPath === currentPath) break;
+            if (parentPath === currentPath || currentPath === root) break;
             currentPath = parentPath;
         }
     }
@@ -72,7 +73,5 @@ export async function findNearestPackageJson(startPath: string): Promise<string 
  * Reads and parses a package.json file.
  */
 export async function readPackageJson(path: string): Promise<any> {
-    const file = Bun.file(path);
-    const text = await file.text();
-    return JSON.parse(text);
+    return await Bun.file(path).json();
 }
