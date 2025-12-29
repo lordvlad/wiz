@@ -18,7 +18,8 @@ OpenAPI Options:
   --format <format>      Output format: json or yaml (default: yaml)
 
 Inline Options:
-  --outdir <directory>   Output directory for transformed files (required)
+  --outdir <directory>   Output directory for transformed files
+  --in-place             Transform files in place (mutually exclusive with --outdir)
 
 Examples:
   # Generate OpenAPI spec from directory (YAML output)
@@ -30,8 +31,11 @@ Examples:
   # Generate from multiple sources
   wiz openapi src/models/ src/api.ts
 
-  # Transform validators to inline
+  # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
+
+  # Transform validators in place
+  wiz inline src/ --in-place
 
   # Transform specific files
   wiz inline src/validators.ts --outdir dist/
@@ -82,24 +86,36 @@ async function main() {
                 outdir: {
                     type: "string",
                 },
+                "in-place": {
+                    type: "boolean",
+                },
             },
             allowPositionals: true,
         });
 
         const outdir = values.outdir;
-        if (!outdir) {
-            console.error("Error: --outdir is required");
-            console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
+        const inPlace = values["in-place"];
+
+        // Validate mutually exclusive options
+        if (outdir && inPlace) {
+            console.error("Error: --outdir and --in-place are mutually exclusive");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
+            process.exit(1);
+        }
+
+        if (!outdir && !inPlace) {
+            console.error("Error: Either --outdir or --in-place is required");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
             process.exit(1);
         }
 
         if (positionals.length === 0) {
             console.error("Error: No files or directories specified");
-            console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
             process.exit(1);
         }
 
-        await inlineValidators(positionals, { outdir });
+        await inlineValidators(positionals, { outdir, inPlace });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

@@ -7,6 +7,7 @@ import { expandFilePaths } from "./utils";
 
 interface InlineOptions {
     outdir?: string;
+    inPlace?: boolean;
 }
 
 /**
@@ -18,12 +19,20 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
         process.exit(1);
     }
 
-    const outdir = options.outdir ? resolve(process.cwd(), options.outdir) : undefined;
+    const { outdir, inPlace } = options;
 
-    if (!outdir) {
-        console.error("Error: --outdir is required");
+    // Validate options
+    if (!outdir && !inPlace) {
+        console.error("Error: Either --outdir or --in-place is required");
         process.exit(1);
     }
+
+    if (outdir && inPlace) {
+        console.error("Error: --outdir and --in-place are mutually exclusive");
+        process.exit(1);
+    }
+
+    const resolvedOutdir = outdir ? resolve(process.cwd(), outdir) : undefined;
 
     const files = await expandFilePaths(paths);
 
@@ -37,7 +46,7 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
     // Transform files in parallel
     const results = await Promise.allSettled(
         files.map(async (file) => {
-            await transformFile(file, outdir);
+            await transformFile(file, resolvedOutdir, inPlace);
             return { file, success: true };
         }),
     );
@@ -65,9 +74,9 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
 }
 
 /**
- * Transform a single file and write to output directory.
+ * Transform a single file and write to output directory or in-place.
  */
-async function transformFile(filePath: string, outdir: string): Promise<void> {
+async function transformFile(filePath: string, outdir: string | undefined, inPlace?: boolean): Promise<void> {
     // Read source file
     const source = await Bun.file(filePath).text();
 
@@ -106,16 +115,21 @@ async function transformFile(filePath: string, outdir: string): Promise<void> {
         const outFile = resolve(tmpOutDir, "source.js");
         const transformed = await Bun.file(outFile).text();
 
-        // Determine output file path (maintain relative structure)
-        const cwd = process.cwd();
-        const relPath = relative(cwd, filePath);
-        const outPath = resolve(outdir, relPath);
+        if (inPlace) {
+            // Write back to the original file
+            await writeFile(filePath, transformed);
+        } else {
+            // Determine output file path (maintain relative structure)
+            const cwd = process.cwd();
+            const relPath = relative(cwd, filePath);
+            const outPath = resolve(outdir!, relPath);
 
-        // Create output directory
-        await mkdir(dirname(outPath), { recursive: true });
+            // Create output directory
+            await mkdir(dirname(outPath), { recursive: true });
 
-        // Write transformed file (keep original extension)
-        await writeFile(outPath, transformed);
+            // Write transformed file (keep original extension)
+            await writeFile(outPath, transformed);
+        }
     } finally {
         // Clean up tmp directory
         await Bun.$`rm -rf ${tmpDir}`.quiet();
