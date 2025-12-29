@@ -34,17 +34,26 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
 
     console.log(`Processing ${files.length} file(s)...`);
 
+    // Transform files in parallel
+    const results = await Promise.allSettled(
+        files.map(async (file) => {
+            await transformFile(file, outdir);
+            return { file, success: true };
+        }),
+    );
+
     let processed = 0;
     let errors = 0;
 
-    for (const file of files) {
-        try {
-            await transformFile(file, outdir);
+    for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const file = files[i];
+        if (result.status === "fulfilled") {
             processed++;
             console.log(`✓ ${relative(process.cwd(), file)}`);
-        } catch (error) {
+        } else {
             errors++;
-            console.error(`✗ ${relative(process.cwd(), file)}: ${error}`);
+            console.error(`✗ ${relative(process.cwd(), file)}: ${result.reason}`);
         }
     }
 
@@ -111,39 +120,4 @@ async function transformFile(filePath: string, outdir: string): Promise<void> {
         // Clean up tmp directory
         await Bun.$`rm -rf ${tmpDir}`.quiet();
     }
-}
-
-// CLI entry point
-if (import.meta.main) {
-    const args = process.argv.slice(2);
-    const outdirIndex = args.indexOf("--outdir");
-    let outdir: string | undefined;
-    const paths: string[] = [];
-
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-        if (!arg) continue;
-        if (arg === "--outdir") {
-            outdir = args[i + 1];
-            if (!outdir) {
-                console.error("Error: --outdir requires a value");
-                process.exit(1);
-            }
-            i++; // Skip the next arg
-        } else if (!arg.startsWith("-")) {
-            paths.push(arg);
-        }
-    }
-
-    if (paths.length === 0 || !outdir) {
-        console.error("Usage: wiz inline [files|dirs|globs...] --outdir <directory>");
-        console.error("");
-        console.error("Examples:");
-        console.error("  wiz inline src/ --outdir dist/");
-        console.error("  wiz inline src/validators.ts --outdir dist/");
-        console.error('  wiz inline "src/**/*.ts" --outdir dist/');
-        process.exit(1);
-    }
-
-    await inlineValidators(paths, { outdir });
 }
