@@ -198,12 +198,15 @@ async function generateFromTypes(files: string[]): Promise<any> {
         const typeDefinitions = Array.from(uniqueFiles.values()).join("\n\n");
         const typeList = exportedTypes.map((t) => t.name).join(", ");
 
-        // Use direct file path to wiz's openApiSchema
-        const wizPath = resolve("/home/runner/work/wiz/wiz/src/openApiSchema/index.ts");
+        // Calculate relative path from tmpFile to openApiSchema
+        const openApiSchemaPath = resolve(import.meta.dir, "../openApiSchema/index.ts");
+        const relativeWizPath = relative(dirname(tmpFile), openApiSchemaPath).replace(/\\/g, "/");
+        const wizImport = relativeWizPath.startsWith(".") ? relativeWizPath : `./${relativeWizPath}`;
+
         const source = `
 ${typeDefinitions}
 
-import { createOpenApiSchema } from "${wizPath}";
+import { createOpenApiSchema } from "${wizImport}";
 
 export const schema = createOpenApiSchema<[${typeList}], "3.0">();
         `;
