@@ -206,6 +206,80 @@ describe("validator plugin", () => {
             expect(validator({ email: "user@example.com" })).toEqual([]);
             expect(validator({ email: "not-an-email" }).some((e) => e.path === "email")).toBe(true);
         });
+
+        it("should validate other supported formats from jsdoc", async () => {
+            const source = `
+                import { createValidator } from '../validator/index';
+
+                type Payload = {
+                    /** @format ipv4 */
+                    ip: string;
+                    /** @format hostname */
+                    host: string;
+                    /** @format uri */
+                    link: string;
+                    /** @format uuid */
+                    uid: string;
+                    /** @format date */
+                    birthday: string;
+                    /** @format byte */
+                    data: string;
+                    /** @format regex */
+                    pattern: string;
+                    /** @format json-pointer */
+                    pointer: string;
+                    /** @format relative-json-pointer */
+                    relPointer: string;
+                    /** @format uri-template */
+                    template: string;
+                };
+
+                export const validator = createValidator<Payload>();
+            `;
+
+            await compile(source);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            const validator = module.validator as (value: unknown) => any[];
+
+            expect(
+                validator({
+                    ip: "192.168.0.1",
+                    host: "example.com",
+                    link: "https://example.com",
+                    uid: "123e4567-e89b-12d3-a456-426614174000",
+                    birthday: "2020-01-01",
+                    data: "Zm9v",
+                    pattern: "^[a-z]+$",
+                    pointer: "/foo/bar",
+                    relPointer: "1/foo",
+                    template: "/users/{id}",
+                }),
+            ).toEqual([]);
+
+            const errors = validator({
+                ip: "999.0.0.1",
+                host: "bad_host!",
+                link: "not a uri",
+                uid: "bad",
+                birthday: "20-01-01",
+                data: "not base64!",
+                pattern: "[",
+                pointer: "not/pointer",
+                relPointer: "abc",
+                template: "has space",
+            });
+
+            expect(errors.some((e) => e.path === "ip")).toBe(true);
+            expect(errors.some((e) => e.path === "host")).toBe(true);
+            expect(errors.some((e) => e.path === "link")).toBe(true);
+            expect(errors.some((e) => e.path === "uid")).toBe(true);
+            expect(errors.some((e) => e.path === "birthday")).toBe(true);
+            expect(errors.some((e) => e.path === "data")).toBe(true);
+            expect(errors.some((e) => e.path === "pattern")).toBe(true);
+            expect(errors.some((e) => e.path === "pointer")).toBe(true);
+            expect(errors.some((e) => e.path === "relPointer")).toBe(true);
+            expect(errors.some((e) => e.path === "template")).toBe(true);
+        });
     });
 
     describe("validate", () => {

@@ -112,6 +112,42 @@ function extractJSDocConstraints(node?: Node): JSDocConstraints {
 
 function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
     switch (format) {
+        case "binary":
+            return undefined;
+        case "byte":
+            return `if (typeof ${varName} === "string" && !/^[A-Za-z0-9+/]+={0,2}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match byte (base64) format",
+                    expected: { type: "string", format: "byte" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "date":
+            return `if (typeof ${varName} === "string") {
+                const _m = ${varName}.match(/^\\d{4}-\\d{2}-\\d{2}$/);
+                const _d = _m ? new Date(${varName}) : null;
+                if (!_m || Number.isNaN(_d!.getTime())) {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match date format (YYYY-MM-DD)",
+                        expected: { type: "string", format: "date" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "date-time":
+            return `if (typeof ${varName} === "string") {
+                const _t = Date.parse(${varName});
+                if (Number.isNaN(_t)) {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to match date-time format",
+                        expected: { type: "string", format: "date-time" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
         case "email":
             return `if (typeof ${varName} === "string" && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$/i.test(${varName})) {
                 errors.push({
@@ -121,12 +157,70 @@ function generateFormatCheck(format: string, varName: string, pathExpr: string):
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
             }`;
+        case "hostname":
+            return `if (typeof ${varName} === "string" && !/^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{0,62}[a-zA-Z0-9]\\.)*[a-zA-Z0-9-]{1,63}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match hostname format",
+                    expected: { type: "string", format: "hostname" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "ipv4":
+            return `if (typeof ${varName} === "string" && !/^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.|$)){4}$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match ipv4 format",
+                    expected: { type: "string", format: "ipv4" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "ipv6":
+            return `if (typeof ${varName} === "string" && !/^(([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,7}:|:([0-9A-Fa-f]{1,4}:){1,7}|([0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,5}(:[0-9A-Fa-f]{1,4}){1,2}|([0-9A-Fa-f]{1,4}:){1,4}(:[0-9A-Fa-f]{1,4}){1,3}|([0-9A-Fa-f]{1,4}:){1,3}(:[0-9A-Fa-f]{1,4}){1,4}|([0-9A-Fa-f]{1,4}:){1,2}(:[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:((:[0-9A-Fa-f]{1,4}){1,6})|:((:[0-9A-Fa-f]{1,4}){1,7}|:))$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match ipv6 format",
+                    expected: { type: "string", format: "ipv6" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
         case "uuid":
             return `if (typeof ${varName} === "string" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(${varName})) {
                 errors.push({
                     path: ${pathExpr},
                     error: "expected value to match uuid format",
                     expected: { type: "string", format: "uuid" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "regex":
+            return `if (typeof ${varName} === "string") {
+                try {
+                    new RegExp(${varName});
+                } catch {
+                    errors.push({
+                        path: ${pathExpr},
+                        error: "expected value to be a valid regex",
+                        expected: { type: "string", format: "regex" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            }`;
+        case "json-pointer":
+            return `if (typeof ${varName} === "string" && !/^(\\/(?:[^~]|~0|~1)*)*$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match json-pointer format",
+                    expected: { type: "string", format: "json-pointer" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
+        case "relative-json-pointer":
+            return `if (typeof ${varName} === "string" && !/^([0-9]+)(#|(\\/(?:[^~]|~0|~1)*)*)$/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match relative-json-pointer format",
+                    expected: { type: "string", format: "relative-json-pointer" },
                     actual: { type: typeof ${varName}, value: ${varName} }
                 });
             }`;
@@ -157,7 +251,14 @@ function generateFormatCheck(format: string, varName: string, pathExpr: string):
                 }
             }`;
         case "uri-template":
-            return undefined;
+            return `if (typeof ${varName} === "string" && /\\s/.test(${varName})) {
+                errors.push({
+                    path: ${pathExpr},
+                    error: "expected value to match uri-template format",
+                    expected: { type: "string", format: "uri-template" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }`;
         default:
             return undefined;
     }
