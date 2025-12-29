@@ -1,4 +1,4 @@
-import { Node, Symbol as MorphSymbol, Type, ts } from "ts-morph";
+import { Node, Symbol as MorphSymbol, Type, Project } from "ts-morph";
 
 type JSDocConstraints = {
     minimum?: number;
@@ -108,6 +108,41 @@ function extractJSDocConstraints(node?: Node): JSDocConstraints {
     }
 
     return constraints;
+}
+
+/**
+ * Helper class to build validator code using ts-morph
+ */
+class ValidatorBuilder {
+    private project: Project;
+    private sourceFile: ReturnType<Project["createSourceFile"]>;
+
+    constructor() {
+        this.project = new Project({ useInMemoryFileSystem: true });
+        this.sourceFile = this.project.createSourceFile("validator.ts", "", { overwrite: true });
+    }
+
+    /**
+     * Add a statement to the validator
+     */
+    addStatement(code: string) {
+        this.sourceFile.addStatements(code);
+    }
+
+    /**
+     * Get the generated code
+     */
+    getCode(): string {
+        this.sourceFile.formatText();
+        return this.sourceFile.getFullText().trim();
+    }
+
+    /**
+     * Clear all statements
+     */
+    clear() {
+        this.sourceFile.removeText();
+    }
 }
 
 function generateFormatCheck(format: string, varName: string, pathExpr: string): string | undefined {
@@ -377,13 +412,19 @@ function generateConstraintChecks(
  * Generates runtime validator code for a given TypeScript type
  */
 export function generateValidatorCode(type: Type): string {
-    const validatorFn = generateTypeCheck(type, "value", "");
-
-    return `(function(value) {
+    const builder = new ValidatorBuilder();
+    
+    // Build the validator function body
+    const validatorBody = generateTypeCheck(type, "value", "");
+    
+    // Create the function using ts-morph
+    builder.addStatement(`(function(value) {
         const errors = [];
-        ${validatorFn}
+        ${validatorBody}
         return errors;
-    })`;
+    })`);
+    
+    return builder.getCode();
 }
 
 /**
