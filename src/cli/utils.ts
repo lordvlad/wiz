@@ -1,6 +1,5 @@
 import { stat } from "fs/promises";
-import { glob } from "glob";
-import { resolve, extname } from "path";
+import { resolve, extname, dirname } from "path";
 
 /**
  * Expands a list of file paths, directories, or glob patterns into a list of TypeScript files.
@@ -16,10 +15,11 @@ export async function expandFilePaths(paths: string[]): Promise<string[]> {
             const stats = await stat(resolvedPath);
 
             if (stats.isDirectory()) {
-                // Convert directory to glob pattern
-                const pattern = `${resolvedPath}/**/*.{ts,tsx}`;
-                const files = await glob(pattern, { nodir: true, absolute: true });
-                files.forEach((f) => allFiles.add(f));
+                // Convert directory to glob pattern - scan for TypeScript files
+                const glob = new Bun.Glob("**/*.{ts,tsx}");
+                for await (const file of glob.scan({ cwd: resolvedPath, absolute: true })) {
+                    allFiles.add(file);
+                }
             } else if (stats.isFile()) {
                 const ext = extname(resolvedPath);
                 if (ext === ".ts" || ext === ".tsx") {
@@ -28,13 +28,18 @@ export async function expandFilePaths(paths: string[]): Promise<string[]> {
             }
         } catch {
             // If stat fails, treat as a glob pattern
-            const files = await glob(path, { nodir: true, absolute: true });
-            files
-                .filter((f) => {
-                    const ext = extname(f);
-                    return ext === ".ts" || ext === ".tsx";
-                })
-                .forEach((f) => allFiles.add(f));
+            // Extract the directory part and pattern part
+            const lastSlash = path.lastIndexOf("/");
+            const dirPart = lastSlash > 0 ? path.substring(0, lastSlash) : ".";
+            const patternPart = lastSlash > 0 ? path.substring(lastSlash + 1) : path;
+
+            const glob = new Bun.Glob(patternPart);
+            for await (const file of glob.scan({ cwd: dirPart, absolute: true })) {
+                const ext = extname(file);
+                if (ext === ".ts" || ext === ".tsx") {
+                    allFiles.add(file);
+                }
+            }
         }
     }
 

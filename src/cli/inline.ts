@@ -105,9 +105,8 @@ async function transformFile(filePath: string, outdir: string): Promise<void> {
         // Create output directory
         await mkdir(dirname(outPath), { recursive: true });
 
-        // Write transformed file (change extension to .js)
-        const outPathJs = outPath.replace(/\.tsx?$/, ".js");
-        await writeFile(outPathJs, transformed);
+        // Write transformed file (keep original extension)
+        await writeFile(outPath, transformed);
     } finally {
         // Clean up tmp directory
         await Bun.$`rm -rf ${tmpDir}`.quiet();

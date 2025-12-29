@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "fs/promises";
-import yaml from "js-yaml";
 import { dirname, relative, resolve } from "path";
 import { Project } from "ts-morph";
 
@@ -267,7 +266,7 @@ function outputSpec(spec: any, format: Format): void {
     if (format === "json") {
         console.log(JSON.stringify(spec, null, 2));
     } else {
-        console.log(yaml.dump(spec, { indent: 2, lineWidth: -1, noRefs: true }));
+        console.log(Bun.YAML.stringify(spec));
     }
 }
 

@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { resolve } from "path";
 
-import { generateOpenApi } from "../cli/openapi";
 import { inlineValidators } from "../cli/inline";
+import { generateOpenApi } from "../cli/openapi";
 
 const tmpDir = resolve(import.meta.dir, ".tmp-cli-test");
 
@@ -118,7 +118,7 @@ export type Item = {
         it("should inline validator calls", async () => {
             const srcDir = resolve(tmpDir, "src");
             await mkdir(srcDir, { recursive: true });
-            
+
             const testFile = resolve(srcDir, "validators.ts");
             const outDir = resolve(tmpDir, "out");
 
@@ -147,15 +147,14 @@ export const validateUser = createValidator<User>();
                 // Change to the tmpDir so relative paths work correctly
                 const originalCwd = process.cwd();
                 process.chdir(tmpDir);
-                
+
                 try {
                     await inlineValidators([testFile], { outdir: outDir });
                     expect(output).toContain("✓");
                     expect(output).toContain("Processed: 1 file(s)");
 
-                    // Check that output file was created in the correct location
-                    // The file should be at outDir + relative path from tmpDir
-                    const outFile = resolve(outDir, "src", "validators.js");
+                    // Check that output file was created with original .ts extension
+                    const outFile = resolve(outDir, "src", "validators.ts");
                     const content = await Bun.file(outFile).text();
                     expect(content).toContain("validateUser");
                     expect(content).toContain("function");

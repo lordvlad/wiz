@@ -42,6 +42,7 @@ wiz openapi "src/**/*.ts"
 ```
 
 #### How it works:
+
 1. First, wiz looks for `createOpenApi` calls in your files and executes them
 2. If no `createOpenApi` calls are found, it generates schemas from all exported types
 3. Metadata from the nearest `package.json` is used to populate the `info` section
@@ -61,7 +62,7 @@ wiz inline src/validators.ts --outdir dist/
 wiz inline "src/**/*.ts" --outdir dist/
 ```
 
-The inline command transforms validator calls (`createValidator`, `is`, `assert`, etc.) into optimized inline implementations, preserving the directory structure in the output.
+The inline command transforms validator calls (`createValidator`, `is`, `assert`, etc.) into optimized inline implementations. The output preserves the original file structure and TypeScript file extensions.
 
 ## OpenAPI Schema Generation
 

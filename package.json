@@ -17,16 +17,12 @@
         "test:report": "bun test --reporter=junit --reporter-outfile=test-results.xml --coverage --coverage-reporter=lcov --coverage-dir=coverage"
     },
     "dependencies": {
-        "glob": "^13.0.0",
-        "js-yaml": "^4.1.1",
         "ts-morph": "^27.0.2"
     },
     "devDependencies": {
         "@babel/plugin-proposal-explicit-resource-management": "^7.27.4",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
         "@types/bun": "latest",
-        "@types/glob": "^9.0.0",
-        "@types/js-yaml": "^4.0.9",
         "@types/prettier": "^3.0.0",
         "prettier": "^3.5.3",
         "prettier-plugin-packagejson": "^2.5.19",
