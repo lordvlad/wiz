@@ -19,13 +19,49 @@ To install dependencies:
 bun install
 ```
 
-## Usage
+## CLI Usage
 
-To run:
+Wiz provides a command-line interface for generating OpenAPI specifications and inlining validators.
+
+### OpenAPI Generation
+
+Generate OpenAPI specifications from TypeScript files containing `createOpenApi` calls or exported types:
 
 ```bash
-bun run index.ts
+# Generate from directory (YAML output by default)
+wiz openapi src/
+
+# Generate with JSON output
+wiz openapi src/types.ts --format json
+
+# Generate from multiple sources
+wiz openapi src/models/ src/api.ts
+
+# Generate from glob pattern
+wiz openapi "src/**/*.ts"
 ```
+
+#### How it works:
+1. First, wiz looks for `createOpenApi` calls in your files and executes them
+2. If no `createOpenApi` calls are found, it generates schemas from all exported types
+3. Metadata from the nearest `package.json` is used to populate the `info` section
+
+### Validator Inlining
+
+Transform validator function calls to inline implementations:
+
+```bash
+# Transform files from src/ to dist/
+wiz inline src/ --outdir dist/
+
+# Transform specific file
+wiz inline src/validators.ts --outdir dist/
+
+# Transform using glob pattern
+wiz inline "src/**/*.ts" --outdir dist/
+```
+
+The inline command transforms validator calls (`createValidator`, `is`, `assert`, etc.) into optimized inline implementations, preserving the directory structure in the output.
 
 ## OpenAPI Schema Generation
 

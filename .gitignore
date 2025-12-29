@@ -15,6 +15,7 @@ test-results.xml
 
 # test temporary files
 .tmp
+.tmp-*
 
 # logs
 logs
