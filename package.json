@@ -1,14 +1,14 @@
 {
     "name": "wiz",
     "type": "module",
-    "bin": {
-        "wiz": "./src/cli/index.ts"
-    },
     "exports": {
         ".": "./src/index.ts",
         "./*": "./src/*.ts"
     },
     "module": "index.ts",
+    "bin": {
+        "wiz": "./src/cli/index.ts"
+    },
     "scripts": {
         "format": "prettier --write --experimental-cli .",
         "lint": "tsc",

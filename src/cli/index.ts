@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { generateOpenApi } from "./openapi";
 import { inlineValidators } from "./inline";
+import { generateOpenApi } from "./openapi";
 
 const HELP_TEXT = `
 wiz - TypeScript schema generation toolkit
@@ -55,8 +55,14 @@ async function main() {
             const paths: string[] = [];
 
             for (let i = 0; i < commandArgs.length; i++) {
-                if (commandArgs[i] === "--format") {
+                const arg = commandArgs[i];
+                if (!arg) continue;
+                if (arg === "--format") {
                     const formatValue = commandArgs[i + 1];
+                    if (!formatValue) {
+                        console.error("Error: --format requires a value");
+                        process.exit(1);
+                    }
                     if (formatValue === "json" || formatValue === "yaml") {
                         format = formatValue;
                     } else {
@@ -64,8 +70,8 @@ async function main() {
                         process.exit(1);
                     }
                     i++; // Skip the next arg
-                } else if (!commandArgs[i].startsWith("-")) {
-                    paths.push(commandArgs[i]);
+                } else if (!arg.startsWith("-")) {
+                    paths.push(arg);
                 }
             }
 
@@ -85,11 +91,17 @@ async function main() {
             const paths: string[] = [];
 
             for (let i = 0; i < commandArgs.length; i++) {
-                if (commandArgs[i] === "--outdir") {
+                const arg = commandArgs[i];
+                if (!arg) continue;
+                if (arg === "--outdir") {
                     outdir = commandArgs[i + 1];
+                    if (!outdir) {
+                        console.error("Error: --outdir requires a value");
+                        process.exit(1);
+                    }
                     i++; // Skip the next arg
-                } else if (!commandArgs[i].startsWith("-")) {
-                    paths.push(commandArgs[i]);
+                } else if (!arg.startsWith("-")) {
+                    paths.push(arg);
                 }
             }
 

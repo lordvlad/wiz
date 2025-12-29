@@ -1,6 +1,6 @@
+import { stat } from "fs/promises";
 import { glob } from "glob";
 import { resolve, extname } from "path";
-import { stat } from "fs/promises";
 
 /**
  * Expands a list of file paths, directories, or glob patterns into a list of TypeScript files.

@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "fs/promises";
+import yaml from "js-yaml";
 import { dirname, relative, resolve } from "path";
 import { Project } from "ts-morph";
-import yaml from "js-yaml";
 
 import wizPlugin from "../plugin/index";
-
 import { expandFilePaths, findNearestPackageJson, readPackageJson } from "./utils";
 
 type Format = "json" | "yaml";
@@ -168,10 +167,17 @@ async function generateFromTypes(files: string[]): Promise<any> {
     }
 
     // Find nearest package.json for metadata
-    const packageJsonPath = await findNearestPackageJson(files[0]);
     let packageJson: any = {};
-    if (packageJsonPath) {
-        packageJson = await readPackageJson(packageJsonPath);
+    const firstFile = files[0];
+    if (firstFile) {
+        const packageJsonPath = await findNearestPackageJson(firstFile);
+        if (packageJsonPath) {
+            try {
+                packageJson = await readPackageJson(packageJsonPath);
+            } catch {
+                // Ignore errors reading package.json
+            }
+        }
     }
 
     // Create a temporary file with all types inline
@@ -273,14 +279,20 @@ if (import.meta.main) {
     const paths: string[] = [];
 
     for (let i = 0; i < args.length; i++) {
-        if (args[i] === "--format") {
+        const arg = args[i];
+        if (!arg) continue;
+        if (arg === "--format") {
             const formatValue = args[i + 1];
+            if (!formatValue) {
+                console.error("Error: --format requires a value");
+                process.exit(1);
+            }
             if (formatValue === "json" || formatValue === "yaml") {
                 format = formatValue;
             }
             i++; // Skip the next arg
-        } else if (!args[i].startsWith("-")) {
-            paths.push(args[i]);
+        } else if (!arg.startsWith("-")) {
+            paths.push(arg);
         }
     }
 
@@ -289,7 +301,7 @@ if (import.meta.main) {
         console.error("");
         console.error("Examples:");
         console.error("  wiz openapi src/");
-        console.error('  wiz openapi src/types.ts --format json');
+        console.error("  wiz openapi src/types.ts --format json");
         console.error('  wiz openapi "src/**/*.ts"');
         process.exit(1);
     }

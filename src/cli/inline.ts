@@ -3,7 +3,6 @@ import { mkdir, writeFile } from "fs/promises";
 import { dirname, resolve, relative } from "path";
 
 import wizPlugin from "../plugin/index";
-
 import { expandFilePaths } from "./utils";
 
 interface InlineOptions {
@@ -123,11 +122,17 @@ if (import.meta.main) {
     const paths: string[] = [];
 
     for (let i = 0; i < args.length; i++) {
-        if (args[i] === "--outdir") {
+        const arg = args[i];
+        if (!arg) continue;
+        if (arg === "--outdir") {
             outdir = args[i + 1];
+            if (!outdir) {
+                console.error("Error: --outdir requires a value");
+                process.exit(1);
+            }
             i++; // Skip the next arg
-        } else if (!args[i].startsWith("-")) {
-            paths.push(args[i]);
+        } else if (!arg.startsWith("-")) {
+            paths.push(arg);
         }
     }
 
