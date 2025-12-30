@@ -6,6 +6,9 @@
         "./*": "./src/*.ts"
     },
     "module": "index.ts",
+    "bin": {
+        "wiz": "./src/cli/index.ts"
+    },
     "scripts": {
         "format": "prettier --write --experimental-cli .",
         "lint": "tsc",
