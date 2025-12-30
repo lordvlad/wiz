@@ -1,8 +1,8 @@
-import { rmdir } from "fs/promises";
+import { mkdir,rmdir } from "fs/promises";
 
 import wizPlugin, { type WizPluginOptions } from "../plugin/index.ts";
 
-const DEBUG = true;
+const DEBUG = false;
 
 export function dedent(str: string) {
     return str
@@ -14,6 +14,7 @@ export function dedent(str: string) {
 
 export async function compile(source: string, pluginOptions: WizPluginOptions = {}) {
     const src = `${import.meta.dir}/.tmp/src.ts`;
+    await mkdir(`${import.meta.dir}/.tmp`, { recursive: true });
     await Bun.write(src, dedent(source));
 
     const build = await Bun.build({
@@ -40,8 +41,6 @@ export async function compile(source: string, pluginOptions: WizPluginOptions = 
     }
 
     const code = await Bun.file(`${import.meta.dir}/.tmp/out/src.js`).text();
-
-    if (!DEBUG) rmdir(`${import.meta.dir}/.tmp`, { recursive: true });
 
     return dedent(code);
 }

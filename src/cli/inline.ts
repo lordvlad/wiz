@@ -54,17 +54,28 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
     let processed = 0;
     let errors = 0;
 
-    for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        const file = files[i];
+    results.forEach((result, index) => {
+        const file = files[index];
+        if (!file) {
+            return;
+        }
+
         if (result.status === "fulfilled") {
             processed++;
             console.log(`✓ ${relative(process.cwd(), file)}`);
-        } else {
-            errors++;
-            console.error(`✗ ${relative(process.cwd(), file)}: ${result.reason}`);
+            return;
         }
-    }
+
+        errors++;
+        const reasonValue = result.reason;
+        const reason =
+            reasonValue instanceof Error
+                ? reasonValue.message
+                : typeof reasonValue === "string"
+                  ? reasonValue
+                  : "Unknown error";
+        console.error(`✗ ${relative(process.cwd(), file)}: ${reason}`);
+    });
 
     console.log(`\nProcessed: ${processed} file(s)`);
     if (errors > 0) {

@@ -23,7 +23,7 @@ describe("validator plugin", () => {
             expect(output).toContain("errors");
 
             // Test the actual validator by importing from file
-            const module = await import(`${import.meta.dir}/.tmp/out/src.js?t=${Date.now()}`);
+            const module = await import(`${import.meta.dir}/.tmp/out/src.js`);
             const validator = module.validator;
 
             // Valid object

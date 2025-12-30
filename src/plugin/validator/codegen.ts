@@ -1,4 +1,6 @@
-import { Node, Symbol as MorphSymbol, Type, Project } from "ts-morph";
+import { Node, Symbol as MorphSymbol, Type, Project, type JSDocableNode } from "ts-morph";
+
+type JsDocCapableNode = Node & Pick<JSDocableNode, "getJsDocs">;
 
 type JSDocConstraints = {
     minimum?: number;
@@ -12,8 +14,8 @@ type JSDocConstraints = {
     format?: string;
 };
 
-function hasJsDocs(node: Node): node is Node & { getJsDocs(): ReturnType<Node["getJsDocs"]> } {
-    return typeof (node as { getJsDocs?: unknown }).getJsDocs === "function";
+function hasJsDocs(node: Node): node is JsDocCapableNode {
+    return typeof (node as Partial<JsDocCapableNode>).getJsDocs === "function";
 }
 
 function getFirstDeclaration(symbol: MorphSymbol): Node | undefined {
