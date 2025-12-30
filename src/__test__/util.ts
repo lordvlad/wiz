@@ -1,4 +1,4 @@
-import { mkdir,rmdir } from "fs/promises";
+import { mkdir } from "fs/promises";
 
 import wizPlugin, { type WizPluginOptions } from "../plugin/index.ts";
 

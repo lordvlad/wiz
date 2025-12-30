@@ -26,3 +26,13 @@ export function createOpenApi<T extends readonly any[], V extends OpenApiVersion
     // intentionally empty, will be replaced at build time
     throw pluginNotEnabled();
 }
+
+export function typedPath<
+    PathParams = never,
+    QueryParams = never,
+    RequestBody = never,
+    ResponseBody = any,
+    Handler extends (...args: any[]) => any = (...args: any[]) => any,
+>(handler: Handler): Handler {
+    return handler;
+}

@@ -435,4 +435,146 @@ describe("createOpenApi function", () => {
         expect(actual).toInclude("User:");
         expect(actual).toInclude("Post:");
     });
+
+    it("must collect typed paths defined via typedPath helper", async () => {
+        const code = `
+            import { createOpenApi, typedPath } from "../../openApiSchema/index";
+
+            type User = {
+                id: number;
+                name: string;
+                email: string;
+            };
+
+            type CreateUserBody = {
+                name: string;
+                email: string;
+            };
+
+            const routes = {
+                "/users": {
+                    get: typedPath<never, { search?: string }, never, User[]>(() => []),
+                    post: typedPath<never, never, CreateUserBody, User>(() => ({ id: 1, name: "", email: "" }))
+                },
+                "/users/{id}": {
+                    get: typedPath<{ id: string }>(() => ({ id: "1" }))
+                }
+            };
+
+            export const spec = createOpenApi<[User, CreateUserBody], "3.0">({
+                info: {
+                    title: "Routes API",
+                    version: "1.0.0"
+                }
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/users"');
+        expect(actual).toInclude('"/users/{id}"');
+        expect(actual).toInclude("parameters:");
+        expect(actual).toInclude('name: "id"');
+        expect(actual).toInclude('in: "path"');
+        expect(actual).toInclude('name: "search"');
+        expect(actual).toInclude('in: "query"');
+        expect(actual).toInclude("requestBody:");
+        expect(actual).toInclude("responses:");
+        expect(actual).toInclude('$ref: "#/components/schemas/User"');
+    });
+
+    it("must include detailed parameter metadata from typedPath definitions", async () => {
+        const code = `
+            import { createOpenApi, typedPath } from "../../openApiSchema/index";
+            import type { NumFormat } from "../../tags";
+
+            type User = {
+                id: number;
+                name: string;
+            };
+
+            type UserPathParams = {
+                /**
+                 * Unique user identifier
+                 * @minimum 1
+                 * @maximum 999999
+                 * @example 42
+                 */
+                userId: NumFormat<"int64">;
+            };
+
+            type UserQueryParams = {
+                /**
+                 * Filter by account state
+                 * @example "active"
+                 * @default "active"
+                 */
+                status?: "active" | "inactive";
+                /**
+                 * Free-text search term
+                 * @minLength 3
+                 * @maxLength 50
+                 * @example "Ada"
+                 */
+                search?: string;
+                /**
+                 * Number of results to return
+                 * @minimum 5
+                 * @maximum 100
+                 * @multipleOf 5
+                 * @default 25
+                 */
+                pageSize: number;
+            };
+
+            const routes = {
+                "/users/{userId}": {
+                    get: typedPath<UserPathParams, UserQueryParams>(() => null)
+                }
+            };
+
+            export const spec = createOpenApi<[User], "3.0">({
+                info: {
+                    title: "Param API",
+                    version: "1.0.0"
+                }
+            });
+        `;
+
+        const actual = await compile(code);
+
+        // Path parameter metadata
+        expect(actual).toInclude('name: "userId"');
+        expect(actual).toInclude('in: "path"');
+        expect(actual).toInclude("required: true");
+        expect(actual).toInclude('description: "Unique user identifier"');
+        expect(actual).toInclude('format: "int64"');
+        expect(actual).toInclude("minimum: 1");
+        expect(actual).toInclude("maximum: 999999");
+        expect(actual).toInclude("example: 42");
+
+        // Query parameter metadata (status)
+        expect(actual).toInclude('name: "status"');
+        expect(actual).toInclude('in: "query"');
+        expect(actual).toInclude("required: false");
+        expect(actual).toInclude("enum: [");
+        expect(actual).toInclude('"active"');
+        expect(actual).toInclude('"inactive"');
+        expect(actual).toInclude('default: "active"');
+        expect(actual).toInclude('example: "active"');
+
+        // Query parameter metadata (search)
+        expect(actual).toInclude('name: "search"');
+        expect(actual).toInclude("minLength: 3");
+        expect(actual).toInclude("maxLength: 50");
+        expect(actual).toInclude('example: "Ada"');
+
+        // Query parameter metadata (pageSize)
+        expect(actual).toInclude('name: "pageSize"');
+        expect(actual).toInclude("minimum: 5");
+        expect(actual).toInclude("maximum: 100");
+        expect(actual).toInclude("multipleOf: 5");
+        expect(actual).toInclude("default: 25");
+        expect(actual).toInclude("required: true");
+    });
 });

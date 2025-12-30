@@ -1,21 +1,24 @@
 import {
-    Type,
-    SyntaxKind,
     Node,
-    type ArrayLiteralExpression,
+    SyntaxKind,
+    Type,
     type ArrowFunction,
     type CallExpression,
     type ObjectLiteralExpression,
+    type PropertyAssignment,
     type SourceFile,
+    type TypeNode,
 } from "ts-morph";
 
 import type { WizPluginContext } from "..";
-import { createOpenApiSchema, createOpenApi } from "../../openApiSchema";
-import { createOpenApiSchema as codegen } from "./codegen";
+import { createOpenApi, createOpenApiSchema, typedPath } from "../../openApiSchema";
+import { createOpenApiSchema as codegen, extractJSDocMetadata, mergeJSDocIntoSchema } from "./codegen";
 
 // OpenAPI version constants
 const OPENAPI_VERSION_3_0 = "3.0.3";
 const OPENAPI_VERSION_3_1 = "3.1.0";
+
+const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "trace"]);
 
 // Type for individual schema in components.schemas
 type SchemaValue = {
@@ -183,17 +186,131 @@ function extractPathOperations(arrayLiteral: Node): ParsedPathOperation[] {
         const pathValue = extractPathString(pathArg);
         const method = expression.getName();
         const typeArgs = element.getTypeArguments();
-        const typeParameters =
-            typeArgs.length >= 4
-                ? {
-                      pathParams: typeArgs[0]?.getType(),
-                      queryParams: typeArgs[1]?.getType(),
-                      requestBody: typeArgs[2]?.getType(),
-                      responseBody: typeArgs[3]?.getType(),
-                  }
-                : undefined;
+        const typeParameters = buildTypeParametersFromTypeArgs(typeArgs);
 
         operations.push({ method, path: pathValue, typeParameters });
+    }
+
+    return operations;
+}
+
+function buildTypeParametersFromTypeArgs(typeArgs: TypeNode[]): ParsedPathOperation["typeParameters"] | undefined {
+    if (typeArgs.length === 0) {
+        return undefined;
+    }
+
+    const resolvedTypes = typeArgs.map((arg) => arg.getType());
+    const [pathParams, queryParams, requestBody, responseBody] = resolvedTypes;
+
+    if (!pathParams && !queryParams && !requestBody && !responseBody) {
+        return undefined;
+    }
+
+    return {
+        pathParams,
+        queryParams,
+        requestBody,
+        responseBody,
+    };
+}
+
+function findParentPropertyAssignment(node: Node): PropertyAssignment | undefined {
+    let current: Node | undefined = node.getParent();
+    let child: Node = node;
+
+    while (current) {
+        if (Node.isPropertyAssignment(current) && current.getInitializer() === child) {
+            return current;
+        }
+
+        child = current;
+        current = current.getParent();
+    }
+
+    return undefined;
+}
+
+function getPropertyAssignmentName(prop: PropertyAssignment): string | undefined {
+    const nameNode = prop.getNameNode();
+
+    if (Node.isIdentifier(nameNode)) {
+        return nameNode.getText();
+    }
+
+    if (Node.isStringLiteral(nameNode) || Node.isNoSubstitutionTemplateLiteral(nameNode)) {
+        return nameNode.getLiteralText();
+    }
+
+    if (Node.isComputedPropertyName(nameNode)) {
+        const expr = nameNode.getExpression();
+        if (Node.isStringLiteral(expr) || Node.isNoSubstitutionTemplateLiteral(expr)) {
+            return expr.getLiteralText();
+        }
+    }
+
+    return undefined;
+}
+
+function getPathFromPropertyAssignment(prop: PropertyAssignment): string | undefined {
+    const nameNode = prop.getNameNode();
+
+    if (Node.isStringLiteral(nameNode) || Node.isNoSubstitutionTemplateLiteral(nameNode)) {
+        return nameNode.getLiteralText();
+    }
+
+    if (Node.isIdentifier(nameNode)) {
+        return nameNode.getText();
+    }
+
+    if (Node.isComputedPropertyName(nameNode)) {
+        const expr = nameNode.getExpression();
+        if (Node.isStringLiteral(expr) || Node.isNoSubstitutionTemplateLiteral(expr)) {
+            return expr.getLiteralText();
+        }
+    }
+
+    return undefined;
+}
+
+function extractTypedPathOperations(sourceFile: SourceFile): ParsedPathOperation[] {
+    const operations: ParsedPathOperation[] = [];
+    const calls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter((call) => call.getExpression().getText() === typedPath.name);
+
+    for (const call of calls) {
+        const methodAssignment = findParentPropertyAssignment(call);
+        if (!methodAssignment) {
+            continue;
+        }
+
+        const methodName = getPropertyAssignmentName(methodAssignment)?.toLowerCase();
+        if (!methodName || !HTTP_METHODS.has(methodName)) {
+            continue;
+        }
+
+        const methodObject = methodAssignment.getParentIfKind(SyntaxKind.ObjectLiteralExpression);
+        if (!methodObject) {
+            continue;
+        }
+
+        const pathAssignment = findParentPropertyAssignment(methodObject);
+        if (!pathAssignment) {
+            continue;
+        }
+
+        const pathValue = getPathFromPropertyAssignment(pathAssignment);
+        if (!pathValue) {
+            continue;
+        }
+
+        const typeParameters = buildTypeParametersFromTypeArgs(call.getTypeArguments());
+
+        operations.push({
+            method: methodName,
+            path: pathValue,
+            typeParameters,
+        });
     }
 
     return operations;
@@ -325,6 +442,7 @@ function buildParameterSchema(
     openApiVersion: "3.0" | "3.1",
     opt: WizPluginContext["opt"],
     availableSchemas: Set<string>,
+    declaration?: Node,
 ): unknown {
     if (shouldUseRef(type, availableSchemas)) {
         const schemaName = getSchemaName(type);
@@ -332,7 +450,7 @@ function buildParameterSchema(
     }
 
     // Generate inline schema
-    return codegen(type, {
+    const schema = codegen(type, {
         typeNode: undefined,
         settings: {
             coerceSymbolsToStrings: Boolean(opt?.coerceSymbolsToStrings),
@@ -344,6 +462,15 @@ function buildParameterSchema(
         processingStack: new Set<string>(),
         typeAliasDeclaration: undefined,
     });
+
+    if (declaration && typeof schema === "object" && schema !== null) {
+        const metadata = extractJSDocMetadata(declaration);
+        if (Object.keys(metadata).length > 0) {
+            return mergeJSDocIntoSchema(schema as Record<string, unknown>, metadata);
+        }
+    }
+
+    return schema;
 }
 
 // Helper: Extract parameters from path and query types
@@ -361,8 +488,10 @@ function extractParameters(
     if (pathParamsType && !isNeverType(pathParamsType)) {
         const properties = pathParamsType.getProperties();
         for (const prop of properties) {
-            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
-            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas);
+            const declaration = prop.getDeclarations()[0];
+            if (!declaration) continue;
+            const propType = prop.getTypeAtLocation(declaration);
+            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas, declaration);
 
             parameters.push({
                 name: prop.getName(),
@@ -377,8 +506,10 @@ function extractParameters(
     if (queryParamsType && !isNeverType(queryParamsType)) {
         const properties = queryParamsType.getProperties();
         for (const prop of properties) {
-            const propType = prop.getTypeAtLocation(prop.getDeclarations()[0]!);
-            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas);
+            const declaration = prop.getDeclarations()[0];
+            if (!declaration) continue;
+            const propType = prop.getTypeAtLocation(declaration);
+            const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas, declaration);
             const isOptional = prop.isOptional?.() || false;
 
             parameters.push({
@@ -592,6 +723,8 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
 
     if (calls.length === 0) return;
 
+    const typedPathOperations = extractTypedPathOperations(sourceFile);
+
     for (const call of calls) {
         log(`Transforming createOpenApi call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
 
@@ -624,8 +757,11 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         const typeNames = collectTypeNames(tupleElements);
         const schemas = generateSchemas(tupleElements, typeNames, openApiVersion, opt);
 
+        // Merge path operations collected from config and typedPath calls
+        const mergedPathOperations = [...pathOperations, ...typedPathOperations];
+
         // Build the full OpenAPI spec
-        const openApiSpec = buildOpenApiSpec(openApiVersion, configObj, schemas, pathOperations, opt);
+        const openApiSpec = buildOpenApiSpec(openApiVersion, configObj, schemas, mergedPathOperations, opt);
 
         call.replaceWithText(JSON.stringify(openApiSpec, null, 2));
     }

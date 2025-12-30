@@ -466,7 +466,7 @@ function getFormatLiteral<T extends string>(type: Type): T | undefined {
     return undefined;
 }
 
-function extractJSDocMetadata(node?: Node): JSDocMetadata {
+export function extractJSDocMetadata(node?: Node): JSDocMetadata {
     const metadata: JSDocMetadata = {};
 
     if (!node) return metadata;
@@ -627,7 +627,7 @@ function parseJSDocValue(value: string): any {
     return value;
 }
 
-function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetadata): Record<string, any> {
+export function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDocMetadata): Record<string, any> {
     const result = { ...schema };
 
     if (metadata.description !== undefined) {
