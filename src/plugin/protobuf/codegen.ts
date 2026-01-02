@@ -149,7 +149,7 @@ export function generateProtobufMessage(
         if (mapInfo.isMap) {
             // Map field
             field.map = {
-                keyType: mapToProtobufType(type),
+                keyType: "string", // Protobuf maps only support string or int keys
                 valueType: mapInfo.valueType || "string",
             };
             fieldType = `map<${field.map.keyType}, ${field.map.valueType}>`;

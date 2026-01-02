@@ -21,7 +21,7 @@ bun install
 
 ## CLI Usage
 
-Wiz provides a command-line interface for generating OpenAPI specifications and inlining validators.
+Wiz provides a command-line interface for generating OpenAPI specifications, Protobuf specifications, and inlining validators.
 
 ### OpenAPI Generation
 
@@ -46,6 +46,31 @@ wiz openapi "src/**/*.ts"
 1. First, wiz looks for `createOpenApi` calls in your files and executes them
 2. If no `createOpenApi` calls are found, it generates schemas from all exported types
 3. Metadata from the nearest `package.json` is used to populate the `info` section
+
+### Protobuf Generation
+
+Generate Protocol Buffer specifications from TypeScript files:
+
+```bash
+# Generate from directory (.proto output by default)
+wiz protobuf src/
+
+# Generate to output directory
+wiz protobuf src/types.ts --outdir ./proto
+
+# Generate with JSON output
+wiz protobuf src/types.ts --format json
+
+# Generate from multiple sources
+wiz protobuf src/models/ src/api.ts
+```
+
+#### How it works:
+
+1. First, wiz looks for `createProtobufSpec` or `createProtobufModel` calls in your files and executes them
+2. If not found, it generates protobuf messages from all exported types
+3. Package name is extracted from the nearest `package.json`
+4. Output can be in `.proto` file format or JSON
 
 ### Validator Inlining
 
@@ -1633,6 +1658,251 @@ Object maps with `additionalProperties` are ideal for:
 - **Translation Maps**: Language codes mapping to translation strings
 - **Resource Collections**: IDs mapping to resource objects
 - **Settings/Preferences**: User-specific settings with dynamic keys
+
+## Protobuf Schema Generation
+
+Wiz can automatically generate Protocol Buffer (protobuf) schemas from TypeScript types using the Bun plugin system. This enables you to define your data models in TypeScript and automatically generate `.proto` files for use with gRPC and other protobuf-based systems.
+
+### Basic Usage
+
+Generate protobuf message definitions from TypeScript types:
+
+```typescript
+import { createProtobufModel } from "wiz/protobuf";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type Post = {
+    id: number;
+    title: string;
+    content: string;
+    authorId: number;
+};
+
+// Generate protobuf model
+export const model = createProtobufModel<[User, Post]>();
+```
+
+This generates a protobuf model structure:
+
+```json
+{
+    "syntax": "proto3",
+    "package": "api",
+    "messages": {
+        "User": {
+            "name": "User",
+            "fields": [
+                { "name": "id", "type": "int32", "number": 1 },
+                { "name": "name", "type": "string", "number": 2 },
+                { "name": "email", "type": "string", "number": 3 }
+            ]
+        },
+        "Post": {
+            "name": "Post",
+            "fields": [
+                { "name": "id", "type": "int32", "number": 1 },
+                { "name": "title", "type": "string", "number": 2 },
+                { "name": "content", "type": "string", "number": 3 },
+                { "name": "authorId", "type": "int32", "number": 4 }
+            ]
+        }
+    }
+}
+```
+
+### CLI Usage
+
+Generate `.proto` files from TypeScript:
+
+```bash
+# Generate protobuf to console (default .proto format)
+wiz protobuf src/
+
+# Generate protobuf to file
+wiz protobuf src/types.ts --outdir ./proto
+
+# Generate as JSON
+wiz protobuf src/types.ts --format json
+```
+
+#### How it works:
+
+1. Wiz looks for `createProtobufModel` or `createProtobufSpec` calls in your files
+2. If not found, it generates protobuf from all exported types
+3. Package name is extracted from the nearest `package.json`
+4. Output can be in `.proto` file format or JSON
+
+### Supported Type Mappings
+
+Wiz automatically maps TypeScript types to protobuf types:
+
+| TypeScript Type | Protobuf Type |
+| --------------- | ------------- |
+| `string`        | `string`      |
+| `number`        | `int32`       |
+| `boolean`       | `bool`        |
+| `T[]`           | `repeated T`  |
+| `T \| undefined`| `optional T`  |
+| `Date`          | `int64`       |
+| `Record<K, V>`  | `map<K, V>`   |
+
+### Optional Fields
+
+TypeScript optional properties are mapped to protobuf optional fields:
+
+```typescript
+type User = {
+    id: number;
+    name: string;
+    email?: string; // optional field
+};
+```
+
+Generates:
+
+```protobuf
+message User {
+  int32 id = 1;
+  string name = 2;
+  optional string email = 3;
+}
+```
+
+### Repeated Fields (Arrays)
+
+TypeScript arrays are mapped to protobuf repeated fields:
+
+```typescript
+type Post = {
+    id: number;
+    tags: string[]; // repeated field
+};
+```
+
+Generates:
+
+```protobuf
+message Post {
+  int32 id = 1;
+  repeated string tags = 2;
+}
+```
+
+### Nested Messages
+
+Nested types are automatically handled:
+
+```typescript
+type Address = {
+    street: string;
+    city: string;
+};
+
+type User = {
+    id: number;
+    name: string;
+    address: Address;
+};
+
+export const model = createProtobufModel<[User, Address]>();
+```
+
+Generates:
+
+```protobuf
+message Address {
+  string street = 1;
+  string city = 2;
+}
+
+message User {
+  int32 id = 1;
+  string name = 2;
+  Address address = 3;
+}
+```
+
+### RPC Services
+
+Define gRPC services using the `createProtobufSpec` and `rpcCall` functions:
+
+```typescript
+import { createProtobufSpec, rpcCall } from "wiz/protobuf";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+type GetUserRequest = {
+    id: number;
+};
+
+type CreateUserRequest = {
+    name: string;
+    email: string;
+};
+
+// Define RPC methods
+const service = {
+    getUser: rpcCall<GetUserRequest, User>(() => null),
+    createUser: rpcCall<CreateUserRequest, User>(() => null),
+};
+
+// Generate protobuf spec with service
+export const spec = createProtobufSpec<[User, GetUserRequest, CreateUserRequest]>({
+    package: "user.api",
+    serviceName: "UserService",
+});
+```
+
+This generates a complete protobuf specification with service definitions:
+
+```protobuf
+syntax = "proto3";
+
+package user.api;
+
+message User {
+  int32 id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message GetUserRequest {
+  int32 id = 1;
+}
+
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+service UserService {
+  rpc getUser(GetUserRequest) returns (User);
+  rpc createUser(CreateUserRequest) returns (User);
+}
+```
+
+### Configuration Options
+
+The `createProtobufSpec` function accepts an optional configuration object:
+
+- **`package`**: Package name for the protobuf file (defaults to package name from package.json or "api")
+- **`serviceName`**: Name of the gRPC service (required for generating service definitions)
+
+```typescript
+export const spec = createProtobufSpec<[User]>({
+    package: "myapp.v1",
+    serviceName: "MyService",
+});
+```
 
 ## Testing
 
