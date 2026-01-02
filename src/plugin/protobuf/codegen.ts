@@ -59,7 +59,7 @@ function isOptionalType(type: Type): boolean {
     }
 
     if (type.isUnion()) {
-        return type.getUnionTypes().some((t) => t.isUndefined());
+        return type.getUnionTypes().some((t: Type) => t.isUndefined());
     }
 
     return false;
@@ -68,7 +68,7 @@ function isOptionalType(type: Type): boolean {
 // Get non-undefined type from a potentially optional type
 function getNonUndefinedType(type: Type): Type {
     if (type.isUnion()) {
-        const nonUndefinedTypes = type.getUnionTypes().filter((t) => !t.isUndefined());
+        const nonUndefinedTypes = type.getUnionTypes().filter((t: Type) => !t.isUndefined());
         if (nonUndefinedTypes.length === 1) {
             return nonUndefinedTypes[0]!;
         }

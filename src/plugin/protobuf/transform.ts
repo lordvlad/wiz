@@ -92,7 +92,7 @@ function extractRpcMethods(sourceFile: SourceFile): ParsedRpcMethod[] {
     const methods: ParsedRpcMethod[] = [];
     const calls = sourceFile
         .getDescendantsOfKind(SyntaxKind.CallExpression)
-        .filter((call) => call.getExpression().getText() === rpcCall.name);
+        .filter((call: CallExpression) => call.getExpression().getText() === rpcCall.name);
 
     for (const call of calls) {
         // Find the property assignment this call is part of
@@ -140,7 +140,8 @@ export function transformProtobufModel(sourceFile: SourceFile, { log, path, opt 
     const calls = sourceFile
         .getDescendantsOfKind(SyntaxKind.CallExpression)
         .filter(
-            (call) => call.getExpression().getText() === createProtobufModel.name && call.getTypeArguments().length >= 1,
+            (call: CallExpression) =>
+                call.getExpression().getText() === createProtobufModel.name && call.getTypeArguments().length >= 1,
         );
 
     for (const call of calls) {
@@ -173,7 +174,8 @@ export function transformProtobufSpec(sourceFile: SourceFile, { log, path, opt }
     const calls = sourceFile
         .getDescendantsOfKind(SyntaxKind.CallExpression)
         .filter(
-            (call) => call.getExpression().getText() === createProtobufSpec.name && call.getTypeArguments().length >= 1,
+            (call: CallExpression) =>
+                call.getExpression().getText() === createProtobufSpec.name && call.getTypeArguments().length >= 1,
         );
 
     if (calls.length === 0) return;
