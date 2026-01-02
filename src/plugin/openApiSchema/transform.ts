@@ -12,7 +12,13 @@ import {
 
 import type { WizPluginContext } from "..";
 import { createOpenApi, createOpenApiSchema, typedPath } from "../../openApiSchema";
-import { createOpenApiSchema as codegen, extractJSDocMetadata, mergeJSDocIntoSchema } from "./codegen";
+import {
+    createOpenApiSchema as codegen,
+    extractJSDocMetadata,
+    extractOpenApiFromJSDoc,
+    mergeJSDocIntoSchema,
+    type JSDocOpenApiPathMetadata,
+} from "./codegen";
 
 // OpenAPI version constants
 const OPENAPI_VERSION_3_0 = "3.0.3";
@@ -40,6 +46,7 @@ interface ParsedPathOperation {
         requestBody?: Type;
         responseBody?: Type;
     };
+    jsDocMetadata?: JSDocOpenApiPathMetadata;
 }
 
 interface ConfigParseResult {
@@ -311,6 +318,57 @@ function extractTypedPathOperations(sourceFile: SourceFile): ParsedPathOperation
             path: pathValue,
             typeParameters,
         });
+    }
+
+    return operations;
+}
+
+// Helper: Extract path operations from JSDoc comments on functions
+function extractJSDocPathOperations(
+    sourceFile: SourceFile,
+    log: (msg: string) => void,
+    path: string,
+): ParsedPathOperation[] {
+    const operations: ParsedPathOperation[] = [];
+
+    // Find all function declarations and function expressions
+    const functionDeclarations = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
+    const functionExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionExpression);
+
+    // For arrow functions, check variable statements since JSDoc is attached there
+    const variableStatements = sourceFile.getDescendantsOfKind(SyntaxKind.VariableStatement);
+
+    const allFunctions = [...functionDeclarations, ...functionExpressions, ...variableStatements];
+
+    for (const func of allFunctions) {
+        const metadata = extractOpenApiFromJSDoc(func);
+
+        if (!metadata.hasOpenApiTag) {
+            continue;
+        }
+
+        // @path is required
+        if (!metadata.path) {
+            log(`Warning: Function with @openApi tag at ${path}:${func.getStartLineNumber()} is missing @path tag`);
+            continue;
+        }
+
+        // Default method to GET if not specified
+        const method = metadata.method || "get";
+
+        // Validate method
+        if (!HTTP_METHODS.has(method)) {
+            log(`Warning: Invalid HTTP method '${method}' at ${path}:${func.getStartLineNumber()}. Using GET instead.`);
+        }
+
+        // Create operation with JSDoc metadata
+        const operation: ParsedPathOperation = {
+            method: HTTP_METHODS.has(method) ? method : "get",
+            path: metadata.path,
+            jsDocMetadata: metadata,
+        };
+
+        operations.push(operation);
     }
 
     return operations;
@@ -595,8 +653,132 @@ function buildOpenApiPaths(
 
         const operationObj: Record<string, unknown> = {};
 
-        // Add parameters if type parameters are provided
-        if (operation.typeParameters) {
+        // Check if this operation has JSDoc metadata
+        if (operation.jsDocMetadata) {
+            const metadata = operation.jsDocMetadata;
+
+            // Add summary and description
+            if (metadata.summary) {
+                operationObj.summary = metadata.summary;
+            }
+            if (metadata.description) {
+                operationObj.description = metadata.description;
+            }
+
+            // Add operationId
+            if (metadata.operationId) {
+                operationObj.operationId = metadata.operationId;
+            }
+
+            // Add tags
+            if (metadata.tags && metadata.tags.length > 0) {
+                operationObj.tags = metadata.tags;
+            }
+
+            // Add deprecated flag
+            if (metadata.deprecated) {
+                operationObj.deprecated = true;
+            }
+
+            // Build parameters from JSDoc
+            const parameters: unknown[] = [];
+
+            // Add path parameters
+            if (metadata.pathParams) {
+                for (const [name, param] of Object.entries(metadata.pathParams)) {
+                    parameters.push({
+                        name,
+                        in: "path",
+                        required: true,
+                        schema: buildSchemaFromType(param.type),
+                        ...(param.description ? { description: param.description } : {}),
+                    });
+                }
+            }
+
+            // Add query parameters
+            if (metadata.queryParams) {
+                for (const [name, param] of Object.entries(metadata.queryParams)) {
+                    parameters.push({
+                        name,
+                        in: "query",
+                        required: param.required !== false,
+                        schema: buildSchemaFromType(param.type),
+                        ...(param.description ? { description: param.description } : {}),
+                    });
+                }
+            }
+
+            // Add header parameters
+            if (metadata.headers) {
+                for (const [name, param] of Object.entries(metadata.headers)) {
+                    parameters.push({
+                        name,
+                        in: "header",
+                        required: param.required !== false,
+                        schema: buildSchemaFromType(param.type),
+                        ...(param.description ? { description: param.description } : {}),
+                    });
+                }
+            }
+
+            if (parameters.length > 0) {
+                operationObj.parameters = parameters;
+            }
+
+            // Add request body
+            if (metadata.requestBody) {
+                const contentType = metadata.requestBody.contentType || "application/json";
+                const schema = availableSchemas.has(metadata.requestBody.type)
+                    ? { $ref: `#/components/schemas/${metadata.requestBody.type}` }
+                    : buildSchemaFromType(metadata.requestBody.type);
+
+                operationObj.requestBody = {
+                    required: true,
+                    content: {
+                        [contentType]: {
+                            schema,
+                        },
+                    },
+                    ...(metadata.requestBody.description ? { description: metadata.requestBody.description } : {}),
+                };
+            }
+
+            // Add responses
+            if (metadata.responses && metadata.responses.length > 0) {
+                const responses: Record<string, unknown> = {};
+                for (const response of metadata.responses) {
+                    const responseObj: Record<string, unknown> = {
+                        description: response.description || "Response",
+                    };
+
+                    if (response.type) {
+                        const contentType = response.contentType || "application/json";
+                        const schema = availableSchemas.has(response.type)
+                            ? { $ref: `#/components/schemas/${response.type}` }
+                            : buildSchemaFromType(response.type);
+
+                        responseObj.content = {
+                            [contentType]: {
+                                schema,
+                            },
+                        };
+                    }
+
+                    responses[String(response.status)] = responseObj;
+                }
+                operationObj.responses = responses;
+            } else {
+                // Default response
+                operationObj.responses = {
+                    "200": {
+                        description: "Successful response",
+                    },
+                };
+            }
+        }
+        // Handle type parameters (existing logic)
+        else if (operation.typeParameters) {
             const { pathParams, queryParams, requestBody, responseBody } = operation.typeParameters;
 
             const parameters = extractParameters(
@@ -631,6 +813,32 @@ function buildOpenApiPaths(
     }
 
     return paths;
+}
+
+// Helper: Build a simple schema object from a type string (for JSDoc-based parameters)
+function buildSchemaFromType(typeStr: string): Record<string, unknown> {
+    const normalized = typeStr.trim().toLowerCase();
+
+    switch (normalized) {
+        case "string":
+            return { type: "string" };
+        case "number":
+            return { type: "number" };
+        case "integer":
+        case "int":
+            return { type: "integer" };
+        case "boolean":
+        case "bool":
+            return { type: "boolean" };
+        case "array":
+            return { type: "array", items: {} };
+        case "object":
+            return { type: "object" };
+        default:
+            // If it's not a primitive, treat it as a custom type
+            // Return as-is, might be a reference to a type
+            return { type: "object" };
+    }
 }
 
 // Helper: Build OpenAPI spec from config and schemas
@@ -724,6 +932,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
     if (calls.length === 0) return;
 
     const typedPathOperations = extractTypedPathOperations(sourceFile);
+    const jsDocPathOperations = extractJSDocPathOperations(sourceFile, log, path);
 
     for (const call of calls) {
         log(`Transforming createOpenApi call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
@@ -757,8 +966,8 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
         const typeNames = collectTypeNames(tupleElements);
         const schemas = generateSchemas(tupleElements, typeNames, openApiVersion, opt);
 
-        // Merge path operations collected from config and typedPath calls
-        const mergedPathOperations = [...pathOperations, ...typedPathOperations];
+        // Merge path operations collected from config, typedPath calls, and JSDoc comments
+        const mergedPathOperations = [...pathOperations, ...typedPathOperations, ...jsDocPathOperations];
 
         // Build the full OpenAPI spec
         const openApiSpec = buildOpenApiSpec(openApiVersion, configObj, schemas, mergedPathOperations, opt);

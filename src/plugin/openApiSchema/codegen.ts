@@ -915,3 +915,247 @@ function detectDiscriminator(
 
     return undefined;
 }
+
+// Types for JSDoc-based OpenAPI path declarations
+export type JSDocOpenApiPathMetadata = {
+    hasOpenApiTag: boolean;
+    method?: string;
+    path?: string;
+    operationId?: string;
+    summary?: string;
+    description?: string;
+    tags?: string[];
+    pathParams?: Record<string, { type: string; required?: boolean; description?: string }>;
+    queryParams?: Record<string, { type: string; required?: boolean; description?: string }>;
+    headers?: Record<string, { type: string; required?: boolean; description?: string }>;
+    requestBody?: { type: string; contentType?: string; description?: string };
+    responses?: Array<{
+        status: number;
+        contentType?: string;
+        type?: string;
+        description?: string;
+    }>;
+    deprecated?: boolean;
+};
+
+/**
+ * Extracts OpenAPI path metadata from JSDoc comments on functions
+ * Looks for @openApi tag and related tags like @method, @path, @response, etc.
+ */
+export function extractOpenApiFromJSDoc(node?: Node): JSDocOpenApiPathMetadata {
+    const metadata: JSDocOpenApiPathMetadata = {
+        hasOpenApiTag: false,
+    };
+
+    if (!node) return metadata;
+
+    // Check if node supports JSDoc
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== "function") {
+        return metadata;
+    }
+
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return metadata;
+
+    for (const jsDoc of jsDocs) {
+        // Get summary from first line of description
+        const fullDescription = jsDoc.getDescription?.();
+        if (fullDescription) {
+            const lines = fullDescription.trim().split("\n");
+            if (lines.length > 0) {
+                metadata.summary = lines[0]?.trim();
+                if (lines.length > 1) {
+                    // Rest of the lines form the longer description
+                    metadata.description = lines.slice(1).join("\n").trim();
+                }
+            }
+        }
+
+        // Process tags
+        const tags = jsDoc.getTags?.() || [];
+        for (const tag of tags) {
+            const tagName = tag.getTagName();
+            const comment = tag.getComment?.();
+            const commentText = typeof comment === "string" ? comment.trim() : "";
+
+            switch (tagName) {
+                case "openApi":
+                    metadata.hasOpenApiTag = true;
+                    break;
+
+                case "method":
+                    if (commentText) {
+                        metadata.method = commentText.toLowerCase();
+                    }
+                    break;
+
+                case "path":
+                    if (commentText) {
+                        // Extract path string and optional path parameters
+                        // Format: @path /users/:id or @path /users/:id {id: number}
+                        const pathMatch = commentText.match(/^(\S+)(?:\s+\{([^}]+)\})?/);
+                        if (pathMatch) {
+                            metadata.path = pathMatch[1];
+                            if (pathMatch[2]) {
+                                // Parse path parameters like {id: number, name: string}
+                                metadata.pathParams = parseParamBlock(pathMatch[2]);
+                            }
+                        }
+                    }
+                    break;
+
+                case "operationId":
+                    if (commentText) {
+                        metadata.operationId = commentText;
+                    }
+                    break;
+
+                case "tag":
+                    if (commentText) {
+                        if (!metadata.tags) metadata.tags = [];
+                        metadata.tags.push(commentText);
+                    }
+                    break;
+
+                case "query":
+                    if (commentText) {
+                        // Format: @query {search: string, limit?: number}
+                        metadata.queryParams = parseParamBlock(commentText);
+                    }
+                    break;
+
+                case "headers":
+                    if (commentText) {
+                        // Format: @headers {Authorization: string, X-API-Key?: string}
+                        metadata.headers = parseParamBlock(commentText);
+                    }
+                    break;
+
+                case "body":
+                    if (commentText) {
+                        // Format: @body User or @body application/json User
+                        const bodyMatch = commentText.match(/^(?:(\S+\/\S+)\s+)?(\S+)(?:\s+-\s+(.+))?/);
+                        if (bodyMatch) {
+                            metadata.requestBody = {
+                                contentType: bodyMatch[1] || "application/json",
+                                type: bodyMatch[2]!,
+                                description: bodyMatch[3],
+                            };
+                        }
+                    }
+                    break;
+
+                case "response":
+                    if (commentText) {
+                        // Format: @response 200 application/json User - description
+                        // Or: @response 404 - description (no type)
+                        // Or: @response 404
+                        // Or: @response 200 User - description
+
+                        // First, try to match: status - description (no type, no content-type)
+                        let responseMatch = commentText.match(/^(\d{3})\s+-\s+(.+)$/);
+                        if (responseMatch) {
+                            if (!metadata.responses) metadata.responses = [];
+                            const status = parseInt(responseMatch[1]!, 10);
+                            metadata.responses.push({
+                                status,
+                                description: responseMatch[2],
+                            });
+                        } else {
+                            // Try full pattern with optional content-type and type
+                            responseMatch = commentText.match(
+                                /^(\d{3})(?:\s+(?:(\S+\/\S+)\s+)?(\S+)(?:\s+-\s+(.+))?)?$/,
+                            );
+                            if (responseMatch) {
+                                if (!metadata.responses) metadata.responses = [];
+                                const status = parseInt(responseMatch[1]!, 10);
+                                const contentType = responseMatch[2];
+                                const type = responseMatch[3];
+                                const description = responseMatch[4];
+
+                                metadata.responses.push({
+                                    status,
+                                    contentType: contentType || (type ? "application/json" : undefined),
+                                    type,
+                                    description,
+                                });
+                            }
+                        }
+                    }
+                    break;
+
+                case "deprecated":
+                    metadata.deprecated = true;
+                    break;
+            }
+        }
+    }
+
+    return metadata;
+}
+
+/**
+ * Parses a parameter block like "{id: number, name?: string}" into a structured format
+ */
+function parseParamBlock(text: string): Record<string, { type: string; required?: boolean; description?: string }> {
+    const params: Record<string, { type: string; required?: boolean; description?: string }> = {};
+
+    // Remove surrounding braces if present
+    const cleaned = text.replace(/^\{|\}$/g, "").trim();
+    if (!cleaned) return params;
+
+    // Split by comma, but be careful with nested types
+    const paramParts = splitByComma(cleaned);
+
+    for (const part of paramParts) {
+        // Format: "name: type" or "name?: type" or "name: type - description"
+        // Allow hyphens in parameter names for headers like X-API-Key
+        const match = part.trim().match(/^([a-zA-Z_$][a-zA-Z0-9_$-]*)\??\s*:\s*([^-]+)(?:\s+-\s+(.+))?/);
+        if (match) {
+            const paramName = match[1]!;
+            const isOptional = part.includes("?:");
+            const paramType = match[2]!.trim();
+            const description = match[3]?.trim();
+
+            params[paramName] = {
+                type: paramType,
+                required: !isOptional,
+                description,
+            };
+        }
+    }
+
+    return params;
+}
+
+/**
+ * Splits a string by comma, but respects nested structures
+ */
+function splitByComma(text: string): string[] {
+    const parts: string[] = [];
+    let current = "";
+    let depth = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i]!;
+        if (char === "{" || char === "<" || char === "[") {
+            depth++;
+            current += char;
+        } else if (char === "}" || char === ">" || char === "]") {
+            depth--;
+            current += char;
+        } else if (char === "," && depth === 0) {
+            parts.push(current);
+            current = "";
+        } else {
+            current += char;
+        }
+    }
+
+    if (current.trim()) {
+        parts.push(current);
+    }
+
+    return parts;
+}

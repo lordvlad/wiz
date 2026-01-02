@@ -577,4 +577,380 @@ describe("createOpenApi function", () => {
         expect(actual).toInclude("default: 25");
         expect(actual).toInclude("required: true");
     });
+
+    it("must extract OpenAPI path from JSDoc with basic @path tag", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * Get user by ID
+             * @openApi
+             * @path /users/:id
+             */
+            function getUserById() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/users/:id":');
+        expect(actual).toInclude("get:");
+        expect(actual).toInclude('summary: "Get user by ID"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with @method tag", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * Create a new user
+             * @openApi
+             * @method POST
+             * @path /users
+             */
+            function createUser() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/users":');
+        expect(actual).toInclude("post:");
+        expect(actual).toInclude('summary: "Create a new user"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with @operationId", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users/:id
+             * @operationId getUserById
+             */
+            function getUser() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('operationId: "getUserById"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with @tag", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users
+             * @tag users
+             * @tag public
+             */
+            function getUsers() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("tags: [");
+        expect(actual).toInclude('"users"');
+        expect(actual).toInclude('"public"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with path parameters", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users/:id {id: number}
+             */
+            function getUserById() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('name: "id"');
+        expect(actual).toInclude('in: "path"');
+        expect(actual).toInclude("required: true");
+        expect(actual).toInclude('type: "number"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with query parameters", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users
+             * @query {search: string, limit?: number}
+             */
+            function searchUsers() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('name: "search"');
+        expect(actual).toInclude('in: "query"');
+        expect(actual).toInclude('name: "limit"');
+        expect(actual).toInclude("required: true");
+        expect(actual).toInclude("required: false");
+    });
+
+    it("must extract OpenAPI path from JSDoc with headers", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users
+             * @headers {Authorization: string, X-API-Key?: string}
+             */
+            function getUsers() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('name: "Authorization"');
+        expect(actual).toInclude('in: "header"');
+        expect(actual).toInclude('name: "X-API-Key"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with request body", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @method POST
+             * @path /users
+             * @body User
+             */
+            function createUser() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("requestBody:");
+        expect(actual).toInclude('$ref: "#/components/schemas/User"');
+        expect(actual).toInclude('"application/json"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with single response", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users/:id
+             * @response 200 User - Successful response
+             */
+            function getUserById() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"200":');
+        expect(actual).toInclude('description: "Successful response"');
+        expect(actual).toInclude('$ref: "#/components/schemas/User"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with multiple responses", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users/:id
+             * @response 200 User - User found
+             * @response 404 - User not found
+             */
+            function getUserById() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"200":');
+        expect(actual).toInclude('description: "User found"');
+        expect(actual).toInclude('"404":');
+        expect(actual).toInclude('description: "User not found"');
+    });
+
+    it("must extract OpenAPI path from JSDoc with @deprecated", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /old-endpoint
+             * @deprecated
+             */
+            function oldEndpoint() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/old-endpoint":');
+        expect(actual).toInclude("deprecated: true");
+    });
+
+    it("must extract OpenAPI path from JSDoc with summary and description", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * Get user by ID
+             *
+             * This endpoint retrieves a user by their unique identifier.
+             * It requires authentication.
+             *
+             * @openApi
+             * @path /users/:id
+             */
+            function getUserById() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('summary: "Get user by ID"');
+        expect(actual).toInclude("description:");
+        expect(actual).toInclude("This endpoint retrieves");
+    });
+
+    it("must handle arrow functions with @openApi", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users
+             */
+            const getUsers = () => {};
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/users":');
+        expect(actual).toInclude("get:");
+    });
+
+    it("must handle multiple functions with @openApi", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @openApi
+             * @path /users
+             */
+            function getUsers() {}
+            
+            /**
+             * @openApi
+             * @method POST
+             * @path /users
+             */
+            function createUser() {}
+            
+            export const spec = createOpenApi<[User], "3.0">();
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude('"/users":');
+        expect(actual).toInclude("get:");
+        expect(actual).toInclude("post:");
+    });
 });
