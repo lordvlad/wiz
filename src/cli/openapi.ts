@@ -94,7 +94,7 @@ async function compileAndExecuteOpenApi(filePath: string): Promise<any> {
         if (!build.success) {
             const message =
                 build.logs
-                    .map((l) => l.message)
+                    .map((l: any) => l.message)
                     .filter(Boolean)
                     .join("\n") || "Bundle failed";
             console.error("Build error:", message);
@@ -147,14 +147,14 @@ async function generateFromTypes(files: string[]): Promise<any> {
         const fileContent = sourceFile.getFullText();
 
         // Get exported type aliases
-        sourceFile.getTypeAliases().forEach((typeAlias) => {
+        sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
                 exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
             }
         });
 
         // Get exported interfaces
-        sourceFile.getInterfaces().forEach((iface) => {
+        sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
                 exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
             }

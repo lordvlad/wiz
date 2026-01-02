@@ -116,7 +116,7 @@ async function transformFile(filePath: string, outdir: string | undefined, inPla
         if (!build.success) {
             const message =
                 build.logs
-                    .map((l) => l.message)
+                    .map((l: any) => l.message)
                     .filter(Boolean)
                     .join("\n") || "Bundle failed";
             throw new Error(message);
