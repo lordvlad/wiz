@@ -358,6 +358,107 @@ This generates OpenAPI paths with the specified operations:
 }
 ```
 
+#### JSDoc-Based Path Declaration
+
+In addition to the typed path builder API, Wiz supports declaring OpenAPI paths using JSDoc comments on functions. This provides a more natural way to document your API endpoints alongside your implementation.
+
+**Basic Example:**
+
+```typescript
+import { createOpenApi } from "wiz/openApiSchema";
+
+type User = {
+    id: number;
+    name: string;
+    email: string;
+};
+
+/**
+ * Get user by ID
+ *
+ * Retrieves detailed information about a specific user.
+ *
+ * @openApi
+ * @path /users/:id {id: number}
+ * @tag users
+ * @response 200 User - User found
+ * @response 404 - User not found
+ */
+function getUserById() {
+    // Implementation
+}
+
+/**
+ * Create a new user
+ *
+ * @openApi
+ * @method POST
+ * @path /users
+ * @tag users
+ * @body User
+ * @response 201 User - User created successfully
+ */
+function createUser() {
+    // Implementation
+}
+
+export const spec = createOpenApi<[User], "3.0">({
+    info: {
+        title: "User API",
+        version: "1.0.0",
+    },
+});
+```
+
+**Supported JSDoc Tags:**
+
+- `@openApi` - Marks a function for OpenAPI path generation (required)
+- `@path <path> [params]` - Endpoint path and optional path parameters (required)
+- `@method <METHOD>` - HTTP method (GET, POST, PUT, DELETE, etc.) - defaults to GET
+- `@operationId <id>` - Operation identifier - defaults to function name
+- `@tag <tag>` - Operation tag (can be used multiple times)
+- `@query {params}` - Query parameters, e.g., `{search: string, limit?: number}`
+- `@headers {headers}` - Header parameters, e.g., `{Authorization: string}`
+- `@body [contentType] <Type>` - Request body type
+- `@response <status> [contentType] [Type] [- description]` - Response (can be used multiple times)
+- `@deprecated` - Marks the endpoint as deprecated
+
+**Examples:**
+
+```typescript
+// Path with parameters
+/**
+ * @openApi
+ * @path /users/:id {id: number}
+ */
+
+// Query parameters
+/**
+ * @openApi
+ * @path /users
+ * @query {search?: string, limit?: number}
+ */
+
+// Multiple responses
+/**
+ * @openApi
+ * @path /users/:id
+ * @response 200 User - Success
+ * @response 404 - Not found
+ * @response 500 - Server error
+ */
+
+// Custom content type
+/**
+ * @openApi
+ * @method POST
+ * @path /upload
+ * @body multipart/form-data FileData
+ */
+```
+
+JSDoc-based paths are automatically merged with paths declared using the path builder API or in the config object. See [JSDOC_OPENAPI_EXAMPLES.md](JSDOC_OPENAPI_EXAMPLES.md) for more examples.
+
 #### OpenAPI Version Support
 
 Wiz supports both **OpenAPI 3.0** and **OpenAPI 3.1** specifications. The version is specified as a required parameter to `createOpenApiSchema()`.
