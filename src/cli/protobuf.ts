@@ -11,7 +11,6 @@ type Format = "json" | "proto";
 
 interface ProtobufOptions {
     format?: Format;
-    outdir?: string;
 }
 
 /**
@@ -40,7 +39,7 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
             // Found createProtobufSpec, compile and execute
             const spec = await compileAndExecuteProtobuf(file);
             if (spec) {
-                outputSpec(spec, format, options.outdir);
+                outputSpec(spec, format);
                 return; // Exit after first match
             }
         }
@@ -49,7 +48,7 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
     // Second pass: Generate from exported types
     const spec = await generateFromTypes(files);
     if (spec) {
-        outputSpec(spec, format, options.outdir);
+        outputSpec(spec, format);
     } else {
         console.error("Error: No createProtobufSpec calls found and no exported types to generate from");
         process.exit(1);
@@ -259,19 +258,11 @@ export const model = createProtobufModel<[${typeList}]>();
 /**
  * Output the spec in the specified format.
  */
-function outputSpec(spec: any, format: Format, outdir?: string): void {
+function outputSpec(spec: any, format: Format): void {
     if (format === "json") {
         console.log(JSON.stringify(spec, null, 2));
     } else {
         const protoContent = protobufModelToString(spec);
-        if (outdir) {
-            // Write to file
-            const outputPath = resolve(outdir, `${spec.package || "api"}.proto`);
-            Bun.write(outputPath, protoContent).then(() => {
-                console.log(`Protobuf file written to ${outputPath}`);
-            });
-        } else {
-            console.log(protoContent);
-        }
+        console.log(protoContent);
     }
 }

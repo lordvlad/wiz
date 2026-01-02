@@ -55,9 +55,6 @@ Generate Protocol Buffer specifications from TypeScript files:
 # Generate from directory (.proto output by default)
 wiz protobuf src/
 
-# Generate to output directory
-wiz protobuf src/types.ts --outdir ./proto
-
 # Generate with JSON output
 wiz protobuf src/types.ts --format json
 
@@ -1722,9 +1719,6 @@ Generate `.proto` files from TypeScript:
 ```bash
 # Generate protobuf to console (default .proto format)
 wiz protobuf src/
-
-# Generate protobuf to file
-wiz protobuf src/types.ts --outdir ./proto
 
 # Generate as JSON
 wiz protobuf src/types.ts --format json
