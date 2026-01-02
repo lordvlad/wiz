@@ -11,7 +11,14 @@ import {
 } from "ts-morph";
 
 import type { WizPluginContext } from "..";
-import { createOpenApi, createOpenApiSchema, typedPath } from "../../openApiSchema";
+import {
+    createOpenApi,
+    createOpenApiSpec,
+    createOpenApiSchema,
+    createOpenApiModel,
+    typedPath,
+    openApiPath,
+} from "../../openApiSchema";
 import {
     createOpenApiSchema as codegen,
     extractJSDocMetadata,
@@ -283,7 +290,11 @@ function extractTypedPathOperations(sourceFile: SourceFile): ParsedPathOperation
     const operations: ParsedPathOperation[] = [];
     const calls = sourceFile
         .getDescendantsOfKind(SyntaxKind.CallExpression)
-        .filter((call) => call.getExpression().getText() === typedPath.name);
+        .filter(
+            (call) =>
+                call.getExpression().getText() === typedPath.name ||
+                call.getExpression().getText() === openApiPath.name,
+        );
 
     for (const call of calls) {
         const methodAssignment = findParentPropertyAssignment(call);
@@ -879,17 +890,20 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         .getDescendantsOfKind(SyntaxKind.CallExpression)
         .filter(
             (call) =>
-                call.getExpression().getText() === createOpenApiSchema.name && call.getTypeArguments().length >= 1,
+                (call.getExpression().getText() === createOpenApiSchema.name ||
+                    call.getExpression().getText() === createOpenApiModel.name) &&
+                call.getTypeArguments().length >= 1,
         );
 
     if (calls.length === 0) {
-        // Still check for createOpenApi calls even if no createOpenApiSchema calls
+        // Still check for createOpenApi calls even if no createOpenApiSchema/Model calls
         transformCreateOpenApi(sourceFile, { log, path, opt });
         return;
     }
 
     for (const call of calls) {
-        log(`Transforming createOpenApiSchema call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+        const functionName = call.getExpression().getText();
+        log(`Transforming ${functionName} call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
 
         const openApiVersion = extractOpenApiVersion(call, path);
 
@@ -900,7 +914,7 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
         // Only tuple types are supported
         if (!type.isTuple()) {
             throw new Error(
-                `createOpenApiSchema only accepts tuple types. Use createOpenApiSchema<[YourType]>() instead of createOpenApiSchema<YourType>(). Found at ${path}:${call.getStartLineNumber()}`,
+                `${functionName} only accepts tuple types. Use ${functionName}<[YourType]>() instead of ${functionName}<YourType>(). Found at ${path}:${call.getStartLineNumber()}`,
             );
         }
 
@@ -923,11 +937,15 @@ export function transformOpenApiSchema(sourceFile: SourceFile, { log, path, opt 
 }
 
 // Transform createOpenApi calls to generate full OpenAPI spec
-// Transform createOpenApi calls to generate full OpenAPI spec
 export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt }: WizPluginContext) {
     const calls = sourceFile
         .getDescendantsOfKind(SyntaxKind.CallExpression)
-        .filter((call) => call.getExpression().getText() === createOpenApi.name && call.getTypeArguments().length >= 1);
+        .filter(
+            (call) =>
+                (call.getExpression().getText() === createOpenApi.name ||
+                    call.getExpression().getText() === createOpenApiSpec.name) &&
+                call.getTypeArguments().length >= 1,
+        );
 
     if (calls.length === 0) return;
 
@@ -935,7 +953,8 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
     const jsDocPathOperations = extractJSDocPathOperations(sourceFile, log, path);
 
     for (const call of calls) {
-        log(`Transforming createOpenApi call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+        const functionName = call.getExpression().getText();
+        log(`Transforming ${functionName} call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
 
         const openApiVersion = extractOpenApiVersion(call, path);
 
@@ -957,7 +976,7 @@ export function transformCreateOpenApi(sourceFile: SourceFile, { log, path, opt 
 
         if (!type.isTuple()) {
             throw new Error(
-                `createOpenApi only accepts tuple types. Use createOpenApi<[YourType]>() instead of createOpenApi<YourType>(). Found at ${path}:${call.getStartLineNumber()}`,
+                `${functionName} only accepts tuple types. Use ${functionName}<[YourType]>() instead of ${functionName}<YourType>(). Found at ${path}:${call.getStartLineNumber()}`,
             );
         }
 
