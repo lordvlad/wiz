@@ -12,6 +12,21 @@ interface JSDocRpcMetadata {
     serviceName?: string;
 }
 
+// Type for nodes that support JSDoc
+interface JSDocableNode {
+    getJsDocs?: () => any[];
+}
+
+// Type for compiler nodes with JSDoc
+interface CompilerNodeWithJSDoc {
+    jsDoc?: Array<{
+        tags?: Array<{
+            tagName?: { text?: string };
+            comment?: string;
+        }>;
+    }>;
+}
+
 // Extract @rpcCall and @rpcService tags from JSDoc
 function extractRpcFromJSDoc(node?: Node): JSDocRpcMetadata {
     const metadata: JSDocRpcMetadata = {
@@ -21,7 +36,7 @@ function extractRpcFromJSDoc(node?: Node): JSDocRpcMetadata {
     if (!node) return metadata;
 
     // First try the standard getJsDocs method
-    const jsDocableNode = node as any;
+    const jsDocableNode = node as JSDocableNode;
     if (typeof jsDocableNode.getJsDocs === "function") {
         const jsDocs = jsDocableNode.getJsDocs();
         if (jsDocs && jsDocs.length > 0) {
@@ -50,7 +65,7 @@ function extractRpcFromJSDoc(node?: Node): JSDocRpcMetadata {
     }
 
     // For property assignments, check the compiler node's jsDoc property
-    const compilerNode = node.compilerNode as any;
+    const compilerNode = node.compilerNode as CompilerNodeWithJSDoc;
     if (compilerNode && compilerNode.jsDoc) {
         for (const jsDoc of compilerNode.jsDoc) {
             if (jsDoc.tags) {
@@ -87,14 +102,16 @@ function extractFunctionTypes(funcNode: Node): { requestType?: Type; responseTyp
     ) {
         const params = funcNode.getParameters();
         if (params.length > 0) {
-            const firstParam = params[0]!;
-            const paramType = firstParam.getType();
-            const returnType = funcNode.getReturnType();
+            const firstParam = params[0];
+            if (firstParam) {
+                const paramType = firstParam.getType();
+                const returnType = funcNode.getReturnType();
 
-            return {
-                requestType: paramType,
-                responseType: returnType,
-            };
+                return {
+                    requestType: paramType,
+                    responseType: returnType,
+                };
+            }
         }
     }
 
@@ -446,7 +463,10 @@ export function transformProtobufSpec(sourceFile: SourceFile, { log, path, opt }
             if (!serviceGroups.has(serviceName)) {
                 serviceGroups.set(serviceName, []);
             }
-            serviceGroups.get(serviceName)!.push(method);
+            const serviceMethodList = serviceGroups.get(serviceName);
+            if (serviceMethodList) {
+                serviceMethodList.push(method);
+            }
         }
 
         // Add services if RPC methods are found
