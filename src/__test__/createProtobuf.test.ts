@@ -114,4 +114,208 @@ describe("createProtobufSpec function", () => {
         expect(actual).toInclude("User:");
         expect(actual).toInclude('package: "user.api"');
     });
+
+    it("must deduce types from rpcCall function parameter", async () => {
+        const code = `
+            import { createProtobufSpec, rpcCall } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+                email: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            const service = {
+                getUser: rpcCall((req: GetUserRequest): User => ({ id: 1, name: "test", email: "test@example.com" }))
+            };
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest]>({
+                package: "user.api",
+                serviceName: "UserService"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("GetUserRequest");
+        expect(actual).toInclude("User:");
+    });
+
+    it("must detect rpcCall from @rpcCall JSDoc annotation", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            /**
+             * @rpcCall
+             * @rpcService UserService
+             */
+            function getUser(req: GetUserRequest): User {
+                return { id: 1, name: "test" };
+            }
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("GetUserRequest");
+    });
+
+    it("must detect rpcCall from object literal with @rpcService on variable", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            type CreateUserRequest = {
+                name: string;
+            }
+            
+            /**
+             * @rpcService UserService
+             */
+            const service = {
+                /**
+                 * @rpcCall
+                 */
+                getUser: (req: GetUserRequest): User => ({ id: 1, name: "test" }),
+                /**
+                 * @rpcCall
+                 */
+                createUser: (req: CreateUserRequest): User => ({ id: 2, name: "new" })
+            };
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest, CreateUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("createUser");
+    });
+
+    it("must detect rpcCall from class methods with @rpcService on class", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            /**
+             * @rpcService UserService
+             */
+            class UserServiceImpl {
+                /**
+                 * @rpcCall
+                 */
+                getUser(req: GetUserRequest): User {
+                    return { id: 1, name: "test" };
+                }
+            }
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+    });
+
+    it("must support multiple services", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type Post = {
+                id: number;
+                title: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            type GetPostRequest = {
+                id: number;
+            }
+            
+            /**
+             * @rpcService UserService
+             */
+            const userService = {
+                /**
+                 * @rpcCall
+                 */
+                getUser: (req: GetUserRequest): User => ({ id: 1, name: "test" })
+            };
+            
+            /**
+             * @rpcService PostService
+             */
+            const postService = {
+                /**
+                 * @rpcCall
+                 */
+                getPost: (req: GetPostRequest): Post => ({ id: 1, title: "test" })
+            };
+            
+            export const spec = createProtobufSpec<[User, Post, GetUserRequest, GetPostRequest]>({
+                package: "my.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("PostService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("getPost");
+    });
 });
