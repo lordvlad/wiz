@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "util";
 
+import { generateFromOpenApi, generateFromProtobuf } from "./generate";
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
 import { generateProtobuf } from "./protobuf";
@@ -14,6 +15,8 @@ Usage:
 Commands:
   openapi [files...]     Generate OpenAPI specifications from TypeScript files
   protobuf [files...]    Generate Protobuf specifications from TypeScript files
+  generate openapi <spec-file>   Generate TypeScript models from OpenAPI spec
+  generate protobuf <proto-file> Generate TypeScript models from Protobuf file
   inline [files...]      Transform validator calls to inline validators
 
 OpenAPI Options:
@@ -21,6 +24,10 @@ OpenAPI Options:
 
 Protobuf Options:
   --format <format>      Output format: json or proto (default: proto)
+
+Generate Options:
+  --outdir <directory>   Output directory for generated types (default: stdout)
+  --tags                 Include tags from src/tags/index.ts in JSDoc
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -41,6 +48,18 @@ Examples:
 
   # Generate Protobuf spec with JSON output
   wiz protobuf src/types.ts --format json
+
+  # Generate TypeScript models from OpenAPI spec (print to stdout)
+  wiz generate openapi spec.yaml
+
+  # Generate TypeScript models from OpenAPI spec (write to directory)
+  wiz generate openapi spec.json --outdir src/models
+
+  # Generate TypeScript models with tags
+  wiz generate openapi spec.yaml --tags --outdir src/models
+
+  # Generate TypeScript models from Protobuf
+  wiz generate protobuf api.proto --outdir src/models
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -152,6 +171,44 @@ async function main() {
         }
 
         await inlineValidators(positionals, { outdir, inPlace });
+    } else if (command === "generate") {
+        // Handle generate subcommand
+        const subcommand = rawArgs[1];
+
+        if (!subcommand || (subcommand !== "openapi" && subcommand !== "protobuf")) {
+            console.error("Error: generate requires a subcommand: openapi or protobuf");
+            console.error("Usage: wiz generate (openapi|protobuf) <spec-file> [--outdir <dir>] [--tags]");
+            process.exit(1);
+        }
+
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(2),
+            options: {
+                outdir: {
+                    type: "string",
+                },
+                tags: {
+                    type: "boolean",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        if (positionals.length === 0) {
+            console.error("Error: No spec file specified");
+            console.error(`Usage: wiz generate ${subcommand} <spec-file> [--outdir <dir>] [--tags]`);
+            process.exit(1);
+        }
+
+        const specFile = positionals[0]!;
+        const outdir = values.outdir;
+        const tags = values.tags || false;
+
+        if (subcommand === "openapi") {
+            await generateFromOpenApi(specFile, { outdir, tags });
+        } else if (subcommand === "protobuf") {
+            await generateFromProtobuf(specFile, { outdir, tags });
+        }
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {
