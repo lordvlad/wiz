@@ -3,6 +3,7 @@ import { parseArgs } from "util";
 
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
+import { generateProtobuf } from "./protobuf";
 
 const HELP_TEXT = `
 wiz - TypeScript schema generation toolkit
@@ -12,10 +13,14 @@ Usage:
 
 Commands:
   openapi [files...]     Generate OpenAPI specifications from TypeScript files
+  protobuf [files...]    Generate Protobuf specifications from TypeScript files
   inline [files...]      Transform validator calls to inline validators
 
 OpenAPI Options:
   --format <format>      Output format: json or yaml (default: yaml)
+
+Protobuf Options:
+  --format <format>      Output format: json or proto (default: proto)
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -30,6 +35,12 @@ Examples:
 
   # Generate from multiple sources
   wiz openapi src/models/ src/api.ts
+
+  # Generate Protobuf spec (proto format)
+  wiz protobuf src/
+
+  # Generate Protobuf spec with JSON output
+  wiz protobuf src/types.ts --format json
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -79,6 +90,31 @@ async function main() {
         }
 
         await generateOpenApi(positionals, { format });
+    } else if (command === "protobuf") {
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                format: {
+                    type: "string",
+                    default: "proto",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        const format = values.format as "json" | "proto";
+        if (format !== "json" && format !== "proto") {
+            console.error(`Error: Invalid format "${format}". Must be "json" or "proto".`);
+            process.exit(1);
+        }
+
+        if (positionals.length === 0) {
+            console.error("Error: No files or directories specified");
+            console.error("Usage: wiz protobuf [files|dirs|globs...] [--format json|proto]");
+            process.exit(1);
+        }
+
+        await generateProtobuf(positionals, { format });
     } else if (command === "inline") {
         const { values, positionals } = parseArgs({
             args: rawArgs.slice(1),
