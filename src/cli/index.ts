@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "util";
 
+import { generateModels } from "./generate";
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
 import { generateProtobuf } from "./protobuf";
@@ -14,6 +15,7 @@ Usage:
 Commands:
   openapi [files...]     Generate OpenAPI specifications from TypeScript files
   protobuf [files...]    Generate Protobuf specifications from TypeScript files
+  model <spec-file>      Generate TypeScript models from OpenAPI or Protobuf spec
   inline [files...]      Transform validator calls to inline validators
 
 OpenAPI Options:
@@ -21,6 +23,10 @@ OpenAPI Options:
 
 Protobuf Options:
   --format <format>      Output format: json or proto (default: proto)
+
+Model Options:
+  --outdir <directory>   Output directory for generated types (default: stdout)
+  --tags                 Include tags from src/tags/index.ts in JSDoc
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -41,6 +47,18 @@ Examples:
 
   # Generate Protobuf spec with JSON output
   wiz protobuf src/types.ts --format json
+
+  # Generate TypeScript models from OpenAPI spec (print to stdout)
+  wiz model spec.yaml
+
+  # Generate TypeScript models from OpenAPI spec (write to directory)
+  wiz model spec.json --outdir src/models
+
+  # Generate TypeScript models with tags
+  wiz model spec.yaml --tags --outdir src/models
+
+  # Generate TypeScript models from Protobuf (auto-detected from .proto extension)
+  wiz model api.proto --outdir src/models
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -152,6 +170,32 @@ async function main() {
         }
 
         await inlineValidators(positionals, { outdir, inPlace });
+    } else if (command === "model") {
+        // Handle model command
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                outdir: {
+                    type: "string",
+                },
+                tags: {
+                    type: "boolean",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        if (positionals.length === 0) {
+            console.error("Error: No spec file specified");
+            console.error("Usage: wiz model <spec-file> [--outdir <dir>] [--tags]");
+            process.exit(1);
+        }
+
+        const specFile = positionals[0]!;
+        const outdir = values.outdir;
+        const tags = values.tags || false;
+
+        await generateModels(specFile, { outdir, tags });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

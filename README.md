@@ -9,6 +9,7 @@ A general-purpose wizard to generate all sorts of schemas from typescript types
 - protobuf Schemas
 - avro Schemas
 - REST and RPC client and server stubs
+- **TypeScript models from OpenAPI and Protobuf specs**
 - Pluggable to produce custom codecs
 
 ## Installation
@@ -21,7 +22,98 @@ bun install
 
 ## CLI Usage
 
-Wiz provides a command-line interface for generating OpenAPI specifications, Protobuf specifications, and inlining validators.
+Wiz provides a command-line interface for generating OpenAPI specifications, Protobuf specifications, TypeScript models from specs, and inlining validators.
+
+### Generate TypeScript Models
+
+Generate TypeScript data models from OpenAPI or Protobuf specifications. This tool focuses on data models only—it ignores all RPC and REST endpoint definitions.
+
+The file type is automatically detected from the file extension:
+
+- `.json`, `.yaml`, `.yml` → OpenAPI
+- `.proto` → Protobuf
+
+#### Usage
+
+```bash
+# Generate from OpenAPI spec (print to stdout)
+wiz model spec.yaml
+
+# Generate from OpenAPI spec with JSON format
+wiz model spec.json
+
+# Write types to directory (one file per type)
+wiz model spec.yaml --outdir src/models
+
+# Include tags from src/tags/index.ts in JSDoc
+wiz model spec.yaml --tags --outdir src/models
+
+# Generate from Protobuf (auto-detected from .proto extension)
+wiz model api.proto --outdir src/models
+```
+
+**Features:**
+
+- Parses OpenAPI 3.0 and 3.1 specifications (JSON and YAML)
+- Generates TypeScript types/interfaces from `components.schemas`
+- Creates JSDoc comments with:
+    - Summary and description from schema
+    - `@format` for format constraints (uuid, email, date-time, etc.)
+    - `@deprecated` markers for deprecated fields
+    - Validation constraints (`@minLength`, `@maxLength`, `@pattern`, `@minimum`, `@maximum`, `@enum`)
+    - `@default` and `@example` values
+    - Custom tags from `src/tags/index.ts` when `--tags` is enabled
+- Handles complex types:
+    - `$ref` references between schemas
+    - Union types (`oneOf`, `anyOf`)
+    - Intersection types (`allOf`)
+    - Nullable types (OpenAPI 3.0 and 3.1)
+    - Arrays and nested objects
+    - `additionalProperties` for dynamic keys
+- No JSDoc comments when no metadata is present (clean output)
+
+**Protobuf (from `.proto` files):**
+
+- Parses proto3 syntax
+- Generates TypeScript types from `message` definitions
+- Creates JSDoc comments with:
+    - Field numbers for documentation
+    - Custom tags from `src/tags/index.ts` when `--tags` is enabled
+- Handles protobuf features:
+    - `optional` fields (TypeScript optional properties)
+    - `repeated` fields (TypeScript arrays)
+    - `map<K, V>` types (TypeScript `Record<K, V>`)
+    - All protobuf scalar types mapped to TypeScript equivalents
+- Ignores RPC service definitions (data models only)
+
+#### From Protobuf Files
+
+Generate TypeScript types from Protocol Buffer (.proto) files:
+
+```bash
+# Generate from proto file (print to stdout)
+wiz generate protobuf api.proto
+
+# Write types to directory (one file per type)
+wiz generate protobuf api.proto --outdir src/models
+
+# Include tags in JSDoc
+wiz generate protobuf api.proto --tags --outdir src/models
+```
+
+**Features:**
+
+- Parses proto3 syntax
+- Generates TypeScript types from `message` definitions
+- Creates JSDoc comments with:
+    - Field numbers for documentation
+    - Custom tags from `src/tags/index.ts` when `--tags` is enabled
+- Handles protobuf features:
+    - `optional` fields (TypeScript optional properties)
+    - `repeated` fields (TypeScript arrays)
+    - `map<K, V>` types (TypeScript `Record<K, V>`)
+    - All protobuf scalar types mapped to TypeScript equivalents
+- Ignores RPC service definitions (data models only)
 
 ### OpenAPI Generation
 
