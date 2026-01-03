@@ -37,16 +37,34 @@ function mapToProtobufType(type: Type): string {
         return "bytes"; // fallback
     }
 
-    // For object types, return the type name
-    const symbol = type.getSymbol() || type.getAliasSymbol();
+    // For object types, try to get the type name
+    // Try alias symbol first (for type aliases like 'type Address = {...}')
+    const aliasSymbol = type.getAliasSymbol();
+    if (aliasSymbol) {
+        const name = aliasSymbol.getName();
+        if (name && name !== "__type") {
+            return name;
+        }
+    }
+
+    // Try regular symbol
+    const symbol = type.getSymbol();
     if (symbol) {
-        return symbol.getName();
+        const name = symbol.getName();
+        if (name && name !== "__type") {
+            return name;
+        }
     }
 
     // Check for special types
     const typeText = type.getText();
     if (typeText.includes("Date")) {
         return "int64"; // Unix timestamp
+    }
+
+    // Last resort: return the type text if it's not too long
+    if (typeText && typeText.length < 50 && !typeText.includes("{")) {
+        return typeText.replace(/\s+/g, "");
     }
 
     return "bytes"; // fallback for unknown types
@@ -85,6 +103,20 @@ function isArrayType(type: Type): boolean {
 
 // Check if type is a map (Record<string, T> or { [key: string]: T })
 function isMapType(type: Type): { isMap: boolean; keyType?: string; valueType?: string } {
+    // Don't treat primitive types as maps
+    if (
+        type.isString() ||
+        type.isStringLiteral() ||
+        type.isNumber() ||
+        type.isNumberLiteral() ||
+        type.isBoolean() ||
+        type.isBooleanLiteral() ||
+        type.isUndefined() ||
+        type.isNull()
+    ) {
+        return { isMap: false };
+    }
+
     // Check for Record<K, V> utility type
     const typeText = type.getText();
     if (typeText.startsWith("Record<")) {
@@ -100,13 +132,19 @@ function isMapType(type: Type): { isMap: boolean; keyType?: string; valueType?: 
     }
 
     // Check for index signature { [key: string]: T }
+    // Only check for object types with explicit index signatures
     const indexSignatures = type.getNumberIndexType() || type.getStringIndexType();
-    if (indexSignatures) {
-        return {
-            isMap: true,
-            keyType: "string",
-            valueType: indexSignatures.getText(),
-        };
+    if (indexSignatures && type.isObject()) {
+        // Make sure this is actually an index signature type, not just an object with properties
+        const properties = type.getProperties();
+        // If it has both index signatures and regular properties, it's not a pure map
+        if (properties.length === 0 || typeText.includes("[key:")) {
+            return {
+                isMap: true,
+                keyType: "string",
+                valueType: indexSignatures.getText(),
+            };
+        }
     }
 
     return { isMap: false };
@@ -132,8 +170,14 @@ export function generateProtobufMessage(
         const declaration = declarations[0];
         if (!declaration) continue;
 
-        // @ts-ignore - getType exists on property signature
-        const propType = declaration.getType ? declaration.getType() : type.getPropertyOrThrow(propName);
+        // Get the type from the declaration
+        let propType: Type;
+        if ("getType" in declaration && typeof declaration.getType === "function") {
+            propType = (declaration as any).getType();
+        } else {
+            // Fallback - skip if we can't get the type
+            continue;
+        }
 
         const isOptional = isOptionalType(propType);
         const actualType = getNonUndefinedType(propType);

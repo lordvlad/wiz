@@ -1735,15 +1735,15 @@ wiz protobuf src/types.ts --format json
 
 Wiz automatically maps TypeScript types to protobuf types:
 
-| TypeScript Type | Protobuf Type |
-| --------------- | ------------- |
-| `string`        | `string`      |
-| `number`        | `int32`       |
-| `boolean`       | `bool`        |
-| `T[]`           | `repeated T`  |
-| `T \| undefined`| `optional T`  |
-| `Date`          | `int64`       |
-| `Record<K, V>`  | `map<K, V>`   |
+| TypeScript Type  | Protobuf Type |
+| ---------------- | ------------- |
+| `string`         | `string`      |
+| `number`         | `int32`       |
+| `boolean`        | `bool`        |
+| `T[]`            | `repeated T`  |
+| `T \| undefined` | `optional T`  |
+| `Date`           | `int64`       |
+| `Record<K, V>`   | `map<K, V>`   |
 
 ### Optional Fields
 

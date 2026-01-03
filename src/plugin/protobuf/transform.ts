@@ -47,11 +47,7 @@ function collectTypeNames(tupleElements: Type[]): string[] {
 }
 
 // Helper: Parse protobuf config from call arguments
-function parseProtobufConfig(
-    call: CallExpression,
-    log: (...args: any[]) => void,
-    path: string,
-): ProtobufConfigResult {
+function parseProtobufConfig(call: CallExpression, log: (...args: any[]) => void, path: string): ProtobufConfigResult {
     const args = call.getArguments();
     let packageName = "api"; // default package name
     let serviceName: string | undefined;

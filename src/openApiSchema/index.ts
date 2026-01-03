@@ -11,7 +11,8 @@ export function createOpenApiModel<T extends readonly any[], V extends OpenApiVe
 
 // Legacy alias for backward compatibility
 export function createOpenApiSchema<T extends readonly any[], V extends OpenApiVersion = "3.0">(): OpenApiSchema<T> {
-    return createOpenApiModel<T, V>();
+    // intentionally empty, will be replaced at build time
+    throw pluginNotEnabled();
 }
 
 // Overload 1: Accepts a configuration object
@@ -36,7 +37,8 @@ export function createOpenApiSpec<T extends readonly any[], V extends OpenApiVer
 export function createOpenApi<T extends readonly any[], V extends OpenApiVersion = "3.0">(
     configOrCallback?: OpenApiConfig | ((path: PathBuilder) => OpenApiConfigWithPaths),
 ): OpenApiSpec<T> {
-    return createOpenApiSpec<T, V>(configOrCallback as any);
+    // intentionally empty, will be replaced at build time
+    throw pluginNotEnabled();
 }
 
 export function openApiPath<

@@ -29,8 +29,8 @@ describe("createProtobufModel function", () => {
         expect(actual).toInclude("User:");
 
         // Check fields
-        expect(actual).toInclude("name:");
-        expect(actual).toInclude("email:");
+        expect(actual).toInclude('name: "name"');
+        expect(actual).toInclude('name: "email"');
         expect(actual).toInclude("fields:");
     });
 
