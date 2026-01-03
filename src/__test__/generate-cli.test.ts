@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { resolve } from "path";
 
-import { generateFromOpenApi, generateFromProtobuf } from "../cli/generate";
+import { generateModels } from "../cli/generate";
 
 const tmpDir = resolve(import.meta.dir, ".tmp-generate-test");
 
-describe("CLI generate commands", () => {
+describe("CLI model commands", () => {
     beforeEach(async () => {
         await mkdir(tmpDir, { recursive: true });
     });
@@ -15,7 +15,7 @@ describe("CLI generate commands", () => {
         await rm(tmpDir, { recursive: true, force: true });
     });
 
-    describe("generateFromOpenApi", () => {
+    describe("generateModels with OpenAPI", () => {
         it("should generate TypeScript models from OpenAPI spec (stdout)", async () => {
             const specFile = resolve(tmpDir, "spec.json");
             const spec = {
@@ -44,7 +44,7 @@ describe("CLI generate commands", () => {
             };
 
             try {
-                await generateFromOpenApi(specFile);
+                await generateModels(specFile);
                 expect(output).toContain("export type User =");
                 expect(output).toContain("id: number;");
                 expect(output).toContain("name: string;");
@@ -81,7 +81,7 @@ components:
             };
 
             try {
-                await generateFromOpenApi(specFile);
+                await generateModels(specFile);
                 expect(output).toContain("export type Product =");
                 expect(output).toContain("sku: string;");
                 expect(output).toContain("price: number;");
@@ -125,7 +125,7 @@ components:
             };
 
             try {
-                await generateFromOpenApi(specFile, { outdir: outDir });
+                await generateModels(specFile, { outdir: outDir });
 
                 // Check files were created
                 const userFile = Bun.file(resolve(outDir, "User.ts"));
@@ -175,7 +175,7 @@ components:
             };
 
             try {
-                await generateFromOpenApi(specFile);
+                await generateModels(specFile);
                 expect(output).toContain("Product name");
                 expect(output).toContain("@minLength 3");
                 expect(output).toContain("@maxLength 50");
@@ -207,7 +207,7 @@ message User {
             };
 
             try {
-                await generateFromProtobuf(protoFile);
+                await generateModels(protoFile);
                 expect(output).toContain("export type User =");
                 expect(output).toContain("id: number;");
                 expect(output).toContain("name: string;");
@@ -242,7 +242,7 @@ message Post {
             };
 
             try {
-                await generateFromProtobuf(protoFile, { outdir: outDir });
+                await generateModels(protoFile, { outdir: outDir });
 
                 // Check files were created
                 const userFile = Bun.file(resolve(outDir, "User.ts"));
@@ -282,7 +282,7 @@ message Post {
             };
 
             try {
-                await generateFromProtobuf(protoFile);
+                await generateModels(protoFile);
                 expect(output).toContain("tags: string[];");
                 expect(output).toContain("author?: string;");
             } finally {

@@ -12,9 +12,24 @@ interface GenerateOptions {
 }
 
 /**
+ * Generate TypeScript models from OpenAPI or Protobuf specification
+ * Auto-detects the file type based on extension
+ */
+export async function generateModels(specPath: string, options: GenerateOptions = {}): Promise<void> {
+    // Detect file type from extension
+    if (specPath.endsWith(".proto")) {
+        await generateFromProtobuf(specPath, options);
+    } else if (specPath.endsWith(".json") || specPath.endsWith(".yaml") || specPath.endsWith(".yml")) {
+        await generateFromOpenApi(specPath, options);
+    } else {
+        throw new Error("Unsupported file format. Use .json, .yaml, .yml for OpenAPI or .proto for Protobuf files.");
+    }
+}
+
+/**
  * Generate TypeScript models from OpenAPI specification
  */
-export async function generateFromOpenApi(specPath: string, options: GenerateOptions = {}): Promise<void> {
+async function generateFromOpenApi(specPath: string, options: GenerateOptions = {}): Promise<void> {
     // Read the spec file
     const file = Bun.file(specPath);
     let spec: any;
@@ -57,7 +72,7 @@ export async function generateFromOpenApi(specPath: string, options: GenerateOpt
 /**
  * Generate TypeScript models from Protobuf specification
  */
-export async function generateFromProtobuf(protoPath: string, options: GenerateOptions = {}): Promise<void> {
+async function generateFromProtobuf(protoPath: string, options: GenerateOptions = {}): Promise<void> {
     // Read the proto file
     const file = Bun.file(protoPath);
     const content = await file.text();

@@ -28,22 +28,28 @@ Wiz provides a command-line interface for generating OpenAPI specifications, Pro
 
 Generate TypeScript data models from OpenAPI or Protobuf specifications. This tool focuses on data models only—it ignores all RPC and REST endpoint definitions.
 
-#### From OpenAPI Specifications
+The file type is automatically detected from the file extension:
 
-Generate TypeScript types from OpenAPI v3 (JSON/YAML) files:
+- `.json`, `.yaml`, `.yml` → OpenAPI
+- `.proto` → Protobuf
+
+#### Usage
 
 ```bash
 # Generate from OpenAPI spec (print to stdout)
-wiz generate openapi spec.yaml
+wiz model spec.yaml
 
 # Generate from OpenAPI spec with JSON format
-wiz generate openapi spec.json
+wiz model spec.json
 
 # Write types to directory (one file per type)
-wiz generate openapi spec.yaml --outdir src/models
+wiz model spec.yaml --outdir src/models
 
 # Include tags from src/tags/index.ts in JSDoc
-wiz generate openapi spec.yaml --tags --outdir src/models
+wiz model spec.yaml --tags --outdir src/models
+
+# Generate from Protobuf (auto-detected from .proto extension)
+wiz model api.proto --outdir src/models
 ```
 
 **Features:**
@@ -65,6 +71,20 @@ wiz generate openapi spec.yaml --tags --outdir src/models
     - Arrays and nested objects
     - `additionalProperties` for dynamic keys
 - No JSDoc comments when no metadata is present (clean output)
+
+**Protobuf (from `.proto` files):**
+
+- Parses proto3 syntax
+- Generates TypeScript types from `message` definitions
+- Creates JSDoc comments with:
+    - Field numbers for documentation
+    - Custom tags from `src/tags/index.ts` when `--tags` is enabled
+- Handles protobuf features:
+    - `optional` fields (TypeScript optional properties)
+    - `repeated` fields (TypeScript arrays)
+    - `map<K, V>` types (TypeScript `Record<K, V>`)
+    - All protobuf scalar types mapped to TypeScript equivalents
+- Ignores RPC service definitions (data models only)
 
 #### From Protobuf Files
 
