@@ -43,15 +43,21 @@ export function parseProtoFile(content: string): ProtoFile {
     for (let line of lines) {
         line = line.trim();
 
+        // Remove inline comments
+        const commentIndex = line.indexOf("//");
+        if (commentIndex !== -1) {
+            line = line.substring(0, commentIndex).trim();
+        }
+
         // Skip comments and empty lines
-        if (line.startsWith("//") || line.startsWith("/*") || !line) {
+        if (line.startsWith("/*") || !line) {
             continue;
         }
 
         // Parse syntax
         if (line.startsWith("syntax")) {
             const match = line.match(/syntax\s*=\s*"([^"]+)"/);
-            if (match) {
+            if (match && match[1]) {
                 result.syntax = match[1];
             }
             continue;
@@ -60,7 +66,7 @@ export function parseProtoFile(content: string): ProtoFile {
         // Parse package
         if (line.startsWith("package")) {
             const match = line.match(/package\s+([^;]+);/);
-            if (match) {
+            if (match && match[1]) {
                 result.package = match[1];
             }
             continue;
@@ -69,9 +75,9 @@ export function parseProtoFile(content: string): ProtoFile {
         // Parse message start
         if (line.startsWith("message")) {
             const match = line.match(/message\s+(\w+)\s*\{/);
-            if (match) {
+            if (match && match[1]) {
                 currentMessage = {
-                    name: match[1]!,
+                    name: match[1],
                     fields: [],
                 };
                 braceDepth = 1;
@@ -79,9 +85,10 @@ export function parseProtoFile(content: string): ProtoFile {
             continue;
         }
 
-        // Track braces
-        if (line.includes("{")) braceDepth++;
-        if (line.includes("}")) braceDepth--;
+        // Track braces (handle multiple braces on same line)
+        const openCount = (line.match(/\{/g) || []).length;
+        const closeCount = (line.match(/\}/g) || []).length;
+        braceDepth += openCount - closeCount;
 
         // End of message
         if (braceDepth === 0 && currentMessage) {
@@ -90,8 +97,9 @@ export function parseProtoFile(content: string): ProtoFile {
             continue;
         }
 
-        // Parse field inside message
-        if (currentMessage && braceDepth === 1) {
+        // Parse field inside message (only at top level, depth 1)
+        // This ignores nested messages which we don't support yet
+        if (currentMessage && braceDepth === 1 && !line.startsWith("message")) {
             const field = parseProtoField(line);
             if (field) {
                 currentMessage.fields.push(field);
@@ -109,47 +117,68 @@ function parseProtoField(line: string): ProtoField | null {
     // Handle repeated fields
     const repeatedMatch = line.match(/repeated\s+(\w+)\s+(\w+)\s*=\s*(\d+);/);
     if (repeatedMatch) {
-        return {
-            name: repeatedMatch[2]!,
-            type: repeatedMatch[1]!,
-            number: parseInt(repeatedMatch[3]!, 10),
-            repeated: true,
-        };
+        const type = repeatedMatch[1];
+        const name = repeatedMatch[2];
+        const number = repeatedMatch[3];
+        if (type && name && number) {
+            return {
+                name,
+                type,
+                number: parseInt(number, 10),
+                repeated: true,
+            };
+        }
     }
 
     // Handle optional fields
     const optionalMatch = line.match(/optional\s+(\w+)\s+(\w+)\s*=\s*(\d+);/);
     if (optionalMatch) {
-        return {
-            name: optionalMatch[2]!,
-            type: optionalMatch[1]!,
-            number: parseInt(optionalMatch[3]!, 10),
-            optional: true,
-        };
+        const type = optionalMatch[1];
+        const name = optionalMatch[2];
+        const number = optionalMatch[3];
+        if (type && name && number) {
+            return {
+                name,
+                type,
+                number: parseInt(number, 10),
+                optional: true,
+            };
+        }
     }
 
     // Handle map fields
     const mapMatch = line.match(/map<(\w+),\s*(\w+)>\s+(\w+)\s*=\s*(\d+);/);
     if (mapMatch) {
-        return {
-            name: mapMatch[3]!,
-            type: "map",
-            number: parseInt(mapMatch[4]!, 10),
-            map: {
-                keyType: mapMatch[1]!,
-                valueType: mapMatch[2]!,
-            },
-        };
+        const keyType = mapMatch[1];
+        const valueType = mapMatch[2];
+        const name = mapMatch[3];
+        const number = mapMatch[4];
+        if (keyType && valueType && name && number) {
+            return {
+                name,
+                type: "map",
+                number: parseInt(number, 10),
+                map: {
+                    keyType,
+                    valueType,
+                },
+            };
+        }
     }
 
     // Handle regular fields
     const regularMatch = line.match(/(\w+)\s+(\w+)\s*=\s*(\d+);/);
     if (regularMatch) {
-        return {
-            name: regularMatch[2]!,
-            type: regularMatch[1]!,
-            number: parseInt(regularMatch[3]!, 10),
-        };
+        const type = regularMatch[1];
+        const name = regularMatch[2];
+        const number = regularMatch[3];
+        if (type && name && number) {
+            return {
+                name,
+                type,
+                number: parseInt(number, 10),
+            };
+        }
     }
 
     return null;

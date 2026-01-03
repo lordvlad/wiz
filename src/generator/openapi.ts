@@ -83,73 +83,10 @@ function generateTypeFromSchema(
 }
 
 /**
- * Generate JSDoc comment from schema metadata
+ * Helper to format JSDoc lines into a comment block
  */
-function generateJsDoc(schema: OpenApiSchema, options: GeneratorOptions): string {
-    const lines: string[] = [];
-    let hasContent = false;
-
-    // Description
-    if (schema.description) {
-        lines.push(schema.description);
-        hasContent = true;
-    }
-
-    // Format
-    if (schema.format) {
-        lines.push(`@format ${schema.format}`);
-        hasContent = true;
-    }
-
-    // Deprecated
-    if (schema.deprecated) {
-        lines.push("@deprecated");
-        hasContent = true;
-    }
-
-    // Validation constraints
-    if (schema.minLength !== undefined) {
-        lines.push(`@minLength ${schema.minLength}`);
-        hasContent = true;
-    }
-    if (schema.maxLength !== undefined) {
-        lines.push(`@maxLength ${schema.maxLength}`);
-        hasContent = true;
-    }
-    if (schema.minimum !== undefined) {
-        lines.push(`@minimum ${schema.minimum}`);
-        hasContent = true;
-    }
-    if (schema.maximum !== undefined) {
-        lines.push(`@maximum ${schema.maximum}`);
-        hasContent = true;
-    }
-    if (schema.pattern) {
-        lines.push(`@pattern ${schema.pattern}`);
-        hasContent = true;
-    }
-    if (schema.enum) {
-        lines.push(`@enum ${schema.enum.join(", ")}`);
-        hasContent = true;
-    }
-    if (schema.default !== undefined) {
-        lines.push(`@default ${JSON.stringify(schema.default)}`);
-        hasContent = true;
-    }
-    if (schema.example !== undefined) {
-        lines.push(`@example ${JSON.stringify(schema.example)}`);
-        hasContent = true;
-    }
-
-    // Add tags if enabled
-    if (options.includeTags && options.tags) {
-        for (const [key, value] of Object.entries(options.tags)) {
-            lines.push(`@${key} ${value}`);
-            hasContent = true;
-        }
-    }
-
-    if (!hasContent) {
+function formatJsDoc(lines: string[]): string {
+    if (lines.length === 0) {
         return "";
     }
 
@@ -161,81 +98,76 @@ function generateJsDoc(schema: OpenApiSchema, options: GeneratorOptions): string
 }
 
 /**
- * Generate property JSDoc
+ * Collect JSDoc lines from schema metadata
  */
-function generatePropertyJsDoc(propName: string, schema: OpenApiSchema, options: GeneratorOptions): string {
+function collectJsDocLines(schema: OpenApiSchema, options: GeneratorOptions): string[] {
     const lines: string[] = [];
-    let hasContent = false;
 
     // Description
     if (schema.description) {
         lines.push(schema.description);
-        hasContent = true;
     }
 
     // Format
     if (schema.format) {
         lines.push(`@format ${schema.format}`);
-        hasContent = true;
     }
 
     // Deprecated
     if (schema.deprecated) {
         lines.push("@deprecated");
-        hasContent = true;
     }
 
     // Validation constraints
     if (schema.minLength !== undefined) {
         lines.push(`@minLength ${schema.minLength}`);
-        hasContent = true;
     }
     if (schema.maxLength !== undefined) {
         lines.push(`@maxLength ${schema.maxLength}`);
-        hasContent = true;
     }
     if (schema.minimum !== undefined) {
         lines.push(`@minimum ${schema.minimum}`);
-        hasContent = true;
     }
     if (schema.maximum !== undefined) {
         lines.push(`@maximum ${schema.maximum}`);
-        hasContent = true;
     }
     if (schema.pattern) {
         lines.push(`@pattern ${schema.pattern}`);
-        hasContent = true;
     }
     if (schema.enum) {
         lines.push(`@enum ${schema.enum.join(", ")}`);
-        hasContent = true;
     }
     if (schema.default !== undefined) {
         lines.push(`@default ${JSON.stringify(schema.default)}`);
-        hasContent = true;
     }
     if (schema.example !== undefined) {
         lines.push(`@example ${JSON.stringify(schema.example)}`);
-        hasContent = true;
     }
 
     // Add tags if enabled
     if (options.includeTags && options.tags) {
         for (const [key, value] of Object.entries(options.tags)) {
             lines.push(`@${key} ${value}`);
-            hasContent = true;
         }
     }
 
-    if (!hasContent) {
-        return "";
-    }
+    return lines;
+}
 
-    if (lines.length === 1) {
-        return `/** ${lines[0]} */`;
-    }
+/**
+ * Generate JSDoc comment from schema metadata
+ */
+function generateJsDoc(schema: OpenApiSchema, options: GeneratorOptions): string {
+    const lines = collectJsDocLines(schema, options);
+    return formatJsDoc(lines);
+}
 
-    return "/**\n * " + lines.join("\n * ") + "\n */";
+/**
+ * Generate property JSDoc
+ */
+function generatePropertyJsDoc(propName: string, schema: OpenApiSchema, options: GeneratorOptions): string {
+    const lines = collectJsDocLines(schema, options);
+    return formatJsDoc(lines);
 }
 
 /**

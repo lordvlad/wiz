@@ -33,7 +33,8 @@ export async function generateFromOpenApi(specPath: string, options: GenerateOpt
     if (options.tags) {
         try {
             const tagsModule = await import("../tags/index");
-            tags = tagsModule as any;
+            // Only use exported values that are serializable
+            tags = Object.fromEntries(Object.entries(tagsModule).filter(([_, value]) => typeof value !== "function"));
         } catch {
             console.warn("Warning: Could not load tags from src/tags/index.ts");
         }
@@ -69,7 +70,8 @@ export async function generateFromProtobuf(protoPath: string, options: GenerateO
     if (options.tags) {
         try {
             const tagsModule = await import("../tags/index");
-            tags = tagsModule as any;
+            // Only use exported values that are serializable
+            tags = Object.fromEntries(Object.entries(tagsModule).filter(([_, value]) => typeof value !== "function"));
         } catch {
             console.warn("Warning: Could not load tags from src/tags/index.ts");
         }
