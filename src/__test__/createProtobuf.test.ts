@@ -318,4 +318,118 @@ describe("createProtobufSpec function", () => {
         expect(actual).toInclude("getUser");
         expect(actual).toInclude("getPost");
     });
+
+    it("must use default service name when @rpcService is not provided", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            /**
+             * @rpcCall
+             */
+            function getUser(req: GetUserRequest): User {
+                return { id: 1, name: "test" };
+            }
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("DefaultService:");
+        expect(actual).toInclude("getUser");
+    });
+
+    it("must treat all object methods as RPC calls when @rpcService is present without @rpcCall", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            type CreateUserRequest = {
+                name: string;
+            }
+            
+            /**
+             * @rpcService UserService
+             */
+            const service = {
+                getUser: (req: GetUserRequest): User => ({ id: 1, name: "test" }),
+                createUser: (req: CreateUserRequest): User => ({ id: 2, name: "new" })
+            };
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest, CreateUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("createUser");
+    });
+
+    it("must treat all class methods as RPC calls when @rpcService is present without @rpcCall", async () => {
+        const code = `
+            import { createProtobufSpec } from "../../protobuf/index";
+            
+            type User = {
+                id: number;
+                name: string;
+            }
+            
+            type GetUserRequest = {
+                id: number;
+            }
+            
+            type UpdateUserRequest = {
+                id: number;
+                name: string;
+            }
+            
+            /**
+             * @rpcService UserService
+             */
+            class UserServiceImpl {
+                getUser(req: GetUserRequest): User {
+                    return { id: 1, name: "test" };
+                }
+                
+                updateUser(req: UpdateUserRequest): User {
+                    return { id: 1, name: "updated" };
+                }
+            }
+            
+            export const spec = createProtobufSpec<[User, GetUserRequest, UpdateUserRequest]>({
+                package: "user.api"
+            });
+        `;
+
+        const actual = await compile(code);
+
+        expect(actual).toInclude("services:");
+        expect(actual).toInclude("UserService:");
+        expect(actual).toInclude("getUser");
+        expect(actual).toInclude("updateUser");
+    });
 });

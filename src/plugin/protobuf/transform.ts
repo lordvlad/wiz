@@ -301,6 +301,9 @@ function extractRpcMethods(sourceFile: SourceFile): ParsedRpcMethod[] {
                     const objectMetadata = extractRpcFromJSDoc(node);
                     const properties = initializer.getProperties();
 
+                    // If object has @rpcService, treat all function members as RPC calls
+                    const hasServiceAnnotation = !!objectMetadata.serviceName;
+
                     for (const prop of properties) {
                         if (Node.isPropertyAssignment(prop)) {
                             const propValue = prop.getInitializer();
@@ -309,7 +312,8 @@ function extractRpcMethods(sourceFile: SourceFile): ParsedRpcMethod[] {
                                 (Node.isArrowFunction(propValue) || Node.isFunctionExpression(propValue))
                             ) {
                                 const propMetadata = extractRpcFromJSDoc(prop);
-                                if (propMetadata.hasRpcCallTag) {
+                                // Include if: has @rpcCall tag OR object has @rpcService
+                                if (propMetadata.hasRpcCallTag || hasServiceAnnotation) {
                                     const method: ParsedRpcMethod = {
                                         name: prop.getName() || "",
                                         serviceName: propMetadata.serviceName || objectMetadata.serviceName,
@@ -352,16 +356,20 @@ function extractRpcMethods(sourceFile: SourceFile): ParsedRpcMethod[] {
             }
         } else if (Node.isMethodDeclaration(node)) {
             const metadata = extractRpcFromJSDoc(node);
-            if (metadata.hasRpcCallTag) {
+
+            // Check for @rpcService on class
+            const classDecl = node.getParent();
+            let classMetadata: JSDocRpcMetadata | undefined;
+            if (classDecl && Node.isClassDeclaration(classDecl)) {
+                classMetadata = extractRpcFromJSDoc(classDecl);
+            }
+
+            // Include if: has @rpcCall tag OR class has @rpcService
+            const hasServiceAnnotation = !!classMetadata?.serviceName;
+            if (metadata.hasRpcCallTag || hasServiceAnnotation) {
                 funcNode = node;
                 methodName = node.getName();
-
-                // Check for @rpcService on class
-                const classDecl = node.getParent();
-                if (classDecl && Node.isClassDeclaration(classDecl)) {
-                    const classMetadata = extractRpcFromJSDoc(classDecl);
-                    serviceName = metadata.serviceName || classMetadata.serviceName;
-                }
+                serviceName = metadata.serviceName || classMetadata?.serviceName;
             }
         }
 
