@@ -79,21 +79,12 @@ function extractRpcFromJSDoc(node?: Node): JSDocRpcMetadata {
 
 // Extract function parameter and return types
 function extractFunctionTypes(funcNode: Node): { requestType?: Type; responseType?: Type } | undefined {
-    let signature;
-
-    if (Node.isArrowFunction(funcNode) || Node.isFunctionExpression(funcNode) || Node.isFunctionDeclaration(funcNode)) {
-        const params = funcNode.getParameters();
-        if (params.length > 0) {
-            const firstParam = params[0]!;
-            const paramType = firstParam.getType();
-            const returnType = funcNode.getReturnType();
-
-            return {
-                requestType: paramType,
-                responseType: returnType,
-            };
-        }
-    } else if (Node.isMethodDeclaration(funcNode)) {
+    if (
+        Node.isArrowFunction(funcNode) ||
+        Node.isFunctionExpression(funcNode) ||
+        Node.isFunctionDeclaration(funcNode) ||
+        Node.isMethodDeclaration(funcNode)
+    ) {
         const params = funcNode.getParameters();
         if (params.length > 0) {
             const firstParam = params[0]!;
