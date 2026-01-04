@@ -370,11 +370,11 @@ const cases: TestCase[] = [
                 id: {
                     type: "integer",
                     format: "int64",
-                    "x-wiz-format": "BigIntFormat<\\"int64\\">"
+                    "x-wiz-format": 'BigIntFormat<"int64">'
                 },
                 reference: {
                     type: "string",
-                    "x-wiz-format": "BigIntFormat<\\"string\\">"
+                    "x-wiz-format": 'BigIntFormat<"string">'
                 }
             },
             required: [
@@ -406,26 +406,26 @@ const cases: TestCase[] = [
                 floatValue: {
                     type: "number",
                     format: "float",
-                    "x-wiz-format": "NumFormat<\\"float\\">"
+                    "x-wiz-format": 'NumFormat<"float">'
                 },
                 preciseValue: {
                     type: "number",
                     format: "double",
-                    "x-wiz-format": "NumFormat<\\"double\\">"
+                    "x-wiz-format": 'NumFormat<"double">'
                 },
                 smallInt: {
                     type: "integer",
                     format: "int32",
-                    "x-wiz-format": "NumFormat<\\"int32\\">"
+                    "x-wiz-format": 'NumFormat<"int32">'
                 },
                 bigInt: {
                     type: "integer",
                     format: "int64",
-                    "x-wiz-format": "NumFormat<\\"int64\\">"
+                    "x-wiz-format": 'NumFormat<"int64">'
                 },
                 stringified: {
                     type: "string",
-                    "x-wiz-format": "NumFormat<\\"string\\">"
+                    "x-wiz-format": 'NumFormat<"string">'
                 },
                 plain: {
                     type: "number"
@@ -1161,7 +1161,7 @@ const cases: TestCase[] = [
                 email: {
                     type: "string",
                     format: "email",
-                    "x-wiz-format": "StrFormat<\\"email\\">"
+                    "x-wiz-format": 'StrFormat<"email">'
                 }
             },
             required: [
@@ -1188,7 +1188,7 @@ const cases: TestCase[] = [
                 id: {
                     type: "string",
                     format: "uuid",
-                    "x-wiz-format": "StrFormat<\\"uuid\\">"
+                    "x-wiz-format": 'StrFormat<"uuid">'
                 }
             },
             required: [
@@ -1215,7 +1215,7 @@ const cases: TestCase[] = [
                 url: {
                     type: "string",
                     format: "uri",
-                    "x-wiz-format": "StrFormat<\\"uri\\">"
+                    "x-wiz-format": 'StrFormat<"uri">'
                 }
             },
             required: [
@@ -1242,7 +1242,7 @@ const cases: TestCase[] = [
                 address: {
                     type: "string",
                     format: "ipv4",
-                    "x-wiz-format": "StrFormat<\\"ipv4\\">"
+                    "x-wiz-format": 'StrFormat<"ipv4">'
                 }
             },
             required: [
@@ -1269,7 +1269,7 @@ const cases: TestCase[] = [
                 server: {
                     type: "string",
                     format: "hostname",
-                    "x-wiz-format": "StrFormat<\\"hostname\\">"
+                    "x-wiz-format": 'StrFormat<"hostname">'
                 }
             },
             required: [
