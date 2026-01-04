@@ -311,4 +311,99 @@ describe("OpenAPI to TypeScript generator", () => {
         expect(configModel).toContain("version: number;");
         expect(configModel).toContain("[key: string]: string;");
     });
+
+    it("should generate wiz tag types from x-wiz-format extension", () => {
+        const spec: OpenApiSpec = {
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "integer",
+                                format: "int64",
+                                "x-wiz-format": 'BigIntFormat<"int64">',
+                            },
+                            email: {
+                                type: "string",
+                                format: "email",
+                                "x-wiz-format": 'StrFormat<"email">',
+                            },
+                            balance: {
+                                type: "number",
+                                format: "double",
+                                "x-wiz-format": 'NumFormat<"double">',
+                            },
+                            createdAt: {
+                                type: "string",
+                                format: "date-time",
+                                "x-wiz-format": 'DateFormat<"date-time">',
+                            },
+                        },
+                        required: ["id", "email", "balance", "createdAt"],
+                    },
+                },
+            },
+        };
+
+        const models = generateModelsFromOpenApi(spec);
+        const userModel = models.get("User");
+
+        expect(userModel).toContain('id: bigint & { __bigint_format: "int64" };');
+        expect(userModel).toContain('email: string & { __str_format: "email" };');
+        expect(userModel).toContain('balance: number & { __num_format: "double" };');
+        expect(userModel).toContain('createdAt: Date & { __date_format: "date-time" };');
+    });
+
+    it("should handle nullable wiz tag types", () => {
+        const spec: OpenApiSpec = {
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            email: {
+                                type: "string",
+                                format: "email",
+                                nullable: true,
+                                "x-wiz-format": 'StrFormat<"email">',
+                            },
+                        },
+                        required: ["email"],
+                    },
+                },
+            },
+        };
+
+        const models = generateModelsFromOpenApi(spec);
+        const userModel = models.get("User");
+
+        expect(userModel).toContain('email: string & { __str_format: "email" } | null;');
+    });
+
+    it("should allow disabling wiz tag generation", () => {
+        const spec: OpenApiSpec = {
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            email: {
+                                type: "string",
+                                format: "email",
+                                "x-wiz-format": 'StrFormat<"email">',
+                            },
+                        },
+                        required: ["email"],
+                    },
+                },
+            },
+        };
+
+        const models = generateModelsFromOpenApi(spec, { disableWizTags: true });
+        const userModel = models.get("User");
+
+        expect(userModel).toContain("email: string;");
+        expect(userModel).not.toContain("__str_format");
+    });
 });

@@ -228,4 +228,90 @@ message User {
         expect(userModel).toContain("id: number;");
         expect(userModel).toContain("name: string;");
     });
+
+    it("should parse and use @wiz-format comments", () => {
+        const protoContent = `
+syntax = "proto3";
+
+message User {
+  // User ID
+  // @wiz-format int64
+  int64 id = 1;
+  // User email address
+  // @wiz-format email
+  string email = 2;
+  // Account balance
+  // @wiz-format double
+  double balance = 3;
+}
+        `;
+
+        const protoFile = parseProtoFile(protoContent);
+        const models = generateModelsFromProtobuf(protoFile);
+        const userModel = models.get("User");
+
+        expect(userModel).toContain('id: bigint & { __bigint_format: "int64" };');
+        expect(userModel).toContain('email: string & { __str_format: "email" };');
+        expect(userModel).toContain('balance: number & { __num_format: "double" };');
+    });
+
+    it("should handle multiple @wiz-format types", () => {
+        const protoContent = `
+syntax = "proto3";
+
+message Data {
+  // @wiz-format uuid
+  string id = 1;
+  // @wiz-format date-time
+  string createdAt = 2;
+  // @wiz-format int32
+  int32 count = 3;
+}
+        `;
+
+        const protoFile = parseProtoFile(protoContent);
+        const models = generateModelsFromProtobuf(protoFile);
+        const dataModel = models.get("Data");
+
+        expect(dataModel).toContain('id: string & { __str_format: "uuid" };');
+        expect(dataModel).toContain('createdAt: string & { __str_format: "date-time" };');
+        expect(dataModel).toContain('count: number & { __num_format: "int32" };');
+    });
+
+    it("should allow disabling wiz tag generation in protobuf", () => {
+        const protoContent = `
+syntax = "proto3";
+
+message User {
+  // @wiz-format email
+  string email = 1;
+}
+        `;
+
+        const protoFile = parseProtoFile(protoContent);
+        const models = generateModelsFromProtobuf(protoFile, { disableWizTags: true });
+        const userModel = models.get("User");
+
+        expect(userModel).toContain("email: string;");
+        expect(userModel).not.toContain("__str_format");
+    });
+
+    it("should preserve standard proto types when no wiz format", () => {
+        const protoContent = `
+syntax = "proto3";
+
+message User {
+  // Regular field without wiz format
+  int64 id = 1;
+  string name = 2;
+}
+        `;
+
+        const protoFile = parseProtoFile(protoContent);
+        const models = generateModelsFromProtobuf(protoFile);
+        const userModel = models.get("User");
+
+        expect(userModel).toContain("id: number;");
+        expect(userModel).toContain("name: string;");
+    });
 });
