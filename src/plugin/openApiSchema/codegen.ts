@@ -449,7 +449,6 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
         // Check if this is the format marker object (has __*_format property)
         if (t.isObject() && !t.isArray()) {
             const properties = t.getProperties();
-            const propertyNames = properties.map(p => p.getName());
             
             // Look for __str_format, __num_format, __bigint_format, or __date_format
             const strFormatProp = properties.find(p => p.getName() === "__str_format");
