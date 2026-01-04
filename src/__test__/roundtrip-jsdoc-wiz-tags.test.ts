@@ -180,7 +180,7 @@ describe("Roundtrip tests for JSDoc metadata and Wiz tags", () => {
     });
 
     describe("OpenAPI with Wiz tags (x-wiz-format)", () => {
-        it("should convert x-wiz-format to TypeScript intersection types", async () => {
+        it("should roundtrip wiz tag types for string formats", async () => {
             const originalSpec = {
                 components: {
                     schemas: {
@@ -213,11 +213,94 @@ describe("Roundtrip tests for JSDoc metadata and Wiz tags", () => {
             expect(userModel).toContain('string & { __str_format: "email" }');
             expect(userModel).toContain('string & { __str_format: "uri" }');
 
-            // Note: TypeScript intersection types with wiz tags (e.g., string & { __str_format: "email" })
-            // currently don't roundtrip back to OpenAPI with x-wiz-format extensions.
-            // This is a known limitation of the current implementation.
-            // The types work correctly for type safety in TypeScript, but the full metadata
-            // is lost when converting back to OpenAPI schema.
+            // TypeScript → OpenAPI (via plugin)
+            const source = `
+                import * as tags from "../../tags/index";
+                ${userModel}
+                import { createOpenApiSchema } from "wiz/openApiSchema";
+                export const schema = createOpenApiSchema<[User], "3.0">();
+            `;
+
+            const compiled = await compile(source);
+
+            // Extract schema
+            const schemaMatch = compiled.match(/var schema = ({[\s\S]*?});/);
+            const regeneratedSpec = eval(`(${schemaMatch![1]})`);
+
+            // Verify x-wiz-format is regenerated for intersection types
+            expect(regeneratedSpec.components.schemas.User.properties.email["x-wiz-format"]).toBe(
+                'StrFormat<"email">'
+            );
+            expect(regeneratedSpec.components.schemas.User.properties.website["x-wiz-format"]).toBe(
+                'StrFormat<"uri">'
+            );
+            expect(regeneratedSpec.components.schemas.User.properties.email.format).toBe("email");
+            expect(regeneratedSpec.components.schemas.User.properties.website.format).toBe("uri");
+        });
+
+        it("should roundtrip all wiz format types (string, number, date)", async () => {
+            const originalSpec = {
+                components: {
+                    schemas: {
+                        Data: {
+                            type: "object",
+                            properties: {
+                                email: {
+                                    type: "string",
+                                    format: "email",
+                                    "x-wiz-format": 'StrFormat<"email">',
+                                },
+                                balance: {
+                                    type: "number",
+                                    format: "double",
+                                    "x-wiz-format": 'NumFormat<"double">',
+                                },
+                                createdAt: {
+                                    type: "string",
+                                    format: "date-time",
+                                    "x-wiz-format": 'DateFormat<"date-time">',
+                                },
+                            },
+                            required: ["email", "balance", "createdAt"],
+                            title: "Data",
+                        },
+                    },
+                },
+            };
+
+            // OpenAPI → TypeScript
+            const models = generateModelsFromOpenApi(originalSpec);
+            const dataModel = models.get("Data");
+
+            // Verify wiz tag types are generated
+            expect(dataModel).toContain('string & { __str_format: "email" }');
+            expect(dataModel).toContain('number & { __num_format: "double" }');
+            expect(dataModel).toContain('Date & { __date_format: "date-time" }');
+
+            // TypeScript → OpenAPI
+            const source = `
+                import * as tags from "../../tags/index";
+                ${dataModel}
+                import { createOpenApiSchema } from "wiz/openApiSchema";
+                export const schema = createOpenApiSchema<[Data], "3.0">();
+            `;
+
+            const compiled = await compile(source);
+
+            // Extract schema
+            const schemaMatch = compiled.match(/var schema = ({[\s\S]*?});/);
+            const regeneratedSpec = eval(`(${schemaMatch![1]})`);
+
+            // Verify all x-wiz-format extensions are regenerated
+            expect(regeneratedSpec.components.schemas.Data.properties.email["x-wiz-format"]).toBe(
+                'StrFormat<"email">'
+            );
+            expect(regeneratedSpec.components.schemas.Data.properties.balance["x-wiz-format"]).toBe(
+                'NumFormat<"double">'
+            );
+            expect(regeneratedSpec.components.schemas.Data.properties.createdAt["x-wiz-format"]).toBe(
+                'DateFormat<"date-time">'
+            );
         });
     });
 
