@@ -705,7 +705,7 @@ function createEnumSchema(
 
     for (const member of members) {
         const initializer = member.getInitializer();
-        let memberValue: string | number;
+        let memberValue: string | number | undefined;
 
         if (initializer) {
             // Has explicit value
@@ -750,12 +750,15 @@ function createEnumSchema(
         }
 
         // Extract JSDoc description for this enum member
-        const jsDocMetadata = extractJSDocMetadata(member);
-        if (jsDocMetadata.description) {
-            // Use the enum value as the key in x-enumDescriptions
-            // Convert numbers to strings for the key
-            const key = String(memberValue);
-            enumDescriptions[key] = jsDocMetadata.description;
+        // memberValue is guaranteed to be defined here since all paths above either assign it or throw
+        if (memberValue !== undefined) {
+            const jsDocMetadata = extractJSDocMetadata(member);
+            if (jsDocMetadata.description) {
+                // Use the enum value as the key in x-enumDescriptions
+                // Convert numbers to strings for the key
+                const key = String(memberValue);
+                enumDescriptions[key] = jsDocMetadata.description;
+            }
         }
     }
 
