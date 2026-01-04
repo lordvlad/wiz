@@ -27,6 +27,7 @@ Protobuf Options:
 Model Options:
   --outdir <directory>   Output directory for generated types (default: stdout)
   --tags                 Include tags from src/tags/index.ts in JSDoc
+  --no-wiz-tags          Disable automatic wiz tag generation from x-wiz-* extensions
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -56,6 +57,9 @@ Examples:
 
   # Generate TypeScript models with tags
   wiz model spec.yaml --tags --outdir src/models
+
+  # Generate TypeScript models without wiz tag types
+  wiz model spec.yaml --no-wiz-tags --outdir src/models
 
   # Generate TypeScript models from Protobuf (auto-detected from .proto extension)
   wiz model api.proto --outdir src/models
@@ -181,21 +185,25 @@ async function main() {
                 tags: {
                     type: "boolean",
                 },
+                "no-wiz-tags": {
+                    type: "boolean",
+                },
             },
             allowPositionals: true,
         });
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz model <spec-file> [--outdir <dir>] [--tags]");
+            console.error("Usage: wiz model <spec-file> [--outdir <dir>] [--tags] [--no-wiz-tags]");
             process.exit(1);
         }
 
         const specFile = positionals[0]!;
         const outdir = values.outdir;
         const tags = values.tags || false;
+        const disableWizTags = values["no-wiz-tags"] || false;
 
-        await generateModels(specFile, { outdir, tags });
+        await generateModels(specFile, { outdir, tags, disableWizTags });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

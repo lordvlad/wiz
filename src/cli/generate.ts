@@ -9,6 +9,7 @@ import type * as TagTypes from "../tags/index";
 interface GenerateOptions {
     outdir?: string;
     tags?: boolean;
+    disableWizTags?: boolean;
 }
 
 /**
@@ -59,6 +60,7 @@ async function generateFromOpenApi(specPath: string, options: GenerateOptions = 
     const models = generateModelsFromOpenApi(spec, {
         includeTags: options.tags,
         tags,
+        disableWizTags: options.disableWizTags,
     });
 
     // Output models
@@ -96,6 +98,7 @@ async function generateFromProtobuf(protoPath: string, options: GenerateOptions 
     const models = generateModelsFromProtobuf(protoFile, {
         includeTags: options.tags,
         tags,
+        disableWizTags: options.disableWizTags,
     });
 
     // Output models

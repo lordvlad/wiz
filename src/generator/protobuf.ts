@@ -9,6 +9,7 @@ export interface ProtoField {
     repeated?: boolean;
     optional?: boolean;
     map?: { keyType: string; valueType: string };
+    comment?: string;
 }
 
 export interface ProtoMessage {
@@ -26,6 +27,7 @@ export interface ProtoFile {
 export interface GeneratorOptions {
     includeTags?: boolean;
     tags?: Record<string, any>;
+    disableWizTags?: boolean;
 }
 
 /**
@@ -39,19 +41,31 @@ export function parseProtoFile(content: string): ProtoFile {
     const lines = content.split("\n");
     let currentMessage: ProtoMessage | null = null;
     let braceDepth = 0;
+    let pendingComments: string[] = [];
 
-    for (let line of lines) {
-        line = line.trim();
+    for (let i = 0; i < lines.length; i++) {
+        const originalLine = lines[i]!;
+        let line = originalLine.trim();
 
-        // Remove inline comments
+        // Capture comment lines
+        if (line.startsWith("//")) {
+            pendingComments.push(line.substring(2).trim());
+            continue;
+        }
+
+        // Skip block comments and empty lines
+        if (line.startsWith("/*") || !line) {
+            if (!line) {
+                // Empty line resets pending comments
+                pendingComments = [];
+            }
+            continue;
+        }
+
+        // Remove inline comments (but keep the line content)
         const commentIndex = line.indexOf("//");
         if (commentIndex !== -1) {
             line = line.substring(0, commentIndex).trim();
-        }
-
-        // Skip comments and empty lines
-        if (line.startsWith("/*") || !line) {
-            continue;
         }
 
         // Parse syntax
@@ -60,6 +74,7 @@ export function parseProtoFile(content: string): ProtoFile {
             if (match && match[1]) {
                 result.syntax = match[1];
             }
+            pendingComments = [];
             continue;
         }
 
@@ -69,6 +84,7 @@ export function parseProtoFile(content: string): ProtoFile {
             if (match && match[1]) {
                 result.package = match[1];
             }
+            pendingComments = [];
             continue;
         }
 
@@ -82,6 +98,7 @@ export function parseProtoFile(content: string): ProtoFile {
                 };
                 braceDepth = 1;
             }
+            pendingComments = [];
             continue;
         }
 
@@ -94,6 +111,7 @@ export function parseProtoFile(content: string): ProtoFile {
         if (braceDepth === 0 && currentMessage) {
             result.messages.push(currentMessage);
             currentMessage = null;
+            pendingComments = [];
             continue;
         }
 
@@ -102,8 +120,13 @@ export function parseProtoFile(content: string): ProtoFile {
         if (currentMessage && braceDepth === 1 && !line.startsWith("message")) {
             const field = parseProtoField(line);
             if (field) {
+                // Attach pending comments to field
+                if (pendingComments.length > 0) {
+                    field.comment = pendingComments.join("\n");
+                }
                 currentMessage.fields.push(field);
             }
+            pendingComments = [];
         }
     }
 
@@ -224,7 +247,7 @@ function generateTypeFromMessage(message: ProtoMessage, options: GeneratorOption
 
         // Generate field
         const optional = field.optional ? "?" : "";
-        const tsType = mapProtoTypeToTs(field);
+        const tsType = mapProtoTypeToTs(field, options);
         output += `  ${field.name}${optional}: ${tsType};\n`;
     }
 
@@ -288,9 +311,87 @@ function generateFieldJsDoc(field: ProtoField, options: GeneratorOptions): strin
 }
 
 /**
+ * Parse @wiz-format comment and return wiz tag type
+ */
+function parseWizFormatFromComment(comment: string | undefined, protoType: string): string | null {
+    if (!comment) return null;
+
+    // Look for @wiz-format tag in comment
+    const match = comment.match(/@wiz-format\s+(\S+)/);
+    if (!match || !match[1]) return null;
+
+    const formatValue = match[1];
+
+    // Determine which wiz format type based on proto type and format value
+    // int64/uint64 with specific formats -> BigIntFormat
+    if (
+        (protoType === "int64" ||
+            protoType === "uint64" ||
+            protoType === "sint64" ||
+            protoType === "fixed64" ||
+            protoType === "sfixed64") &&
+        (formatValue === "int64" || formatValue === "string")
+    ) {
+        return `bigint & { __bigint_format: "${formatValue}" }`;
+    }
+
+    // Numeric types with specific formats -> NumFormat
+    if (
+        (protoType === "int32" ||
+            protoType === "uint32" ||
+            protoType === "sint32" ||
+            protoType === "fixed32" ||
+            protoType === "sfixed32" ||
+            protoType === "float" ||
+            protoType === "double") &&
+        (formatValue === "int32" ||
+            formatValue === "int64" ||
+            formatValue === "float" ||
+            formatValue === "double" ||
+            formatValue === "string")
+    ) {
+        return `number & { __num_format: "${formatValue}" }`;
+    }
+
+    // String types with specific formats -> StrFormat
+    if (protoType === "string") {
+        // Common string formats
+        const stringFormats = [
+            "email",
+            "uuid",
+            "uri",
+            "uri-reference",
+            "hostname",
+            "ipv4",
+            "ipv6",
+            "date",
+            "date-time",
+            "binary",
+            "byte",
+            "password",
+        ];
+        if (stringFormats.includes(formatValue)) {
+            return `string & { __str_format: "${formatValue}" }`;
+        }
+    }
+
+    // Special handling for dates
+    if (
+        formatValue === "date" ||
+        formatValue === "date-time" ||
+        formatValue === "unix-s" ||
+        formatValue === "unix-ms"
+    ) {
+        return `Date & { __date_format: "${formatValue}" }`;
+    }
+
+    return null;
+}
+
+/**
  * Map protobuf type to TypeScript type
  */
-function mapProtoTypeToTs(field: ProtoField): string {
+function mapProtoTypeToTs(field: ProtoField, options: GeneratorOptions = {}): string {
     // Handle map types
     if (field.map) {
         const keyType = mapProtoScalarToTs(field.map.keyType);
@@ -302,6 +403,14 @@ function mapProtoTypeToTs(field: ProtoField): string {
     if (field.repeated) {
         const itemType = mapProtoScalarToTs(field.type);
         return `${itemType}[]`;
+    }
+
+    // Check for wiz format in comments
+    if (!options.disableWizTags) {
+        const wizType = parseWizFormatFromComment(field.comment, field.type);
+        if (wizType) {
+            return wizType;
+        }
     }
 
     // Handle regular fields

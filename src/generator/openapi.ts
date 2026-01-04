@@ -37,6 +37,31 @@ export interface OpenApiSpec {
 export interface GeneratorOptions {
     includeTags?: boolean;
     tags?: Record<string, any>;
+    disableWizTags?: boolean;
+}
+
+/**
+ * Parse x-wiz-format extension and return the appropriate TypeScript type
+ */
+function parseWizFormat(wizFormat: string, schema: OpenApiSchema): string | null {
+    // Match patterns like BigIntFormat<"int64">, StrFormat<"email">, etc.
+    const match = wizFormat.match(/^(\w+)<"([^"]+)">$/);
+    if (!match) return null;
+
+    const [, formatType, formatValue] = match;
+
+    switch (formatType) {
+        case "BigIntFormat":
+            return `bigint & { __bigint_format: "${formatValue}" }`;
+        case "NumFormat":
+            return `number & { __num_format: "${formatValue}" }`;
+        case "StrFormat":
+            return `string & { __str_format: "${formatValue}" }`;
+        case "DateFormat":
+            return `Date & { __date_format: "${formatValue}" }`;
+        default:
+            return null;
+    }
 }
 
 /**
@@ -212,6 +237,15 @@ function generateTypeDefinition(
     // Handle object
     if (schema.type === "object" || schema.properties) {
         return generateObjectType(schema, spec, options, depth);
+    }
+
+    // Check for x-wiz-format extension
+    const wizFormat = schema["x-wiz-format"];
+    if (wizFormat && !options.disableWizTags) {
+        const wizType = parseWizFormat(wizFormat, schema);
+        if (wizType) {
+            return schema.nullable ? `${wizType} | null` : wizType;
+        }
     }
 
     // Handle primitive types
