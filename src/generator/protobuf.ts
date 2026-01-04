@@ -355,7 +355,9 @@ function parseWizFormatFromComment(comment: string | undefined, protoType: strin
 
     // String types with specific formats -> StrFormat
     if (protoType === "string") {
-        // Common string formats
+        // Common string formats (including date formats for string fields)
+        // Note: date/date-time on string fields become StrFormat<"date">,
+        // not DateFormat. DateFormat is used with int64 unix timestamps.
         const stringFormats = [
             "email",
             "uuid",
@@ -375,7 +377,8 @@ function parseWizFormatFromComment(comment: string | undefined, protoType: strin
         }
     }
 
-    // Special handling for dates
+    // Special handling for dates with int64 proto types
+    // For unix timestamps stored as int64
     if (
         formatValue === "date" ||
         formatValue === "date-time" ||
@@ -419,6 +422,9 @@ function mapProtoTypeToTs(field: ProtoField, options: GeneratorOptions = {}): st
 
 /**
  * Map protobuf scalar types to TypeScript types
+ * Note: int64/uint64 map to `number` by default for compatibility.
+ * Use @wiz-format int64 to get `bigint & { __bigint_format: "int64" }`
+ * for proper 64-bit integer handling.
  */
 function mapProtoScalarToTs(protoType: string): string {
     const typeMap: Record<string, string> = {
@@ -426,15 +432,15 @@ function mapProtoScalarToTs(protoType: string): string {
         bytes: "Uint8Array",
         bool: "boolean",
         int32: "number",
-        int64: "number",
+        int64: "number", // See note above for bigint support
         uint32: "number",
-        uint64: "number",
+        uint64: "number", // See note above for bigint support
         sint32: "number",
-        sint64: "number",
+        sint64: "number", // See note above for bigint support
         fixed32: "number",
-        fixed64: "number",
+        fixed64: "number", // See note above for bigint support
         sfixed32: "number",
-        sfixed64: "number",
+        sfixed64: "number", // See note above for bigint support
         float: "number",
         double: "number",
     };
