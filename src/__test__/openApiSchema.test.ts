@@ -1614,6 +1614,206 @@ const cases: TestCase[] = [
         }`,
     },
     {
+        title: "typescript string enum with JSDoc descriptions",
+        type: `enum UserRole {
+                    /** Administrator with full access */
+                    Admin = "admin",
+                    /** Regular user with limited access */
+                    User = "user",
+                    /** Guest user with read-only access */
+                    Guest = "guest"
+                }
+                type Type = {
+                    role: UserRole;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                role: {
+                    type: "string",
+                    enum: [
+                        "admin",
+                        "user",
+                        "guest"
+                    ],
+                    "x-enumDescriptions": {
+                        admin: "Administrator with full access",
+                        user: "Regular user with limited access",
+                        guest: "Guest user with read-only access"
+                    }
+                }
+            },
+            required: [
+                "role"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "typescript numeric enum with JSDoc descriptions",
+        type: `enum StatusCode {
+                    /** Request was successful */
+                    Ok = 200,
+                    /** Resource not found */
+                    NotFound = 404,
+                    /** Internal server error */
+                    ServerError = 500
+                }
+                type Type = {
+                    status: StatusCode;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                status: {
+                    type: "number",
+                    enum: [
+                        200,
+                        404,
+                        500
+                    ],
+                    "x-enumDescriptions": {
+                        "200": "Request was successful",
+                        "404": "Resource not found",
+                        "500": "Internal server error"
+                    }
+                }
+            },
+            required: [
+                "status"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "typescript enum with partial JSDoc descriptions",
+        type: `enum Priority {
+                    /** Highest priority - urgent */
+                    High = "high",
+                    Medium = "medium",
+                    /** Lowest priority */
+                    Low = "low"
+                }
+                type Type = {
+                    priority: Priority;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                priority: {
+                    type: "string",
+                    enum: [
+                        "high",
+                        "medium",
+                        "low"
+                    ],
+                    "x-enumDescriptions": {
+                        high: "Highest priority - urgent",
+                        low: "Lowest priority"
+                    }
+                }
+            },
+            required: [
+                "priority"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "typescript enum without JSDoc descriptions",
+        type: `enum Color {
+                    Red = "red",
+                    Green = "green",
+                    Blue = "blue"
+                }
+                type Type = {
+                    color: Color;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                color: {
+                    type: "string",
+                    enum: [
+                        "red",
+                        "green",
+                        "blue"
+                    ]
+                }
+            },
+            required: [
+                "color"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "typescript auto-incremented numeric enum with JSDoc descriptions",
+        type: `enum Level {
+                    /** Beginner level */
+                    Beginner,
+                    /** Intermediate level */
+                    Intermediate,
+                    /** Advanced level */
+                    Advanced
+                }
+                type Type = {
+                    level: Level;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    Type: {
+            type: "object",
+            properties: {
+                level: {
+                    type: "number",
+                    enum: [
+                        0,
+                        1,
+                        2
+                    ],
+                    "x-enumDescriptions": {
+                        "0": "Beginner level",
+                        "1": "Intermediate level",
+                        "2": "Advanced level"
+                    }
+                }
+            },
+            required: [
+                "level"
+            ],
+            title: "Type"
+                    }
+                }
+            }
+        }`,
+    },
+    {
         title: "array with single type",
         type: `type User = {
                     id: number;
