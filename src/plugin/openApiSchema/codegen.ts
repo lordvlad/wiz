@@ -40,6 +40,20 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     const availableTypes = context.availableTypes ?? new Set<string>();
     const processingStack = context.processingStack ?? new Set<string>();
 
+    // Check for enum types EARLY, before union resolution
+    // This is important because enums are resolved to union types by TypeScript
+    const aliasSymbol = type.getAliasSymbol();
+    if (aliasSymbol) {
+        const aliasDeclarations = aliasSymbol.getDeclarations();
+        if (aliasDeclarations && aliasDeclarations.length > 0) {
+            for (const declaration of aliasDeclarations) {
+                if (Node.isEnumDeclaration(declaration)) {
+                    return createEnumSchema(declaration, type);
+                }
+            }
+        }
+    }
+
     // Check if this type should use a $ref
     // We use $ref if the type is in availableTypes (to reference another schema)
     // We ALSO use $ref if the type is already in processingStack (to avoid infinite recursion for circular refs)
@@ -677,7 +691,7 @@ export function mergeJSDocIntoSchema(schema: Record<string, any>, metadata: JSDo
 function createEnumSchema(
     declaration: EnumDeclaration,
     type: Type,
-): { type: "string" | "number"; enum: (string | number)[] } {
+): { type: "string" | "number"; enum: (string | number)[]; "x-enumDescriptions"?: Record<string, string> } {
     const members = declaration.getMembers();
 
     // Handle empty enums
@@ -686,23 +700,26 @@ function createEnumSchema(
     }
 
     const enumValues: (string | number)[] = [];
+    const enumDescriptions: Record<string, string> = {};
     let enumType: "string" | "number" | null = null;
 
     for (const member of members) {
         const initializer = member.getInitializer();
+        let memberValue: string | number;
+
         if (initializer) {
             // Has explicit value
             if (Node.isStringLiteral(initializer)) {
-                const value = initializer.getLiteralValue();
-                enumValues.push(value);
+                memberValue = initializer.getLiteralValue();
+                enumValues.push(memberValue);
                 if (enumType === null) {
                     enumType = "string";
                 } else if (enumType !== "string") {
                     throw new Error(`Mixed enum types are not supported: ${type.getText()}`);
                 }
             } else if (Node.isNumericLiteral(initializer)) {
-                const value = initializer.getLiteralValue();
-                enumValues.push(value);
+                memberValue = initializer.getLiteralValue();
+                enumValues.push(memberValue);
                 if (enumType === null) {
                     enumType = "number";
                 } else if (enumType !== "number") {
@@ -718,6 +735,7 @@ function createEnumSchema(
             // If getValue() returns undefined or non-numeric, the enum cannot be statically analyzed
             const value = member.getValue();
             if (typeof value === "number") {
+                memberValue = value;
                 enumValues.push(value);
                 if (enumType === null) {
                     enumType = "number";
@@ -730,10 +748,33 @@ function createEnumSchema(
                 );
             }
         }
+
+        // Extract JSDoc description for this enum member
+        const jsDocMetadata = extractJSDocMetadata(member);
+        if (jsDocMetadata.description) {
+            // Use the enum value as the key in x-enumDescriptions
+            // Convert numbers to strings for the key
+            const key = String(memberValue);
+            enumDescriptions[key] = jsDocMetadata.description;
+        }
     }
 
-    // enumType is guaranteed to be non-null since we have at least one member
-    return { type: enumType!, enum: enumValues };
+    // Build the schema result
+    const schema: {
+        type: "string" | "number";
+        enum: (string | number)[];
+        "x-enumDescriptions"?: Record<string, string>;
+    } = {
+        type: enumType!,
+        enum: enumValues,
+    };
+
+    // Only add x-enumDescriptions if at least one member has a description
+    if (Object.keys(enumDescriptions).length > 0) {
+        schema["x-enumDescriptions"] = enumDescriptions;
+    }
+
+    return schema;
 }
 
 function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
