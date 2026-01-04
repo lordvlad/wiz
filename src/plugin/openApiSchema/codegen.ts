@@ -1,6 +1,6 @@
 import { TypeFlags, Node, Symbol, SymbolFlags, Type, TypeNode, EnumDeclaration } from "ts-morph";
 
-import type { BigIntFormatType, NumFormatType, StrFormatType } from "../../tags";
+import type { BigIntFormatType, NumFormatType, StrFormatType, DateFormatType } from "../../tags";
 
 type SchemaSettings = {
     coerceSymbolsToStrings?: boolean;
@@ -189,6 +189,8 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
 
     if (isStrFormat(type, context.nodeText)) return createSchemaForStrFormat(type, context.nodeText);
 
+    if (isDateFormat(type, context.nodeText)) return createSchemaForDateFormat(type, context.nodeText);
+
     if (isSymbolType(type)) {
         if (settings.coerceSymbolsToStrings) return { type: "string" };
         throw new Error("Symbol types require 'coerceSymbolsToStrings' to be enabled.");
@@ -340,6 +342,10 @@ function isStrFormat(type: Type, nodeText?: string) {
     return hasFormatAlias(type, "StrFormat") || nodeText?.includes("StrFormat");
 }
 
+function isDateFormat(type: Type, nodeText?: string) {
+    return hasFormatAlias(type, "DateFormat") || nodeText?.includes("DateFormat");
+}
+
 function hasFormatAlias(type: Type, name: string) {
     const alias = type.getAliasSymbol();
     if (alias && alias.getName() === name) return true;
@@ -354,9 +360,10 @@ function createSchemaForBigInt(type: Type, nodeText?: string) {
     const formatValue =
         getFormatLiteral<BigIntFormatType>(type) ?? extractFormatFromText<BigIntFormatType>(nodeText, "BigIntFormat");
 
-    if (formatValue === "int64") return { type: "integer", format: "int64" };
+    if (formatValue === "int64")
+        return { type: "integer", format: "int64", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
 
-    if (formatValue === "string") return { type: "string" };
+    if (formatValue === "string") return { type: "string", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
 
     throw new Error(`BigIntFormat requires a format. Received: ${type.getText()}`);
 }
@@ -367,13 +374,15 @@ function createSchemaForNumberFormat(type: Type, nodeText?: string) {
 
     if (!formatValue) return { type: "number" };
 
-    if (formatValue === "string") return { type: "string" };
+    if (formatValue === "string") return { type: "string", "x-wiz-format": `NumFormat<"${formatValue}">` };
 
-    if (formatValue === "int32" || formatValue === "int64") return { type: "integer", format: formatValue };
+    if (formatValue === "int32" || formatValue === "int64")
+        return { type: "integer", format: formatValue, "x-wiz-format": `NumFormat<"${formatValue}">` };
 
-    if (formatValue === "float" || formatValue === "double") return { type: "number", format: formatValue };
+    if (formatValue === "float" || formatValue === "double")
+        return { type: "number", format: formatValue, "x-wiz-format": `NumFormat<"${formatValue}">` };
 
-    return { type: "number" };
+    return { type: "number", "x-wiz-format": `NumFormat<"${formatValue}">` };
 }
 
 function createSchemaForStrFormat(type: Type, nodeText?: string) {
@@ -383,7 +392,33 @@ function createSchemaForStrFormat(type: Type, nodeText?: string) {
     if (!formatValue) return { type: "string" };
 
     // All StrFormat types map to string with format field
-    return { type: "string", format: formatValue };
+    return { type: "string", format: formatValue, "x-wiz-format": `StrFormat<"${formatValue}">` };
+}
+
+function createSchemaForDateFormat(type: Type, nodeText?: string) {
+    const formatValue =
+        getFormatLiteral<DateFormatType>(type) ?? extractFormatFromText<DateFormatType>(nodeText, "DateFormat");
+
+    if (!formatValue) return { type: "string", format: "date-time" };
+
+    // Handle different date format types
+    if (formatValue === "date-time") {
+        return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
+    }
+
+    if (formatValue === "date") {
+        return { type: "string", format: "date", "x-wiz-format": `DateFormat<"${formatValue}">` };
+    }
+
+    if (formatValue === "unix-s") {
+        return { type: "integer", format: "int64", "x-wiz-format": `DateFormat<"${formatValue}">` };
+    }
+
+    if (formatValue === "unix-ms") {
+        return { type: "integer", format: "int64", "x-wiz-format": `DateFormat<"${formatValue}">` };
+    }
+
+    return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
 }
 
 function isOptionalProperty(symbol: Symbol, declaration: Node) {

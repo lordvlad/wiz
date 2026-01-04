@@ -369,10 +369,12 @@ const cases: TestCase[] = [
             properties: {
                 id: {
                     type: "integer",
-                    format: "int64"
+                    format: "int64",
+                    "x-wiz-format": 'BigIntFormat<"int64">'
                 },
                 reference: {
-                    type: "string"
+                    type: "string",
+                    "x-wiz-format": 'BigIntFormat<"string">'
                 }
             },
             required: [
@@ -403,22 +405,27 @@ const cases: TestCase[] = [
             properties: {
                 floatValue: {
                     type: "number",
-                    format: "float"
+                    format: "float",
+                    "x-wiz-format": 'NumFormat<"float">'
                 },
                 preciseValue: {
                     type: "number",
-                    format: "double"
+                    format: "double",
+                    "x-wiz-format": 'NumFormat<"double">'
                 },
                 smallInt: {
                     type: "integer",
-                    format: "int32"
+                    format: "int32",
+                    "x-wiz-format": 'NumFormat<"int32">'
                 },
                 bigInt: {
                     type: "integer",
-                    format: "int64"
+                    format: "int64",
+                    "x-wiz-format": 'NumFormat<"int64">'
                 },
                 stringified: {
-                    type: "string"
+                    type: "string",
+                    "x-wiz-format": 'NumFormat<"string">'
                 },
                 plain: {
                     type: "number"
@@ -1153,7 +1160,8 @@ const cases: TestCase[] = [
             properties: {
                 email: {
                     type: "string",
-                    format: "email"
+                    format: "email",
+                    "x-wiz-format": 'StrFormat<"email">'
                 }
             },
             required: [
@@ -1179,7 +1187,8 @@ const cases: TestCase[] = [
             properties: {
                 id: {
                     type: "string",
-                    format: "uuid"
+                    format: "uuid",
+                    "x-wiz-format": 'StrFormat<"uuid">'
                 }
             },
             required: [
@@ -1205,7 +1214,8 @@ const cases: TestCase[] = [
             properties: {
                 url: {
                     type: "string",
-                    format: "uri"
+                    format: "uri",
+                    "x-wiz-format": 'StrFormat<"uri">'
                 }
             },
             required: [
@@ -1231,7 +1241,8 @@ const cases: TestCase[] = [
             properties: {
                 address: {
                     type: "string",
-                    format: "ipv4"
+                    format: "ipv4",
+                    "x-wiz-format": 'StrFormat<"ipv4">'
                 }
             },
             required: [
@@ -1257,7 +1268,8 @@ const cases: TestCase[] = [
             properties: {
                 server: {
                     type: "string",
-                    format: "hostname"
+                    format: "hostname",
+                    "x-wiz-format": 'StrFormat<"hostname">'
                 }
             },
             required: [
