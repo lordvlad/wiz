@@ -1,6 +1,13 @@
-import type { Type, TypeFormatFlags } from "ts-morph";
+import { Node, Type, TypeFormatFlags } from "ts-morph";
 
 import type { WizPluginOptions } from "..";
+import type { BigIntFormatType, DateFormatType, NumFormatType, StrFormatType } from "../../tags";
+
+// JSDoc metadata for protobuf
+interface JSDocComment {
+    description?: string;
+    tags: Array<{ name: string; value?: string }>;
+}
 
 // Counter for field numbers
 let fieldNumberCounter = 1;
@@ -15,8 +22,208 @@ function getNextFieldNumber(): number {
     return fieldNumberCounter++;
 }
 
+// Extract JSDoc comments from a TypeScript node
+function extractJSDocComment(node?: Node): JSDocComment | undefined {
+    if (!node) return undefined;
+
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== "function") {
+        return undefined;
+    }
+
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return undefined;
+
+    let description: string | undefined;
+    const tags: Array<{ name: string; value?: string }> = [];
+
+    for (const jsDoc of jsDocs) {
+        // Get description from comment text (before any tags)
+        const desc = jsDoc.getDescription?.();
+        if (desc && !description) {
+            description = desc.trim();
+        }
+
+        // Process tags
+        const jsTags = jsDoc.getTags?.() || [];
+        for (const tag of jsTags) {
+            const tagName = tag.getTagName();
+            const comment = tag.getComment?.();
+
+            let commentText = "";
+
+            // Handle different comment types
+            if (typeof comment === "string") {
+                commentText = comment.trim();
+            } else if (Array.isArray(comment)) {
+                // Comment is an array of JSDocText/JSDocLink nodes
+                commentText = comment
+                    .map((part) => {
+                        if (typeof part === "string") {
+                            return part;
+                        }
+                        if (
+                            part &&
+                            typeof part === "object" &&
+                            "getText" in part &&
+                            typeof part.getText === "function"
+                        ) {
+                            return part.getText();
+                        }
+                        return "";
+                    })
+                    .join("")
+                    .trim()
+                    // Remove trailing JSDoc comment characters like " * " at the end
+                    .replace(/\s*\*\s*$/g, "")
+                    .trim();
+            }
+
+            // Keep all JSDoc tags as-is (verbatim)
+            tags.push({
+                name: tagName,
+                value: commentText || undefined,
+            });
+        }
+    }
+
+    if (!description && tags.length === 0) {
+        return undefined;
+    }
+
+    return { description, tags };
+}
+
+// Helper functions to detect wiz tagging interfaces
+function hasFormatAlias(type: Type, name: string): boolean {
+    const alias = type.getAliasSymbol();
+    if (alias && alias.getName() === name) return true;
+
+    const symbol = type.getSymbol();
+    if (symbol && symbol.getName() === name) return true;
+
+    return type.getText().includes(name);
+}
+
+function isStrFormat(type: Type, nodeText?: string): boolean {
+    return hasFormatAlias(type, "StrFormat") || (nodeText?.includes("StrFormat") ?? false);
+}
+
+function isNumFormat(type: Type, nodeText?: string): boolean {
+    return hasFormatAlias(type, "NumFormat") || (nodeText?.includes("NumFormat") ?? false);
+}
+
+function isBigIntFormat(type: Type, nodeText?: string): boolean {
+    return hasFormatAlias(type, "BigIntFormat") || (nodeText?.includes("BigIntFormat") ?? false);
+}
+
+function isDateFormat(type: Type, nodeText?: string): boolean {
+    return hasFormatAlias(type, "DateFormat") || (nodeText?.includes("DateFormat") ?? false);
+}
+
+function getFormatLiteral<T extends string>(type: Type): T | undefined {
+    const aliasArgs = type.getAliasTypeArguments?.();
+    if (aliasArgs && aliasArgs.length > 0) {
+        const literal = aliasArgs[0]?.getLiteralValue?.();
+        if (typeof literal === "string") return literal as T;
+    }
+
+    const typeArgs = type.getTypeArguments?.();
+    if (typeArgs && typeArgs.length > 0) {
+        const literal = typeArgs[0]?.getLiteralValue?.();
+        if (typeof literal === "string") return literal as T;
+    }
+
+    return undefined;
+}
+
+function extractFormatFromText<T extends string>(text: string | undefined, alias: string): T | undefined {
+    if (!text) return undefined;
+
+    const pattern = new RegExp(`${alias}<\\s*"([^"]+)"`, "i");
+    const match = text.match(pattern);
+    if (!match) return undefined;
+
+    return match[1] as T;
+}
+
+// Extract wiz tag information from a type
+function extractWizTag(type: Type, nodeText?: string): { name: string; value: string } | undefined {
+    if (isStrFormat(type, nodeText)) {
+        const formatValue =
+            getFormatLiteral<StrFormatType>(type) ?? extractFormatFromText<StrFormatType>(nodeText, "StrFormat");
+        if (formatValue) {
+            return { name: "wiz-format", value: formatValue };
+        }
+    }
+
+    if (isNumFormat(type, nodeText)) {
+        const formatValue =
+            getFormatLiteral<NumFormatType>(type) ?? extractFormatFromText<NumFormatType>(nodeText, "NumFormat");
+        if (formatValue) {
+            return { name: "wiz-format", value: formatValue };
+        }
+    }
+
+    if (isBigIntFormat(type, nodeText)) {
+        const formatValue =
+            getFormatLiteral<BigIntFormatType>(type) ??
+            extractFormatFromText<BigIntFormatType>(nodeText, "BigIntFormat");
+        if (formatValue) {
+            return { name: "wiz-format", value: formatValue };
+        }
+    }
+
+    if (isDateFormat(type, nodeText)) {
+        const formatValue =
+            getFormatLiteral<DateFormatType>(type) ?? extractFormatFromText<DateFormatType>(nodeText, "DateFormat");
+        if (formatValue) {
+            return { name: "wiz-format", value: formatValue };
+        }
+    }
+
+    return undefined;
+}
+
+// Format JSDoc comment for protobuf
+function formatProtobufComment(comment: JSDocComment | undefined, indent: string = ""): string {
+    if (!comment) return "";
+
+    const lines: string[] = [];
+
+    // Add description
+    if (comment.description) {
+        // Split description by newlines and format each line
+        const descLines = comment.description.split("\n");
+        for (const line of descLines) {
+            lines.push(`${indent}// ${line}`);
+        }
+    }
+
+    // Add tags
+    for (const tag of comment.tags) {
+        if (tag.value) {
+            lines.push(`${indent}// @${tag.name} ${tag.value}`);
+        } else {
+            lines.push(`${indent}// @${tag.name}`);
+        }
+    }
+
+    return lines.length > 0 ? lines.join("\n") + "\n" : "";
+}
+
 // Map TypeScript types to protobuf types
 function mapToProtobufType(type: Type): string {
+    // Handle union types - extract non-undefined type
+    if (type.isUnion()) {
+        const nonUndefinedTypes = type.getUnionTypes().filter((t: Type) => !t.isUndefined() && !t.isNull());
+        if (nonUndefinedTypes.length === 1) {
+            // Single non-undefined type in the union, use it
+            return mapToProtobufType(nonUndefinedTypes[0]!);
+        }
+        // Multiple non-undefined types or no non-undefined types - fallthrough
+    }
+
     if (type.isString() || type.isStringLiteral()) {
         return "string";
     }
@@ -87,10 +294,23 @@ function isOptionalType(type: Type): boolean {
 function getNonUndefinedType(type: Type): Type {
     if (type.isUnion()) {
         const nonUndefinedTypes = type.getUnionTypes().filter((t: Type) => !t.isUndefined());
+
+        // If there's only one non-undefined type, return it
         if (nonUndefinedTypes.length === 1) {
             return nonUndefinedTypes[0]!;
         }
-        // If multiple non-undefined types, return the union type
+
+        // Check if the union without undefined is a boolean (true | false)
+        if (nonUndefinedTypes.length === 2) {
+            const allBoolLiterals = nonUndefinedTypes.every((t: Type) => t.isBooleanLiteral());
+            if (allBoolLiterals) {
+                // This is a boolean type (true | false), return the first type
+                // which will be recognized as part of a boolean by isBoolean()
+                return nonUndefinedTypes[0]!;
+            }
+        }
+
+        // If multiple non-undefined types, return the original union type
         return type;
     }
     return type;
@@ -156,11 +376,15 @@ export function generateProtobufMessage(
     typeName: string,
     availableTypes: Set<string>,
     opt: WizPluginOptions,
+    typeDeclaration?: Node,
 ): any {
     resetFieldCounter();
 
     const properties = type.getProperties();
     const fields: any[] = [];
+
+    // Extract JSDoc comment from the type declaration (message-level)
+    const messageComment = extractJSDocComment(typeDeclaration);
 
     for (const prop of properties) {
         const propName = prop.getName();
@@ -189,6 +413,26 @@ export function generateProtobufMessage(
             name: propName,
             number: getNextFieldNumber(),
         };
+
+        // Extract JSDoc comment from field declaration
+        const fieldComment = extractJSDocComment(declaration);
+
+        // Check for wiz tagging interface and add it to comments
+        const typeNode =
+            Node.isPropertySignature(declaration) || Node.isPropertyDeclaration(declaration)
+                ? declaration.getTypeNode()
+                : undefined;
+        const nodeText = typeNode?.getText();
+        const wizTag = extractWizTag(actualType, nodeText);
+
+        if (fieldComment || wizTag) {
+            const comment = fieldComment || { description: undefined, tags: [] };
+            if (wizTag) {
+                // Add wiz tag to the tags array
+                comment.tags.push(wizTag);
+            }
+            field.comment = comment;
+        }
 
         if (mapInfo.isMap) {
             // Map field
@@ -222,6 +466,7 @@ export function generateProtobufMessage(
     return {
         name: typeName,
         fields,
+        comment: messageComment,
     };
 }
 
@@ -231,6 +476,7 @@ export function createProtobufModel(
     typeNames: string[],
     packageName: string,
     opt: WizPluginOptions,
+    typeDeclarations?: (Node | undefined)[],
 ): any {
     const messages: Record<string, any> = {};
     const availableTypes = new Set(typeNames);
@@ -238,7 +484,8 @@ export function createProtobufModel(
     for (let i = 0; i < types.length; i++) {
         const type = types[i]!;
         const typeName = typeNames[i]!;
-        messages[typeName] = generateProtobufMessage(type, typeName, availableTypes, opt);
+        const typeDeclaration = typeDeclarations?.[i];
+        messages[typeName] = generateProtobufMessage(type, typeName, availableTypes, opt, typeDeclaration);
     }
 
     return {
@@ -269,8 +516,18 @@ export function protobufModelToString(model: any): string {
 
     // Generate messages
     for (const [messageName, message] of Object.entries(model.messages) as any) {
+        // Add message-level comment if present
+        if (message.comment) {
+            proto += formatProtobufComment(message.comment, "");
+        }
+
         proto += `message ${messageName} {\n`;
         for (const field of message.fields) {
+            // Add field-level comment if present
+            if (field.comment) {
+                proto += formatProtobufComment(field.comment, "  ");
+            }
+
             let fieldLine = "  ";
 
             if (field.repeated) {
