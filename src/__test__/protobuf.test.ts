@@ -204,7 +204,7 @@ describe("createProtobufModel function", () => {
         expect(actual).toInclude("tags:");
     });
 
-    it("must prefix custom JSDoc tags with wiz-", async () => {
+    it("must preserve JSDoc tags verbatim without prefix", async () => {
         const code = `
             import { createProtobufModel } from "../../protobuf/index";
             
@@ -226,12 +226,35 @@ describe("createProtobufModel function", () => {
 
         const actual = await compile(code);
 
-        // Check that custom tags are prefixed with "wiz-" in the model
-        expect(actual).toInclude("wiz-customTag");
+        // Check that all tags are preserved as-is without prefix
+        expect(actual).toInclude("customTag");
         expect(actual).toInclude("customValue");
-        expect(actual).toInclude("wiz-fieldTag");
+        expect(actual).toInclude("fieldTag");
         expect(actual).toInclude("fieldValue");
-        // @internal should be treated as standard JSDoc tag
         expect(actual).toInclude("internal");
+    });
+
+    it("must add wiz-format tag for wiz tagging interfaces", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            import { StrFormat } from "../../tags/index";
+            
+            type User = {
+                /** User's email address */
+                email: StrFormat<"email">;
+                
+                /** User's UUID */
+                id: StrFormat<"uuid">;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        const actual = await compile(code);
+
+        // Check that wiz-format tags are added for StrFormat types
+        expect(actual).toInclude("wiz-format");
+        expect(actual).toInclude("email");
+        expect(actual).toInclude("uuid");
     });
 });

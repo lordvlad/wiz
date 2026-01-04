@@ -59,7 +59,7 @@ describe("protobufModelToString with JSDoc comments", () => {
         expect(protoString).toContain("int32 id = 1");
     });
 
-    it("should include JSDoc tags in comments", () => {
+    it("should include JSDoc tags without prefix", () => {
         const model = {
             syntax: "proto3",
             package: "test.api",
@@ -71,6 +71,7 @@ describe("protobufModelToString with JSDoc comments", () => {
                         tags: [
                             { name: "version", value: "1.0.0" },
                             { name: "author", value: "Test Author" },
+                            { name: "customTag", value: "customValue" },
                         ],
                     },
                     fields: [
@@ -93,26 +94,27 @@ describe("protobufModelToString with JSDoc comments", () => {
         expect(protoString).toContain("// User type");
         expect(protoString).toContain("// @version 1.0.0");
         expect(protoString).toContain("// @author Test Author");
+        expect(protoString).toContain("// @customTag customValue");
         expect(protoString).toContain("// User ID");
         expect(protoString).toContain("// @deprecated Use uuid instead");
     });
 
-    it("should prefix custom tags with wiz-", () => {
+    it("should include wiz-format tags for wiz tagging interfaces", () => {
         const model = {
             syntax: "proto3",
             package: "test.api",
             messages: {
                 User: {
                     name: "User",
-                    comment: {
-                        description: "User type",
-                        tags: [{ name: "wiz-customTag", value: "customValue" }],
-                    },
                     fields: [
                         {
-                            name: "id",
-                            type: "int32",
+                            name: "email",
+                            type: "string",
                             number: 1,
+                            comment: {
+                                description: "User email",
+                                tags: [{ name: "wiz-format", value: "email" }],
+                            },
                         },
                     ],
                 },
@@ -121,7 +123,8 @@ describe("protobufModelToString with JSDoc comments", () => {
 
         const protoString = protobufModelToString(model);
 
-        expect(protoString).toContain("// @wiz-customTag customValue");
+        expect(protoString).toContain("// User email");
+        expect(protoString).toContain("// @wiz-format email");
     });
 
     it("should handle multi-line descriptions", () => {
