@@ -157,8 +157,16 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
         }
     }
 
-    // Handle intersection types (allOf)
+    // Handle intersection types
     if (type.isIntersection()) {
+        // First check if this is a wiz format intersection type
+        // e.g., string & { __str_format: "email" }
+        const wizFormatSchema = tryExtractWizFormatFromIntersection(type, context);
+        if (wizFormatSchema) {
+            return wizFormatSchema;
+        }
+
+        // Otherwise handle as regular intersection (allOf)
         const intersectionTypes = type.getIntersectionTypes();
         const schemas = intersectionTypes.map((t) =>
             createOpenApiSchema(t, {
@@ -419,6 +427,130 @@ function createSchemaForDateFormat(type: Type, nodeText?: string) {
     }
 
     return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
+}
+
+/**
+ * Try to extract wiz format information from an intersection type.
+ * Handles cases like: string & { __str_format: "email" }
+ */
+function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext): unknown | null {
+    const intersectionTypes = type.getIntersectionTypes();
+    
+    // We expect exactly 2 types: the base type and the format marker object
+    if (intersectionTypes.length !== 2) return null;
+
+    // Try to identify which is the base type and which is the format marker
+    let baseType: Type | null = null;
+    let formatMarker: Type | null = null;
+    let formatProperty: string | null = null;
+    let formatValue: string | null = null;
+
+    for (const t of intersectionTypes) {
+        // Check if this is the format marker object (has __*_format property)
+        if (t.isObject() && !t.isArray()) {
+            const properties = t.getProperties();
+            
+            // Look for __str_format, __num_format, __bigint_format, or __date_format
+            const strFormatProp = properties.find(p => p.getName() === "__str_format");
+            const numFormatProp = properties.find(p => p.getName() === "__num_format");
+            const bigintFormatProp = properties.find(p => p.getName() === "__bigint_format");
+            const dateFormatProp = properties.find(p => p.getName() === "__date_format");
+
+            if (strFormatProp) {
+                formatMarker = t;
+                formatProperty = "str";
+                // Extract the format value from the property type
+                const propType = strFormatProp.getTypeAtLocation(strFormatProp.getValueDeclaration()!);
+                formatValue = extractFormatValueFromType(propType);
+            } else if (numFormatProp) {
+                formatMarker = t;
+                formatProperty = "num";
+                const propType = numFormatProp.getTypeAtLocation(numFormatProp.getValueDeclaration()!);
+                formatValue = extractFormatValueFromType(propType);
+            } else if (bigintFormatProp) {
+                formatMarker = t;
+                formatProperty = "bigint";
+                const propType = bigintFormatProp.getTypeAtLocation(bigintFormatProp.getValueDeclaration()!);
+                formatValue = extractFormatValueFromType(propType);
+            } else if (dateFormatProp) {
+                formatMarker = t;
+                formatProperty = "date";
+                const propType = dateFormatProp.getTypeAtLocation(dateFormatProp.getValueDeclaration()!);
+                formatValue = extractFormatValueFromType(propType);
+            } else {
+                // This object doesn't have a format property, so it might be the base type
+                // (e.g., Date is an object type)
+                if (!baseType) {
+                    baseType = t;
+                }
+            }
+        } else {
+            // This is a primitive type (string, number, bigint)
+            if (!baseType) {
+                baseType = t;
+            }
+        }
+    }
+
+    // If we didn't find both parts, this is not a wiz format intersection
+    if (!baseType || !formatMarker || !formatProperty || !formatValue) return null;
+
+    // Create the appropriate schema based on the format type
+    switch (formatProperty) {
+        case "str":
+            return { type: "string", format: formatValue, "x-wiz-format": `StrFormat<"${formatValue}">` };
+        
+        case "num": {
+            // NumFormat can map to different types based on the format value
+            if (formatValue === "string") {
+                return { type: "string", "x-wiz-format": `NumFormat<"${formatValue}">` };
+            }
+            if (formatValue === "int32" || formatValue === "int64") {
+                return { type: "integer", format: formatValue, "x-wiz-format": `NumFormat<"${formatValue}">` };
+            }
+            if (formatValue === "float" || formatValue === "double") {
+                return { type: "number", format: formatValue, "x-wiz-format": `NumFormat<"${formatValue}">` };
+            }
+            return { type: "number", "x-wiz-format": `NumFormat<"${formatValue}">` };
+        }
+        
+        case "bigint": {
+            if (formatValue === "int64") {
+                return { type: "integer", format: "int64", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
+            }
+            if (formatValue === "string") {
+                return { type: "string", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
+            }
+            return { type: "integer", format: "int64", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
+        }
+        
+        case "date": {
+            if (formatValue === "date-time") {
+                return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
+            }
+            if (formatValue === "date") {
+                return { type: "string", format: "date", "x-wiz-format": `DateFormat<"${formatValue}">` };
+            }
+            if (formatValue === "unix-s" || formatValue === "unix-ms") {
+                return { type: "integer", format: "int64", "x-wiz-format": `DateFormat<"${formatValue}">` };
+            }
+            return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
+        }
+        
+        default:
+            return null;
+    }
+}
+
+/**
+ * Extract the format value from a literal string type.
+ * e.g., for type "email", returns "email"
+ */
+function extractFormatValueFromType(type: Type): string | null {
+    if (type.isStringLiteral()) {
+        return type.getLiteralValue() as string;
+    }
+    return null;
 }
 
 function isOptionalProperty(symbol: Symbol, declaration: Node) {
