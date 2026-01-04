@@ -750,7 +750,8 @@ function createEnumSchema(
         }
 
         // Extract JSDoc description for this enum member
-        // memberValue is guaranteed to be defined here since all paths above either assign it or throw
+        // Note: memberValue should always be defined at this point (all paths above either assign it or throw),
+        // but we check for safety as a defensive programming practice
         if (memberValue !== undefined) {
             const jsDocMetadata = extractJSDocMetadata(member);
             if (jsDocMetadata.description) {
@@ -768,6 +769,7 @@ function createEnumSchema(
         enum: (string | number)[];
         "x-enumDescriptions"?: Record<string, string>;
     } = {
+        // enumType is guaranteed to be non-null since we have at least one member and all paths set it
         type: enumType!,
         enum: enumValues,
     };
