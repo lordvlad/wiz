@@ -145,4 +145,93 @@ describe("createProtobufModel function", () => {
         expect(actual).toInclude("address");
         expect(actual).toInclude('type: "Address"');
     });
+
+    it("must preserve JSDoc comments on types", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            /**
+             * User entity representing a system user
+             */
+            type User = {
+                /** User's unique identifier */
+                id: number;
+                /** User's full name */
+                name: string;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        const actual = await compile(code);
+
+        // Check that comments are preserved in the model
+        expect(actual).toInclude("User entity representing a system user");
+        expect(actual).toInclude("User's unique identifier");
+        expect(actual).toInclude("User's full name");
+        // Check that comments are in the model structure
+        expect(actual).toInclude("comment:");
+    });
+
+    it("must preserve JSDoc tags on types", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            /**
+             * User type
+             * @version 1.0.0
+             * @author Test Author
+             */
+            type User = {
+                /**
+                 * User ID
+                 * @deprecated Use uuid instead
+                 */
+                id: number;
+                name: string;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        const actual = await compile(code);
+
+        // Check that tags are preserved in the model structure
+        expect(actual).toInclude("version");
+        expect(actual).toInclude("1.0.0");
+        expect(actual).toInclude("author");
+        expect(actual).toInclude("deprecated");
+        expect(actual).toInclude("tags:");
+    });
+
+    it("must prefix custom JSDoc tags with wiz-", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            /**
+             * User type
+             * @customTag customValue
+             * @internal This is internal
+             */
+            type User = {
+                /**
+                 * User ID
+                 * @fieldTag fieldValue
+                 */
+                id: number;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        const actual = await compile(code);
+
+        // Check that custom tags are prefixed with "wiz-" in the model
+        expect(actual).toInclude("wiz-customTag");
+        expect(actual).toInclude("customValue");
+        expect(actual).toInclude("wiz-fieldTag");
+        expect(actual).toInclude("fieldValue");
+        // @internal should be treated as standard JSDoc tag
+        expect(actual).toInclude("internal");
+    });
 });

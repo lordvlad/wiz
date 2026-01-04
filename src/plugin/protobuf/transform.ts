@@ -159,6 +159,23 @@ function collectTypeNames(tupleElements: Type[]): string[] {
     return tupleElements.map((element) => extractTypeName(element));
 }
 
+// Helper: Collect type declarations from tuple elements
+function collectTypeDeclarations(tupleElements: Type[]): (Node | undefined)[] {
+    return tupleElements.map((element) => {
+        const aliasSymbol = element.getAliasSymbol();
+        if (aliasSymbol) {
+            const declarations = aliasSymbol.getDeclarations();
+            return declarations[0];
+        }
+        const symbol = element.getSymbol();
+        if (symbol) {
+            const declarations = symbol.getDeclarations();
+            return declarations[0];
+        }
+        return undefined;
+    });
+}
+
 // Helper: Parse protobuf config from call arguments
 function parseProtobufConfig(call: CallExpression, log: (...args: any[]) => void, path: string): ProtobufConfigResult {
     const args = call.getArguments();
@@ -419,7 +436,8 @@ export function transformProtobufModel(sourceFile: SourceFile, { log, path, opt 
         // Generate protobuf model
         const tupleElements = type.getTupleElements();
         const typeNames = collectTypeNames(tupleElements);
-        const model = codegen(tupleElements, typeNames, packageName, opt);
+        const typeDeclarations = collectTypeDeclarations(tupleElements);
+        const model = codegen(tupleElements, typeNames, packageName, opt, typeDeclarations);
 
         call.replaceWithText(JSON.stringify(model, null, 2));
     }
@@ -457,7 +475,8 @@ export function transformProtobufSpec(sourceFile: SourceFile, { log, path, opt }
         // Generate protobuf model (messages)
         const tupleElements = type.getTupleElements();
         const typeNames = collectTypeNames(tupleElements);
-        const model = codegen(tupleElements, typeNames, config.packageName, opt);
+        const typeDeclarations = collectTypeDeclarations(tupleElements);
+        const model = codegen(tupleElements, typeNames, config.packageName, opt, typeDeclarations);
 
         // Group RPC methods by service name
         const serviceGroups = new Map<string, ParsedRpcMethod[]>();
