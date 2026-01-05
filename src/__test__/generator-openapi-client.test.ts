@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
-import { generateClientFromOpenApi } from "../generator/openapi-client";
 import type { OpenApiSpec } from "../generator/openapi";
+import { generateClientFromOpenApi } from "../generator/openapi-client";
 
 describe("OpenAPI to TypeScript client generator", () => {
     it("should generate a basic client with GET method", () => {
@@ -25,10 +25,10 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("export const api =");
         expect(api).toContain("getUsers");
-        expect(api).toContain("method: \"GET\"");
+        expect(api).toContain('method: "GET"');
         expect(api).toContain("/users");
     });
 
@@ -61,7 +61,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("getUserById");
         expect(api).toContain("pathParams:");
         expect(api).toContain("GetUserByIdPathParams");
@@ -103,7 +103,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("listUsers");
         expect(api).toContain("queryParams?:");
         expect(api).toContain("ListUsersQueryParams");
@@ -150,9 +150,9 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("createUser");
-        expect(api).toContain("method: \"POST\"");
+        expect(api).toContain('method: "POST"');
         expect(api).toContain("requestBody: User");
         expect(api).toContain("JSON.stringify(requestBody)");
     });
@@ -186,7 +186,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("fetchUserDetails");
         expect(api).not.toContain("getUsersId");
     });
@@ -219,7 +219,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("getApiUsers");
     });
 
@@ -278,7 +278,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("export interface ApiConfig");
         expect(api).toContain("baseUrl?:");
         expect(api).toContain("headers?:");
@@ -312,7 +312,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         // The default baseUrl should be used in the method body
         expect(api).toContain('const baseUrl = config.baseUrl || "https://api.example.com" || "";');
     });
@@ -356,7 +356,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { models, api } = generateClientFromOpenApi(spec);
-        
+
         expect(models).toContain("export type User =");
         expect(models).toContain("name: string;");
         expect(models).toContain("email: string;");
@@ -441,7 +441,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("getUser");
         expect(api).toContain("updateUser");
         expect(api).toContain("deleteUser");
@@ -473,7 +473,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("/**");
         expect(api).toContain("List all users");
         expect(api).toContain("Retrieves a list of all users in the system");
@@ -501,7 +501,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         };
 
         const { api } = generateClientFromOpenApi(spec);
-        
+
         expect(api).toContain("init?: RequestInit");
         expect(api).toContain("...init");
         expect(api).toContain("...init?.headers");

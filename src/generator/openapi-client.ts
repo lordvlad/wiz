@@ -1,7 +1,6 @@
 /**
  * OpenAPI to TypeScript client generator
  */
-
 import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi";
 
 export interface ClientGeneratorOptions {
@@ -46,11 +45,11 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
  */
 function generateApiClient(spec: OpenApiSpec, options: ClientGeneratorOptions): string {
     const operations = extractOperations(spec);
-    
+
     // Check for duplicate method names
     const methodNames = new Set<string>();
     const duplicates: string[] = [];
-    
+
     for (const op of operations) {
         const methodName = getMethodName(op);
         if (methodNames.has(methodName)) {
@@ -58,23 +57,25 @@ function generateApiClient(spec: OpenApiSpec, options: ClientGeneratorOptions): 
         }
         methodNames.add(methodName);
     }
-    
+
     if (duplicates.length > 0) {
-        throw new Error(`Duplicate method names detected: ${duplicates.join(", ")}. Please specify unique operationIds in your OpenAPI spec.`);
+        throw new Error(
+            `Duplicate method names detected: ${duplicates.join(", ")}. Please specify unique operationIds in your OpenAPI spec.`,
+        );
     }
 
     // Get default base URL
     const defaultBaseUrl = getDefaultBaseUrl(spec);
 
     let output = "";
-    
+
     // Generate configuration interface
     output += generateConfigInterface();
     output += "\n\n";
-    
+
     // Generate client class
     output += generateClientClass(operations, defaultBaseUrl);
-    
+
     return output;
 }
 
@@ -83,14 +84,14 @@ function generateApiClient(spec: OpenApiSpec, options: ClientGeneratorOptions): 
  */
 function extractOperations(spec: OpenApiSpec): OperationInfo[] {
     const operations: OperationInfo[] = [];
-    
+
     if (!spec.paths) {
         return operations;
     }
-    
+
     for (const [path, pathItem] of Object.entries(spec.paths)) {
         const methods = ["get", "post", "put", "patch", "delete", "options", "head", "trace"];
-        
+
         for (const method of methods) {
             const operation = (pathItem as any)[method];
             if (operation) {
@@ -108,7 +109,7 @@ function extractOperations(spec: OpenApiSpec): OperationInfo[] {
             }
         }
     }
-    
+
     return operations;
 }
 
@@ -119,12 +120,12 @@ function getMethodName(op: OperationInfo): string {
     if (op.operationId) {
         return op.operationId;
     }
-    
+
     // Fallback to methodPath pattern
     const pathParts = op.path
         .split("/")
         .filter(Boolean)
-        .map(part => {
+        .map((part) => {
             // Remove path parameters
             if (part.startsWith("{") && part.endsWith("}")) {
                 return "";
@@ -133,11 +134,11 @@ function getMethodName(op: OperationInfo): string {
             return part.replace(/[^a-zA-Z0-9]/g, "");
         })
         .filter(Boolean);
-    
-    const pathName = pathParts.map((part, i) => 
-        i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
-    ).join("");
-    
+
+    const pathName = pathParts
+        .map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+        .join("");
+
     return op.method.toLowerCase() + pathName.charAt(0).toUpperCase() + pathName.slice(1);
 }
 
@@ -176,12 +177,12 @@ export function getApiConfig(): ApiConfig {
  */
 function generateClientClass(operations: OperationInfo[], defaultBaseUrl: string): string {
     let output = "export const api = {\n";
-    
+
     for (const op of operations) {
         output += generateMethod(op, defaultBaseUrl);
         output += ",\n";
     }
-    
+
     output += "};\n";
     return output;
 }
@@ -192,10 +193,10 @@ function generateClientClass(operations: OperationInfo[], defaultBaseUrl: string
 function generateMethod(op: OperationInfo, defaultBaseUrl: string): string {
     const methodName = getMethodName(op);
     const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
-    
+
     // Generate parameter types
     const paramTypes = generateParameterTypes(op, pathParams, queryParams);
-    
+
     // Generate method signature
     const params: string[] = [];
     if (pathParams.length > 0) {
@@ -208,9 +209,9 @@ function generateMethod(op: OperationInfo, defaultBaseUrl: string): string {
         params.push(`requestBody: ${getRequestBodyType(op)}`);
     }
     params.push("init?: RequestInit");
-    
+
     const signature = `${methodName}(${params.join(", ")})`;
-    
+
     // Generate JSDoc
     let jsdoc = "";
     if (op.summary || op.description) {
@@ -223,24 +224,24 @@ function generateMethod(op: OperationInfo, defaultBaseUrl: string): string {
         }
         jsdoc += "   */\n";
     }
-    
+
     // Generate method body
     const body = generateMethodBody(op, pathParams, queryParams, hasRequestBody, defaultBaseUrl);
-    
+
     return `${paramTypes}${jsdoc}  async ${signature}: Promise<Response> ${body}`;
 }
 
 /**
  * Analyze operation parameters
  */
-function analyzeParameters(op: OperationInfo): { 
-    pathParams: any[]; 
-    queryParams: any[]; 
+function analyzeParameters(op: OperationInfo): {
+    pathParams: any[];
+    queryParams: any[];
     hasRequestBody: boolean;
 } {
     const pathParams: any[] = [];
     const queryParams: any[] = [];
-    
+
     if (op.parameters) {
         for (const param of op.parameters) {
             if (param.in === "path") {
@@ -250,9 +251,9 @@ function analyzeParameters(op: OperationInfo): {
             }
         }
     }
-    
+
     const hasRequestBody = !!op.requestBody;
-    
+
     return { pathParams, queryParams, hasRequestBody };
 }
 
@@ -261,12 +262,12 @@ function analyzeParameters(op: OperationInfo): {
  */
 function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParams: any[]): string {
     let output = "";
-    
+
     // Generate path params type
     if (pathParams.length > 0) {
         const typeName = getPathParamsTypeName(op);
         const xTypeName = getXTypeName(pathParams, "path");
-        
+
         output += `  type ${typeName} = {\n`;
         for (const param of pathParams) {
             const required = param.required ? "" : "?";
@@ -275,12 +276,12 @@ function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParam
         }
         output += "  };\n\n";
     }
-    
+
     // Generate query params type
     if (queryParams.length > 0) {
         const typeName = getQueryParamsTypeName(op);
         const xTypeName = getXTypeName(queryParams, "query");
-        
+
         output += `  type ${typeName} = {\n`;
         for (const param of queryParams) {
             const required = param.required ? "" : "?";
@@ -289,7 +290,7 @@ function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParam
         }
         output += "  };\n\n";
     }
-    
+
     return output;
 }
 
@@ -328,10 +329,10 @@ function getRequestBodyType(op: OperationInfo): string {
     if (!op.requestBody?.content) {
         return "any";
     }
-    
+
     const contentTypes = Object.keys(op.requestBody.content);
     const jsonContent = op.requestBody.content["application/json"];
-    
+
     if (jsonContent?.schema) {
         if (jsonContent.schema.$ref) {
             const refName = jsonContent.schema.$ref.split("/").pop();
@@ -339,7 +340,7 @@ function getRequestBodyType(op: OperationInfo): string {
         }
         return getTypeFromSchema(jsonContent.schema);
     }
-    
+
     return "any";
 }
 
@@ -350,12 +351,12 @@ function getTypeFromSchema(schema: any): string {
     if (!schema) {
         return "any";
     }
-    
+
     if (schema.$ref) {
         const refName = schema.$ref.split("/").pop();
         return refName || "any";
     }
-    
+
     if (schema.type === "string") {
         return "string";
     }
@@ -372,7 +373,7 @@ function getTypeFromSchema(schema: any): string {
     if (schema.type === "object") {
         return "Record<string, any>";
     }
-    
+
     return "any";
 }
 
@@ -380,18 +381,18 @@ function getTypeFromSchema(schema: any): string {
  * Generate method body
  */
 function generateMethodBody(
-    op: OperationInfo, 
-    pathParams: any[], 
-    queryParams: any[], 
+    op: OperationInfo,
+    pathParams: any[],
+    queryParams: any[],
     hasRequestBody: boolean,
-    defaultBaseUrl: string
+    defaultBaseUrl: string,
 ): string {
     const lines: string[] = ["{"];
-    
+
     // Get config
     lines.push("    const config = getApiConfig();");
     lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
-    
+
     // Build URL with path params
     let urlTemplate = op.path;
     if (pathParams.length > 0) {
@@ -403,7 +404,7 @@ function generateMethodBody(
     } else {
         lines.push(`    const url = baseUrl + "${urlTemplate}";`);
     }
-    
+
     // Add query params
     if (queryParams.length > 0) {
         lines.push("    const searchParams = new URLSearchParams();");
@@ -419,7 +420,7 @@ function generateMethodBody(
     } else {
         lines.push("    const fullUrl = url;");
     }
-    
+
     // Build fetch options
     lines.push("    const options: RequestInit = {");
     lines.push(`      method: "${op.method}",`);
@@ -433,10 +434,10 @@ function generateMethodBody(
     }
     lines.push("      ...init,");
     lines.push("    };");
-    
+
     // Make fetch call
     lines.push("    return fetch(fullUrl, options);");
     lines.push("  }");
-    
+
     return lines.join("\n");
 }
