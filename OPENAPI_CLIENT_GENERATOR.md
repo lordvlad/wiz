@@ -28,6 +28,7 @@ wiz client spec.yaml --outdir src/client
 ```
 
 This creates:
+
 - `model.ts` - TypeScript type definitions
 - `api.ts` - Typed API client methods
 
@@ -38,60 +39,60 @@ Given an OpenAPI spec:
 ```yaml
 openapi: 3.0.0
 servers:
-  - url: https://api.example.com/v1
+    - url: https://api.example.com/v1
 paths:
-  /users:
-    get:
-      operationId: listUsers
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: number
-      responses:
-        '200':
-          description: Success
-    post:
-      operationId: createUser
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateUserRequest'
-      responses:
-        '201':
-          description: Created
-  /users/{userId}:
-    get:
-      operationId: getUserById
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Success
+    /users:
+        get:
+            operationId: listUsers
+            parameters:
+                - name: page
+                  in: query
+                  schema:
+                      type: number
+            responses:
+                "200":
+                    description: Success
+        post:
+            operationId: createUser
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateUserRequest"
+            responses:
+                "201":
+                    description: Created
+    /users/{userId}:
+        get:
+            operationId: getUserById
+            parameters:
+                - name: userId
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: Success
 components:
-  schemas:
-    User:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-      required:
-        - id
-        - name
-    CreateUserRequest:
-      type: object
-      properties:
-        name:
-          type: string
-      required:
-        - name
+    schemas:
+        User:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+            required:
+                - id
+                - name
+        CreateUserRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+            required:
+                - name
 ```
 
 The generated client can be used like this:
@@ -102,57 +103,59 @@ import type { CreateUserRequest } from "./client/model";
 
 // Configure the API client
 setApiConfig({
-  baseUrl: "https://api.example.com/v1",
-  headers: {
-    "Authorization": "Bearer your-token-here",
-  },
+    baseUrl: "https://api.example.com/v1",
+    headers: {
+        Authorization: "Bearer your-token-here",
+    },
 });
 
 // List users with pagination
 const response = await api.listUsers({
-  page: 1,
+    page: 1,
 });
 const users = await response.json();
 
 // Get a specific user
 const userResponse = await api.getUserById({
-  userId: "123",
+    userId: "123",
 });
 const user = await userResponse.json();
 
 // Create a new user
 const newUser: CreateUserRequest = {
-  name: "John Doe",
+    name: "John Doe",
 };
 const createResponse = await api.createUser(newUser);
 
 // Override fetch options for a single request
 const customResponse = await api.getUserById(
-  { userId: "123" },
-  {
-    headers: { "X-Custom-Header": "value" },
-    cache: "no-cache",
-  }
+    { userId: "123" },
+    {
+        headers: { "X-Custom-Header": "value" },
+        cache: "no-cache",
+    },
 );
 ```
 
 ## Generated Code Structure
 
 ### model.ts
+
 Contains all TypeScript type definitions from the OpenAPI schemas:
 
 ```typescript
 export type User = {
-  id: string;
-  name: string;
+    id: string;
+    name: string;
 };
 
 export type CreateUserRequest = {
-  name: string;
+    name: string;
 };
 ```
 
 ### api.ts
+
 Contains the API client with configuration and methods:
 
 ```typescript
@@ -178,21 +181,25 @@ export const api = {
 The generated methods follow these patterns:
 
 ### GET with query parameters
+
 ```typescript
 async methodName(queryParams?: QueryParamsType, init?: RequestInit): Promise<Response>
 ```
 
 ### POST with request body
+
 ```typescript
 async methodName(requestBody: BodyType, init?: RequestInit): Promise<Response>
 ```
 
 ### GET/PUT/DELETE with path parameters
+
 ```typescript
 async methodName(pathParams: PathParamsType, init?: RequestInit): Promise<Response>
 ```
 
 ### POST/PUT with path parameters and body
+
 ```typescript
 async methodName(pathParams: PathParamsType, requestBody: BodyType, init?: RequestInit): Promise<Response>
 ```
@@ -203,12 +210,12 @@ Parameter types are automatically generated for each method:
 
 ```typescript
 type ListUsersQueryParams = {
-  page?: number;
-  limit?: number;
+    page?: number;
+    limit?: number;
 };
 
 type GetUserByIdPathParams = {
-  userId: string;
+    userId: string;
 };
 ```
 
@@ -216,15 +223,48 @@ type GetUserByIdPathParams = {
 
 ### Global Configuration
 
+`setApiConfig` accepts either a static config object or a callback function (sync or async) that returns the config. This is useful for dynamic configuration like OAuth token providers.
+
+#### Static Configuration
+
 ```typescript
 setApiConfig({
-  baseUrl: "https://api.example.com/v1",
-  headers: {
-    "Authorization": "Bearer token",
-    "X-Custom-Header": "value",
-  },
+    baseUrl: "https://api.example.com/v1",
+    headers: {
+        Authorization: "Bearer token",
+        "X-Custom-Header": "value",
+    },
 });
 ```
+
+#### Sync Callback Provider
+
+```typescript
+setApiConfig(() => {
+    return {
+        baseUrl: "https://api.example.com/v1",
+        headers: {
+            Authorization: `Bearer ${getTokenFromMemory()}`,
+        },
+    };
+});
+```
+
+#### Async Callback Provider (OAuth Example)
+
+```typescript
+setApiConfig(async () => {
+    const token = await fetchOAuthToken();
+    return {
+        baseUrl: "https://api.example.com/v1",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    };
+});
+```
+
+The config provider (callback) is called for every API request, allowing fresh tokens or dynamic configuration.
 
 ### Default Base URL
 
@@ -236,12 +276,12 @@ The optional `init` parameter allows overriding fetch options for individual req
 
 ```typescript
 await api.listUsers(
-  { page: 1 },
-  {
-    headers: { "X-Request-ID": "123" },
-    cache: "no-cache",
-    signal: abortController.signal,
-  }
+    { page: 1 },
+    {
+        headers: { "X-Request-ID": "123" },
+        cache: "no-cache",
+        signal: abortController.signal,
+    },
 );
 ```
 
@@ -269,21 +309,25 @@ Error: Duplicate method names detected: getUsers. Please specify unique operatio
 ## Supported Features
 
 ### Parameters
+
 - ✅ Path parameters
 - ✅ Query parameters
 - ✅ Required and optional parameters
 - ✅ All primitive types (string, number, boolean)
 
 ### Request Bodies
+
 - ✅ JSON content type
 - ✅ Schema references ($ref)
 - ✅ Inline schemas
 
 ### HTTP Methods
+
 - ✅ GET, POST, PUT, PATCH, DELETE
 - ✅ HEAD, OPTIONS, TRACE
 
 ### Configuration
+
 - ✅ Base URL from servers
 - ✅ Global headers
 - ✅ Per-request overrides
@@ -298,6 +342,7 @@ Error: Duplicate method names detected: getUsers. Please specify unique operatio
 ## Testing
 
 The implementation includes comprehensive test coverage:
+
 - 13 unit tests for the generator
 - 6 integration tests for the CLI
 - All 286 existing tests passing

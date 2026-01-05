@@ -161,14 +161,19 @@ function generateConfigInterface(): string {
   headers?: Record<string, string>;
 }
 
-let globalConfig: ApiConfig = {};
+type ConfigProvider = ApiConfig | (() => ApiConfig | Promise<ApiConfig>);
 
-export function setApiConfig(config: ApiConfig): void {
-  globalConfig = { ...globalConfig, ...config };
+let globalConfigProvider: ConfigProvider = {};
+
+export function setApiConfig(config: ConfigProvider): void {
+  globalConfigProvider = config;
 }
 
-export function getApiConfig(): ApiConfig {
-  return globalConfig;
+export async function getApiConfig(): Promise<ApiConfig> {
+  if (typeof globalConfigProvider === "function") {
+    return await globalConfigProvider();
+  }
+  return globalConfigProvider;
 }`;
 }
 
@@ -375,7 +380,7 @@ function generateMethodBody(
     const lines: string[] = ["{"];
 
     // Get config
-    lines.push("    const config = getApiConfig();");
+    lines.push("    const config = await getApiConfig();");
     lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
 
     // Build URL with path params

@@ -283,7 +283,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("baseUrl?:");
         expect(api).toContain("headers?:");
         expect(api).toContain("export function setApiConfig");
-        expect(api).toContain("export function getApiConfig");
+        expect(api).toContain("export async function getApiConfig");
     });
 
     it("should use default base URL from servers", () => {
@@ -505,5 +505,35 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("init?: RequestInit");
         expect(api).toContain("...init");
         expect(api).toContain("...init?.headers");
+    });
+
+    it("should support async config provider", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users": {
+                    get: {
+                        operationId: "getUsers",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec);
+
+        expect(api).toContain("type ConfigProvider = ApiConfig | (() => ApiConfig | Promise<ApiConfig>)");
+        expect(api).toContain("setApiConfig(config: ConfigProvider)");
+        expect(api).toContain("export async function getApiConfig(): Promise<ApiConfig>");
+        expect(api).toContain('if (typeof globalConfigProvider === "function")');
+        expect(api).toContain("return await globalConfigProvider()");
+        expect(api).toContain("const config = await getApiConfig()");
     });
 });
