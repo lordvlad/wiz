@@ -1,7 +1,7 @@
 /**
  * OpenAPI to TypeScript client generator
  */
-import { Project, VariableDeclarationKind, Scope, SourceFile } from "ts-morph";
+import { Project, VariableDeclarationKind, Scope, SourceFile, CodeBlockWriter } from "ts-morph";
 
 import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi";
 
@@ -218,7 +218,7 @@ function generateClientClass(sourceFile: SourceFile, operations: OperationInfo[]
         declarations: [
             {
                 name: "api",
-                initializer: (writer: any) => {
+                initializer: (writer: CodeBlockWriter) => {
                     writer.block(() => {
                         for (let i = 0; i < methods.length; i++) {
                             const method = methods[i];
@@ -326,7 +326,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
-            type: (writer: any) => {
+            type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
                         writer.write(`${prop.name}${prop.hasQuestionToken ? "?" : ""}: ${prop.type};`);
@@ -348,7 +348,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
-            type: (writer: any) => {
+            type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
                         writer.write(`${prop.name}${prop.hasQuestionToken ? "?" : ""}: ${prop.type};`);
