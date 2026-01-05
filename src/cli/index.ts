@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "util";
 
+import { generateClient } from "./client";
 import { generateModels } from "./generate";
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
@@ -16,6 +17,7 @@ Commands:
   openapi [files...]     Generate OpenAPI specifications from TypeScript files
   protobuf [files...]    Generate Protobuf specifications from TypeScript files
   model <spec-file>      Generate TypeScript models from OpenAPI or Protobuf spec
+  client <spec-file>     Generate TypeScript client from OpenAPI specification
   inline [files...]      Transform validator calls to inline validators
 
 OpenAPI Options:
@@ -28,6 +30,10 @@ Model Options:
   --outdir <directory>   Output directory for generated types (default: stdout)
   --tags                 Include tags from src/tags/index.ts in JSDoc
   --no-wiz-tags          Disable automatic wiz tag generation from x-wiz-* extensions
+
+Client Options:
+  --outdir <directory>   Output directory for generated client (default: stdout)
+                         If provided, generates model.ts and api.ts files
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -63,6 +69,12 @@ Examples:
 
   # Generate TypeScript models from Protobuf (auto-detected from .proto extension)
   wiz model api.proto --outdir src/models
+
+  # Generate TypeScript client from OpenAPI spec (print to stdout)
+  wiz client spec.yaml
+
+  # Generate TypeScript client from OpenAPI spec (write to directory)
+  wiz client spec.json --outdir src/client
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -204,6 +216,28 @@ async function main() {
         const disableWizTags = values["no-wiz-tags"] || false;
 
         await generateModels(specFile, { outdir, tags, disableWizTags });
+    } else if (command === "client") {
+        // Handle client command
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                outdir: {
+                    type: "string",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        if (positionals.length === 0) {
+            console.error("Error: No spec file specified");
+            console.error("Usage: wiz client <spec-file> [--outdir <dir>]");
+            process.exit(1);
+        }
+
+        const specFile = positionals[0]!;
+        const outdir = values.outdir;
+
+        await generateClient(specFile, { outdir });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {
