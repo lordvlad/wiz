@@ -1,6 +1,8 @@
 /**
  * OpenAPI to TypeScript client generator
  */
+import { CodeBlockWriter, Project, SourceFile, VariableDeclarationKind } from "ts-morph";
+
 import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi";
 
 export interface ClientGeneratorOptions {
@@ -34,8 +36,13 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
     const modelsMap = generateModelsFromOpenApi(spec, options);
     const models = Array.from(modelsMap.values()).join("\n\n");
 
-    // Generate API client
-    const api = generateApiClient(spec, options);
+    // Generate API client using ts-morph
+    const project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile("api.ts", "");
+
+    generateApiClient(sourceFile, spec, options);
+
+    const api = sourceFile.getFullText();
 
     return { models, api };
 }
@@ -43,7 +50,7 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
 /**
  * Generate API client code
  */
-function generateApiClient(spec: OpenApiSpec, options: ClientGeneratorOptions): string {
+function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: ClientGeneratorOptions): void {
     const operations = extractOperations(spec);
 
     // Check for duplicate method names
@@ -67,16 +74,11 @@ function generateApiClient(spec: OpenApiSpec, options: ClientGeneratorOptions): 
     // Get default base URL
     const defaultBaseUrl = getDefaultBaseUrl(spec);
 
-    let output = "";
-
     // Generate configuration interface
-    output += generateConfigInterface();
-    output += "\n\n";
+    generateConfigInterface(sourceFile);
 
     // Generate client class
-    output += generateClientClass(operations, defaultBaseUrl);
-
-    return output;
+    generateClientClass(sourceFile, operations, defaultBaseUrl);
 }
 
 /**
@@ -155,50 +157,97 @@ function getDefaultBaseUrl(spec: OpenApiSpec): string {
 /**
  * Generate configuration interface
  */
-function generateConfigInterface(): string {
-    return `export interface ApiConfig {
-  baseUrl?: string;
-  headers?: Record<string, string>;
-  fetch?: typeof fetch;
-}
+function generateConfigInterface(sourceFile: SourceFile): void {
+    // Create ApiConfig interface
+    sourceFile.addInterface({
+        name: "ApiConfig",
+        isExported: true,
+        properties: [
+            { name: "baseUrl", type: "string", hasQuestionToken: true },
+            { name: "headers", type: "Record<string, string>", hasQuestionToken: true },
+            { name: "fetch", type: "typeof fetch", hasQuestionToken: true },
+        ],
+    });
 
-let globalConfig: ApiConfig = {};
+    // Create globalConfig variable
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Let,
+        declarations: [
+            {
+                name: "globalConfig",
+                type: "ApiConfig",
+                initializer: "{}",
+            },
+        ],
+    });
 
-export function setApiConfig(config: ApiConfig): void {
-  globalConfig = config;
-}
+    // Create setApiConfig function
+    sourceFile.addFunction({
+        name: "setApiConfig",
+        isExported: true,
+        parameters: [{ name: "config", type: "ApiConfig" }],
+        returnType: "void",
+        statements: "globalConfig = config;",
+    });
 
-export function getApiConfig(): ApiConfig {
-  return globalConfig;
-}`;
+    // Create getApiConfig function
+    sourceFile.addFunction({
+        name: "getApiConfig",
+        isExported: true,
+        returnType: "ApiConfig",
+        statements: "return globalConfig;",
+    });
 }
 
 /**
  * Generate client class with all API methods
  */
-function generateClientClass(operations: OperationInfo[], defaultBaseUrl: string): string {
-    let output = "export const api = {\n";
+function generateClientClass(sourceFile: SourceFile, operations: OperationInfo[], defaultBaseUrl: string): void {
+    // Build the object literal properties for each method
+    const methods: any[] = [];
 
     for (const op of operations) {
-        output += generateMethod(op, defaultBaseUrl);
-        output += ",\n";
+        const method = generateMethod(sourceFile, op, defaultBaseUrl);
+        methods.push(method);
     }
 
-    output += "};\n";
-    return output;
+    // Create the api constant with object literal
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        isExported: true,
+        declarations: [
+            {
+                name: "api",
+                initializer: (writer: CodeBlockWriter) => {
+                    writer.block(() => {
+                        for (let i = 0; i < methods.length; i++) {
+                            const method = methods[i];
+                            if (method) {
+                                writer.write(method);
+                                if (i < methods.length - 1) {
+                                    writer.write(",");
+                                }
+                                writer.newLine();
+                            }
+                        }
+                    });
+                },
+            },
+        ],
+    });
 }
 
 /**
  * Generate a single API method
  */
-function generateMethod(op: OperationInfo, defaultBaseUrl: string): string {
+function generateMethod(sourceFile: SourceFile, op: OperationInfo, defaultBaseUrl: string): string {
     const methodName = getMethodName(op);
     const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
 
-    // Generate parameter types
-    const paramTypes = generateParameterTypes(op, pathParams, queryParams);
+    // Generate parameter type definitions first
+    generateParameterTypes(sourceFile, op, pathParams, queryParams);
 
-    // Generate method signature
+    // Build parameter list
     const params: string[] = [];
     if (pathParams.length > 0) {
         params.push(`pathParams: ${getPathParamsTypeName(op)}`);
@@ -211,25 +260,24 @@ function generateMethod(op: OperationInfo, defaultBaseUrl: string): string {
     }
     params.push("init?: RequestInit");
 
-    const signature = `${methodName}(${params.join(", ")})`;
+    // Generate method body
+    const methodBody = generateMethodBodyStatements(op, pathParams, queryParams, hasRequestBody, defaultBaseUrl);
 
-    // Generate JSDoc
-    let jsdoc = "";
+    // Build JSDoc comment
+    let jsDocText = "";
     if (op.summary || op.description) {
-        jsdoc = "  /**\n";
+        jsDocText = "/**\n";
         if (op.summary) {
-            jsdoc += `   * ${op.summary}\n`;
+            jsDocText += ` * ${op.summary}\n`;
         }
         if (op.description && op.description !== op.summary) {
-            jsdoc += `   * ${op.description}\n`;
+            jsDocText += ` * ${op.description}\n`;
         }
-        jsdoc += "   */\n";
+        jsDocText += " */\n";
     }
 
-    // Generate method body
-    const body = generateMethodBody(op, pathParams, queryParams, hasRequestBody, defaultBaseUrl);
-
-    return `${paramTypes}${jsdoc}  async ${signature}: Promise<Response> ${body}`;
+    // Return the method as a string to be inserted into the object literal
+    return `${jsDocText}async ${methodName}(${params.join(", ")}): Promise<Response> ${methodBody}`;
 }
 
 /**
@@ -261,36 +309,55 @@ function analyzeParameters(op: OperationInfo): {
 /**
  * Generate parameter type definitions
  */
-function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParams: any[]): string {
-    let output = "";
-
+function generateParameterTypes(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    pathParams: any[],
+    queryParams: any[],
+): void {
     // Generate path params type
     if (pathParams.length > 0) {
         const typeName = getPathParamsTypeName(op);
+        const properties = pathParams.map((param) => ({
+            name: param.name,
+            type: getTypeFromSchema(param.schema),
+            hasQuestionToken: !param.required,
+        }));
 
-        output += `  type ${typeName} = {\n`;
-        for (const param of pathParams) {
-            const required = param.required ? "" : "?";
-            const type = getTypeFromSchema(param.schema);
-            output += `    ${param.name}${required}: ${type};\n`;
-        }
-        output += "  };\n\n";
+        sourceFile.addTypeAlias({
+            name: typeName,
+            type: (writer: CodeBlockWriter) => {
+                writer.block(() => {
+                    for (const prop of properties) {
+                        writer.write(`${prop.name}${prop.hasQuestionToken ? "?" : ""}: ${prop.type};`);
+                        writer.newLine();
+                    }
+                });
+            },
+        });
     }
 
     // Generate query params type
     if (queryParams.length > 0) {
         const typeName = getQueryParamsTypeName(op);
+        const properties = queryParams.map((param) => ({
+            name: param.name,
+            type: getTypeFromSchema(param.schema),
+            hasQuestionToken: !param.required,
+        }));
 
-        output += `  type ${typeName} = {\n`;
-        for (const param of queryParams) {
-            const required = param.required ? "" : "?";
-            const type = getTypeFromSchema(param.schema);
-            output += `    ${param.name}${required}: ${type};\n`;
-        }
-        output += "  };\n\n";
+        sourceFile.addTypeAlias({
+            name: typeName,
+            type: (writer: CodeBlockWriter) => {
+                writer.block(() => {
+                    for (const prop of properties) {
+                        writer.write(`${prop.name}${prop.hasQuestionToken ? "?" : ""}: ${prop.type};`);
+                        writer.newLine();
+                    }
+                });
+            },
+        });
     }
-
-    return output;
 }
 
 /**
@@ -364,9 +431,9 @@ function getTypeFromSchema(schema: any): string {
 }
 
 /**
- * Generate method body
+ * Generate method body statements
  */
-function generateMethodBody(
+function generateMethodBodyStatements(
     op: OperationInfo,
     pathParams: any[],
     queryParams: any[],
