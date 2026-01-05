@@ -34,11 +34,11 @@ message User {
         const compiled = await compile(source);
 
         // Verify basic types are present
-        expect(compiled).toContain('messages:');
-        expect(compiled).toContain('User:');
-        expect(compiled).toContain('id');
-        expect(compiled).toContain('name');
-        expect(compiled).toContain('active');
+        expect(compiled).toContain("messages:");
+        expect(compiled).toContain("User:");
+        expect(compiled).toContain("id");
+        expect(compiled).toContain("name");
+        expect(compiled).toContain("active");
         expect(compiled).toContain('type: "int32"');
         expect(compiled).toContain('type: "string"');
         expect(compiled).toContain('type: "bool"');
@@ -70,7 +70,7 @@ message User {
         const compiled = await compile(source);
 
         // Verify optional field - check that email is present and not in required
-        expect(compiled).toContain('email');
+        expect(compiled).toContain("email");
         expect(compiled).toContain('type: "string"');
     });
 
@@ -100,7 +100,7 @@ message Post {
         const compiled = await compile(source);
 
         // Verify array field
-        expect(compiled).toContain('tags');
+        expect(compiled).toContain("tags");
         expect(compiled).toContain('type: "string"');
     });
 
@@ -130,7 +130,7 @@ message User {
         const compiled = await compile(source);
 
         // Verify map field - Record types should generate maps
-        expect(compiled).toContain('metadata');
+        expect(compiled).toContain("metadata");
     });
 
     it("should roundtrip nested messages", async () => {
@@ -166,9 +166,9 @@ message User {
         const compiled = await compile(source);
 
         // Verify both types exist
-        expect(compiled).toContain('Address:');
-        expect(compiled).toContain('User:');
-        expect(compiled).toContain('address');
+        expect(compiled).toContain("Address:");
+        expect(compiled).toContain("User:");
+        expect(compiled).toContain("address");
     });
 
     it("should roundtrip various protobuf types", async () => {
@@ -208,13 +208,13 @@ message Types {
         const compiled = await compile(source);
 
         // Verify all types are present
-        expect(compiled).toContain('Types:');
-        expect(compiled).toContain('str');
-        expect(compiled).toContain('int32val');
-        expect(compiled).toContain('int64val');
-        expect(compiled).toContain('boolval');
-        expect(compiled).toContain('floatval');
-        expect(compiled).toContain('doubleval');
-        expect(compiled).toContain('bytesval');
+        expect(compiled).toContain("Types:");
+        expect(compiled).toContain("str");
+        expect(compiled).toContain("int32val");
+        expect(compiled).toContain("int64val");
+        expect(compiled).toContain("boolval");
+        expect(compiled).toContain("floatval");
+        expect(compiled).toContain("doubleval");
+        expect(compiled).toContain("bytesval");
     });
 });

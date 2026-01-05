@@ -24,8 +24,8 @@ export type User = {
         const compiled = await compile(source);
 
         // Verify protobuf was generated
-        expect(compiled).toContain('messages:');
-        expect(compiled).toContain('User:');
+        expect(compiled).toContain("messages:");
+        expect(compiled).toContain("User:");
 
         // Extract the model from compiled code
         const modelMatch = compiled.match(/var model = ({[\s\S]*?});/);
@@ -257,7 +257,7 @@ export type Event = {
 
         // Date should remain as "Date" type in the protobuf model metadata
         // The actual proto file would convert this appropriately
-        expect(compiled).toContain('timestamp');
+        expect(compiled).toContain("timestamp");
 
         // Extract and parse model
         const modelMatch = compiled.match(/var model = ({[\s\S]*?});/);

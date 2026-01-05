@@ -505,6 +505,11 @@ function getSchemaName(type: Type): string | undefined {
     return type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
 }
 
+// Helper: Get type name for a type (used for x-type-name extension)
+function getTypeName(type: Type): string | undefined {
+    return type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
+}
+
 // Helper: Build parameter schema from type
 function buildParameterSchema(
     type: Type,
@@ -556,24 +561,37 @@ function extractParameters(
     // Extract path parameters
     if (pathParamsType && !isNeverType(pathParamsType)) {
         const properties = pathParamsType.getProperties();
+        // Get the type name for the path parameters type
+        const pathParamsTypeName = getTypeName(pathParamsType);
+
         for (const prop of properties) {
             const declaration = prop.getDeclarations()[0];
             if (!declaration) continue;
             const propType = prop.getTypeAtLocation(declaration);
             const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas, declaration);
 
-            parameters.push({
+            // Add x-type-name extension if we have a named type (not anonymous __type)
+            const paramWithTypeName: any = {
                 name: prop.getName(),
                 in: "path",
                 required: true,
                 schema,
-            });
+            };
+
+            if (pathParamsTypeName && pathParamsTypeName !== "__type") {
+                paramWithTypeName["x-type-name"] = pathParamsTypeName;
+            }
+
+            parameters.push(paramWithTypeName);
         }
     }
 
     // Extract query parameters
     if (queryParamsType && !isNeverType(queryParamsType)) {
         const properties = queryParamsType.getProperties();
+        // Get the type name for the query parameters type
+        const queryParamsTypeName = getTypeName(queryParamsType);
+
         for (const prop of properties) {
             const declaration = prop.getDeclarations()[0];
             if (!declaration) continue;
@@ -581,12 +599,19 @@ function extractParameters(
             const schema = buildParameterSchema(propType, openApiVersion, opt, availableSchemas, declaration);
             const isOptional = prop.isOptional?.() || false;
 
-            parameters.push({
+            // Add x-type-name extension if we have a named type (not anonymous __type)
+            const paramWithTypeName: any = {
                 name: prop.getName(),
                 in: "query",
                 required: !isOptional,
                 schema,
-            });
+            };
+
+            if (queryParamsTypeName && queryParamsTypeName !== "__type") {
+                paramWithTypeName["x-type-name"] = queryParamsTypeName;
+            }
+
+            parameters.push(paramWithTypeName);
         }
     }
 
