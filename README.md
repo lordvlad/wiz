@@ -438,6 +438,47 @@ Each method accepts type parameters for:
 3. **RequestBody**: Request body type for methods that accept a body
 4. **ResponseBody**: Response body type
 
+**Type Name Recording**: When you use named types (type aliases) for path and query parameters, Wiz automatically records the original TypeScript type name in the generated OpenAPI spec using the `x-type-name` extension. This is useful for documentation and tooling that needs to know the original type names.
+
+```typescript
+type UserPathParams = {
+    userId: number;
+};
+
+type UserQueryParams = {
+    search?: string;
+    limit?: number;
+};
+
+// Using named types
+path.get<UserPathParams, UserQueryParams, never, User>("/users/:userId");
+```
+
+This generates OpenAPI parameters with the `x-type-name` extension:
+
+```json
+{
+    "parameters": [
+        {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "number" },
+            "x-type-name": "UserPathParams"
+        },
+        {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "x-type-name": "UserQueryParams"
+        }
+    ]
+}
+```
+
+Note: The `x-type-name` extension is only added for named types. Anonymous inline object literals (e.g., `{ id: number }`) do not include this extension.
+
 This generates OpenAPI paths with the specified operations:
 
 ```json
