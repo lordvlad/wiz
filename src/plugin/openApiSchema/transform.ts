@@ -500,12 +500,8 @@ function shouldUseRef(type: Type, availableSchemas: Set<string>): boolean {
     return typeName ? availableSchemas.has(typeName) : false;
 }
 
-// Helper: Get schema name for reference
-function getSchemaName(type: Type): string | undefined {
-    return type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
-}
-
-// Helper: Get type name for a type (used for x-type-name extension)
+// Helper: Get type name for a type
+// Used for $ref generation and x-type-name extension
 function getTypeName(type: Type): string | undefined {
     return type.getAliasSymbol()?.getName() || type.getSymbol()?.getName();
 }
@@ -519,8 +515,8 @@ function buildParameterSchema(
     declaration?: Node,
 ): unknown {
     if (shouldUseRef(type, availableSchemas)) {
-        const schemaName = getSchemaName(type);
-        return { $ref: `#/components/schemas/${schemaName}` };
+        const typeName = getTypeName(type);
+        return { $ref: `#/components/schemas/${typeName}` };
     }
 
     // Generate inline schema
