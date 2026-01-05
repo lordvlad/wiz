@@ -266,7 +266,6 @@ function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParam
     // Generate path params type
     if (pathParams.length > 0) {
         const typeName = getPathParamsTypeName(op);
-        const xTypeName = getXTypeName(pathParams, "path");
 
         output += `  type ${typeName} = {\n`;
         for (const param of pathParams) {
@@ -280,7 +279,6 @@ function generateParameterTypes(op: OperationInfo, pathParams: any[], queryParam
     // Generate query params type
     if (queryParams.length > 0) {
         const typeName = getQueryParamsTypeName(op);
-        const xTypeName = getXTypeName(queryParams, "query");
 
         output += `  type ${typeName} = {\n`;
         for (const param of queryParams) {
@@ -311,18 +309,6 @@ function getQueryParamsTypeName(op: OperationInfo): string {
 }
 
 /**
- * Get x-type-name from parameters if available
- */
-function getXTypeName(params: any[], paramType: string): string | undefined {
-    for (const param of params) {
-        if (param["x-type-name"]) {
-            return param["x-type-name"];
-        }
-    }
-    return undefined;
-}
-
-/**
  * Get request body type
  */
 function getRequestBodyType(op: OperationInfo): string {
@@ -330,7 +316,6 @@ function getRequestBodyType(op: OperationInfo): string {
         return "any";
     }
 
-    const contentTypes = Object.keys(op.requestBody.content);
     const jsonContent = op.requestBody.content["application/json"];
 
     if (jsonContent?.schema) {
