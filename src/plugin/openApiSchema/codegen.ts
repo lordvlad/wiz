@@ -435,7 +435,7 @@ function createSchemaForDateFormat(type: Type, nodeText?: string) {
  */
 function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext): unknown | null {
     const intersectionTypes = type.getIntersectionTypes();
-    
+
     // We expect exactly 2 types: the base type and the format marker object
     if (intersectionTypes.length !== 2) return null;
 
@@ -449,12 +449,12 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
         // Check if this is the format marker object (has __*_format property)
         if (t.isObject() && !t.isArray()) {
             const properties = t.getProperties();
-            
+
             // Look for __str_format, __num_format, __bigint_format, or __date_format
-            const strFormatProp = properties.find(p => p.getName() === "__str_format");
-            const numFormatProp = properties.find(p => p.getName() === "__num_format");
-            const bigintFormatProp = properties.find(p => p.getName() === "__bigint_format");
-            const dateFormatProp = properties.find(p => p.getName() === "__date_format");
+            const strFormatProp = properties.find((p) => p.getName() === "__str_format");
+            const numFormatProp = properties.find((p) => p.getName() === "__num_format");
+            const bigintFormatProp = properties.find((p) => p.getName() === "__bigint_format");
+            const dateFormatProp = properties.find((p) => p.getName() === "__date_format");
 
             if (strFormatProp) {
                 formatMarker = t;
@@ -499,7 +499,7 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
     switch (formatProperty) {
         case "str":
             return { type: "string", format: formatValue, "x-wiz-format": `StrFormat<"${formatValue}">` };
-        
+
         case "num": {
             // NumFormat can map to different types based on the format value
             if (formatValue === "string") {
@@ -513,7 +513,7 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
             }
             return { type: "number", "x-wiz-format": `NumFormat<"${formatValue}">` };
         }
-        
+
         case "bigint": {
             if (formatValue === "int64") {
                 return { type: "integer", format: "int64", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
@@ -523,7 +523,7 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
             }
             return { type: "integer", format: "int64", "x-wiz-format": `BigIntFormat<"${formatValue}">` };
         }
-        
+
         case "date": {
             if (formatValue === "date-time") {
                 return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
@@ -536,7 +536,7 @@ function tryExtractWizFormatFromIntersection(type: Type, context: SchemaContext)
             }
             return { type: "string", format: "date-time", "x-wiz-format": `DateFormat<"${formatValue}">` };
         }
-        
+
         default:
             return null;
     }

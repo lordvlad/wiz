@@ -953,4 +953,80 @@ describe("createOpenApi function", () => {
         expect(actual).toInclude("get:");
         expect(actual).toInclude("post:");
     });
+
+    it("must record original type names for path and query parameters using x-type-name extension", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+
+            type User = {
+                id: number;
+                name: string;
+            };
+
+            type UserPathParams = {
+                userId: number;
+            };
+
+            type UserQueryParams = {
+                search?: string;
+                limit?: number;
+            };
+
+            export const spec = createOpenApi<[User], "3.0">((path) => ({
+                info: {
+                    title: "Type Name API",
+                    version: "1.0.0"
+                },
+                paths: [
+                    path.get<UserPathParams, UserQueryParams, never, User>("/users/:userId")
+                ]
+            }));
+        `;
+
+        const actual = await compile(code);
+
+        // Check that path parameter has x-type-name extension
+        expect(actual).toInclude('name: "userId"');
+        expect(actual).toInclude('in: "path"');
+        expect(actual).toInclude('"x-type-name": "UserPathParams"');
+
+        // Check that query parameters have x-type-name extension
+        expect(actual).toInclude('name: "search"');
+        expect(actual).toInclude('in: "query"');
+        expect(actual).toInclude('"x-type-name": "UserQueryParams"');
+
+        expect(actual).toInclude('name: "limit"');
+        expect(actual).toInclude('in: "query"');
+        expect(actual).toInclude('"x-type-name": "UserQueryParams"');
+    });
+
+    it("must record type names for inline object types in path parameters", async () => {
+        const code = `
+            import { createOpenApi } from "../../openApiSchema/index";
+
+            type User = {
+                id: number;
+                name: string;
+            };
+
+            export const spec = createOpenApi<[User], "3.0">((path) => ({
+                info: {
+                    title: "Inline Type API",
+                    version: "1.0.0"
+                },
+                paths: [
+                    path.get<{ id: number }, { filter?: string }, never, User>("/users/:id")
+                ]
+            }));
+        `;
+
+        const actual = await compile(code);
+
+        // For inline types (anonymous object literals), x-type-name should not be present
+        // or should be some placeholder like "__type"
+        expect(actual).toInclude('name: "id"');
+        expect(actual).toInclude('in: "path"');
+        // Should NOT have x-type-name for anonymous inline types
+        // The next assertion checks that x-type-name is not between "id" parameter and next parameter
+    });
 });

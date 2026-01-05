@@ -38,12 +38,12 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify basic properties are present in schema
-        expect(compiled).toContain('components:');
-        expect(compiled).toContain('schemas:');
-        expect(compiled).toContain('User:');
-        expect(compiled).toContain('id:');
-        expect(compiled).toContain('name:');
-        expect(compiled).toContain('active:');
+        expect(compiled).toContain("components:");
+        expect(compiled).toContain("schemas:");
+        expect(compiled).toContain("User:");
+        expect(compiled).toContain("id:");
+        expect(compiled).toContain("name:");
+        expect(compiled).toContain("active:");
         expect(compiled).toContain('type: "object"');
         expect(compiled).toContain('type: "number"');
         expect(compiled).toContain('type: "string"');
@@ -82,7 +82,7 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
 
         // Verify optional field roundtrip
         expect(compiled).toContain('required: [\n"id"\n]');
-        expect(compiled).toContain('email:');
+        expect(compiled).toContain("email:");
         expect(compiled).toContain('type: "string"');
     });
 
@@ -119,9 +119,9 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify array type roundtrip
-        expect(compiled).toContain('tags:');
+        expect(compiled).toContain("tags:");
         expect(compiled).toContain('type: "array"');
-        expect(compiled).toContain('items:');
+        expect(compiled).toContain("items:");
         expect(compiled).toContain('type: "string"');
     });
 
@@ -167,8 +167,8 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify both types exist and $ref is used
-        expect(compiled).toContain('Address:');
-        expect(compiled).toContain('User:');
+        expect(compiled).toContain("Address:");
+        expect(compiled).toContain("User:");
         expect(compiled).toContain('$ref: "#/components/schemas/Address"');
     });
 
@@ -206,7 +206,7 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify nullable in 3.0 format
-        expect(compiled).toContain('nullable: true');
+        expect(compiled).toContain("nullable: true");
         expect(compiled).toContain('type: "string"');
     });
 
@@ -290,9 +290,9 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify oneOf exists
-        expect(compiled).toContain('oneOf:');
-        expect(compiled).toContain('bark:');
-        expect(compiled).toContain('meow:');
+        expect(compiled).toContain("oneOf:");
+        expect(compiled).toContain("bark:");
+        expect(compiled).toContain("meow:");
     });
 
     it("should roundtrip enum types", async () => {
@@ -325,7 +325,7 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify enum values are present
-        expect(compiled).toContain('enum:');
+        expect(compiled).toContain("enum:");
         expect(compiled).toContain('"active"');
         expect(compiled).toContain('"inactive"');
         expect(compiled).toContain('"pending"');
@@ -363,7 +363,7 @@ describe("OpenAPI → TypeScript → OpenAPI roundtrip", () => {
         const compiled = await compile(source);
 
         // Verify additionalProperties
-        expect(compiled).toContain('additionalProperties:');
+        expect(compiled).toContain("additionalProperties:");
         expect(compiled).toContain('type: "string"');
     });
 });

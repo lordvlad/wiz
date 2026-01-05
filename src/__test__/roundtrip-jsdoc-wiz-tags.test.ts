@@ -228,12 +228,8 @@ describe("Roundtrip tests for JSDoc metadata and Wiz tags", () => {
             const regeneratedSpec = eval(`(${schemaMatch![1]})`);
 
             // Verify x-wiz-format is regenerated for intersection types
-            expect(regeneratedSpec.components.schemas.User.properties.email["x-wiz-format"]).toBe(
-                'StrFormat<"email">'
-            );
-            expect(regeneratedSpec.components.schemas.User.properties.website["x-wiz-format"]).toBe(
-                'StrFormat<"uri">'
-            );
+            expect(regeneratedSpec.components.schemas.User.properties.email["x-wiz-format"]).toBe('StrFormat<"email">');
+            expect(regeneratedSpec.components.schemas.User.properties.website["x-wiz-format"]).toBe('StrFormat<"uri">');
             expect(regeneratedSpec.components.schemas.User.properties.email.format).toBe("email");
             expect(regeneratedSpec.components.schemas.User.properties.website.format).toBe("uri");
         });
@@ -292,14 +288,12 @@ describe("Roundtrip tests for JSDoc metadata and Wiz tags", () => {
             const regeneratedSpec = eval(`(${schemaMatch![1]})`);
 
             // Verify all x-wiz-format extensions are regenerated
-            expect(regeneratedSpec.components.schemas.Data.properties.email["x-wiz-format"]).toBe(
-                'StrFormat<"email">'
-            );
+            expect(regeneratedSpec.components.schemas.Data.properties.email["x-wiz-format"]).toBe('StrFormat<"email">');
             expect(regeneratedSpec.components.schemas.Data.properties.balance["x-wiz-format"]).toBe(
-                'NumFormat<"double">'
+                'NumFormat<"double">',
             );
             expect(regeneratedSpec.components.schemas.Data.properties.createdAt["x-wiz-format"]).toBe(
-                'DateFormat<"date-time">'
+                'DateFormat<"date-time">',
             );
         });
     });
@@ -361,9 +355,9 @@ message User {
             const compiled = await compile(source);
 
             // Verify the model includes wiz-format metadata
-            expect(compiled).toContain('User:');
-            expect(compiled).toContain('email');
-            expect(compiled).toContain('website');
+            expect(compiled).toContain("User:");
+            expect(compiled).toContain("email");
+            expect(compiled).toContain("website");
         });
     });
 

@@ -24,8 +24,8 @@ export type User = {
         const compiled = await compile(source);
 
         // Verify OpenAPI schema was generated
-        expect(compiled).toContain('components:');
-        expect(compiled).toContain('User:');
+        expect(compiled).toContain("components:");
+        expect(compiled).toContain("User:");
 
         // Extract the schema from compiled code
         const schemaMatch = compiled.match(/var schema = ({[\s\S]*?});/);
@@ -243,9 +243,7 @@ export type User = {
         const openApiSpec = eval(`(${schemaMatch![1]})`);
 
         // Verify JSDoc was captured
-        expect(openApiSpec.components.schemas.User.properties.id.description).toBe(
-            "Unique identifier for the user"
-        );
+        expect(openApiSpec.components.schemas.User.properties.id.description).toBe("Unique identifier for the user");
         expect(openApiSpec.components.schemas.User.properties.name.description).toBe("User's full name");
         expect(openApiSpec.components.schemas.User.properties.name.minLength).toBe(3);
         expect(openApiSpec.components.schemas.User.properties.name.maxLength).toBe(100);
