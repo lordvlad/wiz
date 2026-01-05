@@ -1,7 +1,7 @@
 /**
  * OpenAPI to TypeScript client generator
  */
-import { Project, VariableDeclarationKind, Scope, SourceFile, CodeBlockWriter } from "ts-morph";
+import { CodeBlockWriter, Project, SourceFile, VariableDeclarationKind } from "ts-morph";
 
 import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi";
 
