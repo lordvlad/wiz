@@ -164,6 +164,7 @@ import type * as Models from "./model";
 export interface ApiConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
+  fetch?: typeof fetch;
 }
 
 export function setApiConfig(config: ApiConfig): void;
@@ -223,7 +224,7 @@ type GetUserByIdPathParams = {
 
 ### Global Configuration
 
-`setApiConfig` accepts either a static config object or a callback function (sync or async) that returns the config. This is useful for dynamic configuration like OAuth token providers.
+`setApiConfig` accepts a configuration object with the following options:
 
 #### Static Configuration
 
@@ -237,34 +238,92 @@ setApiConfig({
 });
 ```
 
-#### Sync Callback Provider
+#### Custom Fetch Implementation
+
+You can provide a custom `fetch` implementation to intercept and customize all API requests. This is useful for:
+
+- Adding authentication tokens dynamically
+- Implementing request/response logging
+- Adding retry logic
+- Using a custom HTTP client (e.g., undici, node-fetch)
+- Mocking requests in tests
 
 ```typescript
-setApiConfig(() => {
-    return {
-        baseUrl: "https://api.example.com/v1",
-        headers: {
-            Authorization: `Bearer ${getTokenFromMemory()}`,
-        },
-    };
+// Example: Custom fetch with token refresh
+let cachedToken: string | null = null;
+
+const customFetch: typeof fetch = async (input, init) => {
+    // Get fresh token if needed
+    if (!cachedToken || isTokenExpired(cachedToken)) {
+        cachedToken = await fetchNewToken();
+    }
+
+    // Add token to headers
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${cachedToken}`);
+
+    // Make the request with updated headers
+    return fetch(input, { ...init, headers });
+};
+
+setApiConfig({
+    baseUrl: "https://api.example.com/v1",
+    fetch: customFetch,
 });
 ```
 
-#### Async Callback Provider (OAuth Example)
+#### Request/Response Logging
 
 ```typescript
-setApiConfig(async () => {
-    const token = await fetchOAuthToken();
-    return {
-        baseUrl: "https://api.example.com/v1",
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    };
+const loggingFetch: typeof fetch = async (input, init) => {
+    console.log("Request:", input, init);
+    const response = await fetch(input, init);
+    console.log("Response:", response.status, response.statusText);
+    return response;
+};
+
+setApiConfig({
+    baseUrl: "https://api.example.com/v1",
+    fetch: loggingFetch,
 });
 ```
 
-The config provider (callback) is called for every API request, allowing fresh tokens or dynamic configuration.
+#### Using a Custom HTTP Client
+
+```typescript
+import { fetch as undiciFetch } from "undici";
+
+setApiConfig({
+    baseUrl: "https://api.example.com/v1",
+    fetch: undiciFetch as typeof fetch,
+});
+```
+
+#### Mocking in Tests
+
+```typescript
+import { expect, it, mock } from "bun:test";
+
+it("should call API correctly", async () => {
+    const mockFetch = mock(async () => {
+        return new Response(JSON.stringify({ id: 1, name: "Test" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+        });
+    });
+
+    setApiConfig({
+        baseUrl: "https://api.example.com",
+        fetch: mockFetch,
+    });
+
+    const response = await api.getUserById({ userId: "1" });
+    const data = await response.json();
+
+    expect(data).toEqual({ id: 1, name: "Test" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+});
+```
 
 ### Default Base URL
 

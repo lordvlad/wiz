@@ -159,21 +159,17 @@ function generateConfigInterface(): string {
     return `export interface ApiConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
+  fetch?: typeof fetch;
 }
 
-type ConfigProvider = ApiConfig | (() => ApiConfig | Promise<ApiConfig>);
+let globalConfig: ApiConfig = {};
 
-let globalConfigProvider: ConfigProvider = {};
-
-export function setApiConfig(config: ConfigProvider): void {
-  globalConfigProvider = config;
+export function setApiConfig(config: ApiConfig): void {
+  globalConfig = config;
 }
 
-export async function getApiConfig(): Promise<ApiConfig> {
-  if (typeof globalConfigProvider === "function") {
-    return await globalConfigProvider();
-  }
-  return globalConfigProvider;
+export function getApiConfig(): ApiConfig {
+  return globalConfig;
 }`;
 }
 
@@ -380,8 +376,9 @@ function generateMethodBody(
     const lines: string[] = ["{"];
 
     // Get config
-    lines.push("    const config = await getApiConfig();");
+    lines.push("    const config = getApiConfig();");
     lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
+    lines.push("    const fetchImpl = config.fetch || fetch;");
 
     // Build URL with path params
     let urlTemplate = op.path;
@@ -426,7 +423,7 @@ function generateMethodBody(
     lines.push("    };");
 
     // Make fetch call
-    lines.push("    return fetch(fullUrl, options);");
+    lines.push("    return fetchImpl(fullUrl, options);");
     lines.push("  }");
 
     return lines.join("\n");

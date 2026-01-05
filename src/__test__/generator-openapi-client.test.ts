@@ -282,8 +282,9 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("export interface ApiConfig");
         expect(api).toContain("baseUrl?:");
         expect(api).toContain("headers?:");
+        expect(api).toContain("fetch?: typeof fetch;");
         expect(api).toContain("export function setApiConfig");
-        expect(api).toContain("export async function getApiConfig");
+        expect(api).toContain("export function getApiConfig");
     });
 
     it("should use default base URL from servers", () => {
@@ -507,7 +508,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("...init?.headers");
     });
 
-    it("should support async config provider", () => {
+    it("should support custom fetch implementation in config", () => {
         const spec: OpenApiSpec = {
             openapi: "3.0.0",
             paths: {
@@ -529,11 +530,19 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        expect(api).toContain("type ConfigProvider = ApiConfig | (() => ApiConfig | Promise<ApiConfig>)");
-        expect(api).toContain("setApiConfig(config: ConfigProvider)");
-        expect(api).toContain("export async function getApiConfig(): Promise<ApiConfig>");
-        expect(api).toContain('if (typeof globalConfigProvider === "function")');
-        expect(api).toContain("return await globalConfigProvider()");
-        expect(api).toContain("const config = await getApiConfig()");
+        // Check that ApiConfig includes fetch
+        expect(api).toContain("export interface ApiConfig");
+        expect(api).toContain("fetch?: typeof fetch;");
+
+        // Check that setApiConfig accepts ApiConfig directly
+        expect(api).toContain("setApiConfig(config: ApiConfig)");
+
+        // Check that getApiConfig is synchronous
+        expect(api).toContain("export function getApiConfig(): ApiConfig");
+        expect(api).not.toContain("async function getApiConfig");
+
+        // Check that fetch implementation is used
+        expect(api).toContain("const fetchImpl = config.fetch || fetch");
+        expect(api).toContain("return fetchImpl(fullUrl, options)");
     });
 });
