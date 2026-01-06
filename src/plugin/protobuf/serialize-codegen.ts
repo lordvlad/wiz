@@ -149,22 +149,20 @@ function generateSerializeBody(type: Type, varName: string, writerVar: string, e
 function writeVarintCode(valueVar: string, writerVar: string): string {
     return `
         {
-            let val = ${valueVar};
+            let val = ${valueVar} >>> 0; // Convert to unsigned 32-bit integer
             while (val > 0x7F) {
-                const chunk = new Uint8Array([val & 0x7F | 0x80]);
                 if (${writerVar}.buf) {
-                    ${writerVar}.buf[${writerVar}.pos++] = chunk[0];
+                    ${writerVar}.buf[${writerVar}.pos++] = (val & 0x7F) | 0x80;
                 } else {
-                    ${writerVar}.chunks.push(chunk);
+                    ${writerVar}.chunks.push(new Uint8Array([(val & 0x7F) | 0x80]));
                     ${writerVar}.size += 1;
                 }
                 val >>>= 7;
             }
-            const chunk = new Uint8Array([val & 0x7F]);
             if (${writerVar}.buf) {
-                ${writerVar}.buf[${writerVar}.pos++] = chunk[0];
+                ${writerVar}.buf[${writerVar}.pos++] = val & 0x7F;
             } else {
-                ${writerVar}.chunks.push(chunk);
+                ${writerVar}.chunks.push(new Uint8Array([val & 0x7F]));
                 ${writerVar}.size += 1;
             }
         }
@@ -298,7 +296,10 @@ function generatePropertySerialize(
             } else {
                 // Write tag
                 ${writeVarintCode(tag.toString(), writerVar)}
-                // Write number value as varint (for simplicity, treating all numbers as int32)
+                // Write number value as varint
+                // Note: This treats all numbers as unsigned int32. For signed integers,
+                // use zigzag encoding, or for int64, use a proper int64 encoding.
+                // Negative numbers will be encoded as large unsigned values.
                 ${writeVarintCode(varName, writerVar)}
             }
         `);
@@ -633,16 +634,19 @@ function generateFieldParse(
                 const len = ${readVarintCode(bytesVar, posVar)};
                 const endPos = ${posVar} + len;
                 const nested = {};
-                const savedPos = ${posVar};
-                ${posVar} = endPos - len; // Reset to start of nested message
+                // Parse nested message from current position to endPos
+                const savedEndPos = ${posVar} + len;
                 ${generateParseBody(type, "nested", bytesVar, posVar, errorsArray)}
-                ${posVar} = endPos;
+                ${posVar} = savedEndPos;
                 ${targetVar} = nested;
             }
         `);
     } else {
+        // For unsupported types, skip based on wire type
         builder.addStatement(`
-            // Unsupported type for field ${fieldName}, skipping
+            // Unsupported type for field ${fieldName}
+            // Wire type should be parsed from tag to skip correctly
+            // For now, assume length-delimited (most common for unknown fields)
             const len = ${readVarintCode(bytesVar, posVar)};
             ${posVar} += len;
         `);
