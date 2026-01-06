@@ -233,14 +233,18 @@ function generateObjectSerialize(
             // Field ${fieldNumber}: ${propName}
             if (${isOptional ? `${propVarName} !== undefined` : "true"}) {
                 ${generatePropertySerialize(propType, propVarName, writerVar, errorsArray, propPath, isOptional, tag, fieldNumber)}
-            } ${!isOptional ? `else {
+            } ${
+                !isOptional
+                    ? `else {
                 ${errorsArray}.push({
                     path: "${propPath}",
                     error: "required field is missing",
                     expected: { type: "defined" },
                     actual: { type: "undefined", value: undefined }
                 });
-            }` : ""}
+            }`
+                    : ""
+            }
         `);
 
         fieldNumber++;
@@ -492,7 +496,13 @@ function readStringCode(bytesVar: string, posVar: string): string {
 /**
  * Generates the body of parsing logic
  */
-function generateParseBody(type: Type, resultVar: string, bytesVar: string, posVar: string, errorsArray: string): string {
+function generateParseBody(
+    type: Type,
+    resultVar: string,
+    bytesVar: string,
+    posVar: string,
+    errorsArray: string,
+): string {
     const builder = new CodeBuilder();
 
     if (type.isObject() && !type.isArray()) {
@@ -607,7 +617,7 @@ function generateFieldParse(
             const tempVar = getUniqueVarName("temp");
             builder.addStatement(`
                 {
-                    const ${tempVar} = {};
+                    let ${tempVar};
                     ${generateFieldParse(arrayElementType, tempVar, bytesVar, posVar, errorsArray, fieldName)}
                     if (Array.isArray(${targetVar})) {
                         ${targetVar}.push(${tempVar});
