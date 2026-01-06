@@ -61,3 +61,19 @@ export type RpcCallMetadata<
     responseType?: ResponseType;
     handler?: Handler;
 };
+
+/**
+ * Serializer function that converts a value of type T to protobuf binary format
+ */
+export type ProtobufSerializer<T> = {
+    (value: T): Uint8Array;
+    (value: T, buf: Buffer): void;
+};
+
+/**
+ * Parser function that converts protobuf binary data to a value of type T
+ */
+export type ProtobufParser<T> = {
+    (src: Uint8Array): T;
+    (src: Buffer): T;
+};

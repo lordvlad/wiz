@@ -1,8 +1,17 @@
 import { Node, SyntaxKind, Type, type CallExpression, type SourceFile } from "ts-morph";
 
 import type { WizPluginContext } from "..";
-import { createProtobufModel, createProtobufSpec, rpcCall } from "../../protobuf";
+import {
+    createProtobufModel,
+    createProtobufParser,
+    createProtobufSerializer,
+    createProtobufSpec,
+    protobufParse,
+    protobufSerialize,
+    rpcCall,
+} from "../../protobuf";
 import { createProtobufModel as codegen, protobufModelToString } from "./codegen";
+import { generateParserCode, generateSerializerCode } from "./serialize-codegen";
 
 const RPC_METHODS = new Set(["rpc"]);
 
@@ -525,8 +534,103 @@ export function transformProtobufSpec(sourceFile: SourceFile, { log, path, opt }
     }
 }
 
+// Transform protobuf serialization and parsing calls
+function transformProtobufSerialize(sourceFile: SourceFile, { log, path }: WizPluginContext) {
+    const serializeCalls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter(
+            (call: CallExpression) =>
+                call.getExpression().getText() === protobufSerialize.name && call.getTypeArguments().length >= 1,
+        );
+
+    for (const call of serializeCalls) {
+        log(`Transforming protobufSerialize call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+
+        const typeArg = call.getTypeArguments()[0]!;
+        const type = typeArg.getType();
+
+        const args = call.getArguments();
+        if (args.length === 0) {
+            throw new Error("protobufSerialize requires at least one argument (value)");
+        }
+
+        const valueCode = args[0]!.getText();
+        const bufCode = args.length > 1 ? args[1]!.getText() : undefined;
+
+        const serializerFunc = generateSerializerCode(type);
+        if (bufCode) {
+            call.replaceWithText(`${serializerFunc}(${valueCode}, ${bufCode})`);
+        } else {
+            call.replaceWithText(`${serializerFunc}(${valueCode})`);
+        }
+    }
+
+    const createSerializerCalls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter(
+            (call: CallExpression) =>
+                call.getExpression().getText() === createProtobufSerializer.name && call.getTypeArguments().length >= 1,
+        );
+
+    for (const call of createSerializerCalls) {
+        log(
+            `Transforming createProtobufSerializer call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`,
+        );
+
+        const typeArg = call.getTypeArguments()[0]!;
+        const type = typeArg.getType();
+
+        const serializerFunc = generateSerializerCode(type);
+        call.replaceWithText(serializerFunc);
+    }
+}
+
+function transformProtobufParse(sourceFile: SourceFile, { log, path }: WizPluginContext) {
+    const parseCalls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter(
+            (call: CallExpression) =>
+                call.getExpression().getText() === protobufParse.name && call.getTypeArguments().length >= 1,
+        );
+
+    for (const call of parseCalls) {
+        log(`Transforming protobufParse call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+
+        const typeArg = call.getTypeArguments()[0]!;
+        const type = typeArg.getType();
+
+        const args = call.getArguments();
+        if (args.length === 0) {
+            throw new Error("protobufParse requires one argument (src)");
+        }
+
+        const srcCode = args[0]!.getText();
+        const parserFunc = generateParserCode(type);
+        call.replaceWithText(`${parserFunc}(${srcCode})`);
+    }
+
+    const createParserCalls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter(
+            (call: CallExpression) =>
+                call.getExpression().getText() === createProtobufParser.name && call.getTypeArguments().length >= 1,
+        );
+
+    for (const call of createParserCalls) {
+        log(`Transforming createProtobufParser call at ${path}:${call.getStartLineNumber()}:${call.getStartLinePos()}`);
+
+        const typeArg = call.getTypeArguments()[0]!;
+        const type = typeArg.getType();
+
+        const parserFunc = generateParserCode(type);
+        call.replaceWithText(parserFunc);
+    }
+}
+
 // Main transformer function
 export function transformProtobuf(sourceFile: SourceFile, context: WizPluginContext) {
     transformProtobufModel(sourceFile, context);
     transformProtobufSpec(sourceFile, context);
+    transformProtobufSerialize(sourceFile, context);
+    transformProtobufParse(sourceFile, context);
 }
