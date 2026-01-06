@@ -11,6 +11,14 @@ function getFirstDeclaration(symbol: MorphSymbol): Node | undefined {
 }
 
 /**
+ * Helper to generate unique variable names
+ */
+let uniqueIdCounter = 0;
+function getUniqueVarName(base: string): string {
+    return `${base}_${uniqueIdCounter++}`;
+}
+
+/**
  * Escapes a string for use in generated code
  */
 function escapeString(str: string): string {
@@ -58,10 +66,13 @@ class CodeBuilder {
  */
 export function generateSerializerCode(type: Type): string {
     const builder = new CodeBuilder();
+    // Reset counter for each serializer
+    uniqueIdCounter = 0;
 
     // Generate the serializer function with both overloads
     builder.addStatement(`
         (function(value, buf) {
+            const parts = [];
             const errors = [];
             ${generateSerializeBody(type, "value", "parts", "errors")}
             
@@ -87,7 +98,7 @@ export function generateSerializerCode(type: Type): string {
  */
 function generateSerializeBody(type: Type, varName: string, partsArray: string, errorsArray: string): string {
     const builder = new CodeBuilder();
-    builder.addStatement(`const ${partsArray} = [];`);
+    // Note: parts array is now declared at function level, not here
 
     if (type.isString() || type.isStringLiteral()) {
         builder.addStatement(`
@@ -167,8 +178,8 @@ function generateArraySerialize(type: Type, varName: string, partsArray: string,
         return builder.getCode();
     }
 
-    const itemVar = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    const indexVar = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const itemVar = getUniqueVarName("item");
+    const indexVar = getUniqueVarName("i");
 
     builder.addStatement(`
         if (!Array.isArray(${varName})) {
@@ -394,6 +405,8 @@ function generateUnionSerialize(type: Type, varName: string, partsArray: string,
  */
 export function generateParserCode(type: Type): string {
     const builder = new CodeBuilder();
+    // Reset counter for each parser
+    uniqueIdCounter = 0;
 
     builder.addStatement(`
         (function(src) {
@@ -565,8 +578,8 @@ function generateArrayValidationDynamic(type: Type, varName: string, errorsArray
         return builder.getCode();
     }
 
-    const itemVar = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    const indexVar = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const itemVar = getUniqueVarName("item");
+    const indexVar = getUniqueVarName("i");
 
     builder.addStatement(`
         if (!Array.isArray(${varName})) {
@@ -672,8 +685,8 @@ function generateUnionValidationDynamic(type: Type, varName: string, errorsArray
     }
 
     // Try each union member
-    const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const tempVar = getUniqueVarName("valid");
+    const errorCountVar = getUniqueVarName("errorCount");
 
     builder.addStatement(`
         const ${errorCountVar} = ${errorsArray}.length;
@@ -742,8 +755,8 @@ function generateArrayValidation(type: Type, varName: string, errorsArray: strin
         return builder.getCode();
     }
 
-    const itemVar = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    const indexVar = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const itemVar = getUniqueVarName("item");
+    const indexVar = getUniqueVarName("i");
 
     builder.addStatement(`
         if (!Array.isArray(${varName})) {
@@ -848,8 +861,8 @@ function generateUnionValidation(type: Type, varName: string, errorsArray: strin
     }
 
     // Try each union member
-    const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const tempVar = getUniqueVarName("valid");
+    const errorCountVar = getUniqueVarName("errorCount");
 
     builder.addStatement(`
         const ${errorCountVar} = ${errorsArray}.length;
