@@ -268,7 +268,18 @@ function generatePropertySerialize(
 ): string {
     const builder = new CodeBuilder();
 
-    if (type.isString() || type.isStringLiteral()) {
+    // For optional fields, unwrap T | undefined union to just T
+    let actualType = type;
+    if (isOptional && type.isUnion()) {
+        const unionTypes = type.getUnionTypes();
+        // Filter out undefined
+        const nonUndefinedTypes = unionTypes.filter((t) => !t.isUndefined());
+        if (nonUndefinedTypes.length === 1) {
+            actualType = nonUndefinedTypes[0]!;
+        }
+    }
+
+    if (actualType.isString() || actualType.isStringLiteral()) {
         builder.addStatement(`
             if (typeof ${varName} !== "string") {
                 ${errorsArray}.push({
@@ -284,7 +295,7 @@ function generatePropertySerialize(
                 ${writeStringCode(varName, writerVar)}
             }
         `);
-    } else if (type.isNumber() || type.isNumberLiteral()) {
+    } else if (actualType.isNumber() || actualType.isNumberLiteral()) {
         builder.addStatement(`
             if (typeof ${varName} !== "number") {
                 ${errorsArray}.push({
@@ -303,7 +314,7 @@ function generatePropertySerialize(
                 ${writeVarintCode(varName, writerVar)}
             }
         `);
-    } else if (type.isBoolean() || type.isBooleanLiteral()) {
+    } else if (actualType.isBoolean() || actualType.isBooleanLiteral()) {
         builder.addStatement(`
             if (typeof ${varName} !== "boolean") {
                 ${errorsArray}.push({
@@ -319,10 +330,10 @@ function generatePropertySerialize(
                 ${writeVarintCode(`${varName} ? 1 : 0`, writerVar)}
             }
         `);
-    } else if (type.isArray()) {
-        builder.addStatement(generateArraySerialize(type, varName, writerVar, errorsArray, path, tag, fieldNumber));
-    } else if (type.isObject()) {
-        builder.addStatement(generateNestedObjectSerialize(type, varName, writerVar, errorsArray, path, tag));
+    } else if (actualType.isArray()) {
+        builder.addStatement(generateArraySerialize(actualType, varName, writerVar, errorsArray, path, tag, fieldNumber));
+    } else if (actualType.isObject()) {
+        builder.addStatement(generateNestedObjectSerialize(actualType, varName, writerVar, errorsArray, path, tag));
     } else {
         // Fallback - just validate it exists
         builder.addStatement(`
@@ -363,21 +374,110 @@ function generateArraySerialize(
     const itemVar = getUniqueVarName("item");
     const indexVar = getUniqueVarName("i");
 
-    builder.addStatement(`
-        if (!Array.isArray(${varName})) {
-            ${errorsArray}.push({
-                path: "${path}",
-                error: "expected array, got " + typeof ${varName},
-                expected: { type: "array" },
-                actual: { type: typeof ${varName}, value: ${varName} }
-            });
-        } else {
-            for (let ${indexVar} = 0; ${indexVar} < ${varName}.length; ${indexVar}++) {
-                const ${itemVar} = ${varName}[${indexVar}];
-                ${generatePropertySerialize(arrayElementType, itemVar, writerVar, errorsArray, `${path}[${indexVar}]`, false, baseTag, fieldNumber)}
+    // For primitive types, use packed encoding (proto3 default)
+    const isPrimitive =
+        arrayElementType.isString() ||
+        arrayElementType.isStringLiteral() ||
+        arrayElementType.isNumber() ||
+        arrayElementType.isNumberLiteral() ||
+        arrayElementType.isBoolean() ||
+        arrayElementType.isBooleanLiteral();
+
+    if (isPrimitive && (arrayElementType.isNumber() || arrayElementType.isNumberLiteral() || arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral())) {
+        // Use packed encoding for numbers and booleans
+        const tempWriter = getUniqueVarName("tempWriter");
+        builder.addStatement(`
+            if (!Array.isArray(${varName})) {
+                ${errorsArray}.push({
+                    path: "${path}",
+                    error: "expected array, got " + typeof ${varName},
+                    expected: { type: "array" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            } else if (${varName}.length > 0) {
+                // Use packed encoding: tag + length + values
+                const ${tempWriter} = { chunks: [], size: 0 };
+                for (let ${indexVar} = 0; ${indexVar} < ${varName}.length; ${indexVar}++) {
+                    const ${itemVar} = ${varName}[${indexVar}];
+                    ${generatePackedValue(arrayElementType, itemVar, tempWriter, errorsArray, `${path}[${indexVar}]`)}
+                }
+                // Write tag for length-delimited packed field
+                ${writeVarintCode(baseTag.toString(), writerVar)}
+                // Write length
+                ${writeVarintCode(`${tempWriter}.size`, writerVar)}
+                // Write packed values
+                for (const chunk of ${tempWriter}.chunks) {
+                    if (${writerVar}.buf) {
+                        ${writerVar}.buf.set(chunk, ${writerVar}.pos);
+                        ${writerVar}.pos += chunk.length;
+                    } else {
+                        ${writerVar}.chunks.push(chunk);
+                        ${writerVar}.size += chunk.length;
+                    }
+                }
             }
-        }
-    `);
+        `);
+    } else {
+        // Use unpacked encoding for strings and objects (each gets its own tag)
+        builder.addStatement(`
+            if (!Array.isArray(${varName})) {
+                ${errorsArray}.push({
+                    path: "${path}",
+                    error: "expected array, got " + typeof ${varName},
+                    expected: { type: "array" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            } else {
+                for (let ${indexVar} = 0; ${indexVar} < ${varName}.length; ${indexVar}++) {
+                    const ${itemVar} = ${varName}[${indexVar}];
+                    ${generatePropertySerialize(arrayElementType, itemVar, writerVar, errorsArray, `${path}[${indexVar}]`, false, baseTag, fieldNumber)}
+                }
+            }
+        `);
+    }
+
+    return builder.getCode();
+}
+
+/**
+ * Generate code to write a packed array element value (without tag)
+ */
+function generatePackedValue(
+    type: Type,
+    varName: string,
+    writerVar: string,
+    errorsArray: string,
+    path: string,
+): string {
+    const builder = new CodeBuilder();
+
+    if (type.isNumber() || type.isNumberLiteral()) {
+        builder.addStatement(`
+            if (typeof ${varName} !== "number") {
+                ${errorsArray}.push({
+                    path: "${path}",
+                    error: "expected number, got " + typeof ${varName},
+                    expected: { type: "number" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            } else {
+                ${writeVarintCode(varName, writerVar)}
+            }
+        `);
+    } else if (type.isBoolean() || type.isBooleanLiteral()) {
+        builder.addStatement(`
+            if (typeof ${varName} !== "boolean") {
+                ${errorsArray}.push({
+                    path: "${path}",
+                    error: "expected boolean, got " + typeof ${varName},
+                    expected: { type: "boolean" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            } else {
+                ${writeVarintCode(`${varName} ? 1 : 0`, writerVar)}
+            }
+        `);
+    }
 
     return builder.getCode();
 }
@@ -615,18 +715,47 @@ function generateFieldParse(
     } else if (type.isArray()) {
         const arrayElementType = type.getArrayElementType();
         if (arrayElementType) {
-            const tempVar = getUniqueVarName("temp");
-            builder.addStatement(`
-                {
-                    let ${tempVar};
-                    ${generateFieldParse(arrayElementType, tempVar, bytesVar, posVar, errorsArray, fieldName)}
-                    if (Array.isArray(${targetVar})) {
-                        ${targetVar}.push(${tempVar});
-                    } else {
-                        ${targetVar} = [${tempVar}];
+            // Check if this is a primitive type that uses packed encoding
+            const isPrimitivePackable =
+                (arrayElementType.isNumber() || arrayElementType.isNumberLiteral() ||
+                 arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral());
+            
+            if (isPrimitivePackable) {
+                // Handle packed encoding for primitive arrays
+                builder.addStatement(`
+                    {
+                        // Read length
+                        const len = ${readVarintCode(bytesVar, posVar)};
+                        const endPos = ${posVar} + len;
+                        
+                        // Initialize array if needed
+                        if (!Array.isArray(${targetVar})) {
+                            ${targetVar} = [];
+                        }
+                        
+                        // Read packed values
+                        while (${posVar} < endPos) {
+                            ${arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral()
+                                ? `${targetVar}.push(${readVarintCode(bytesVar, posVar)} !== 0);`
+                                : `${targetVar}.push(${readVarintCode(bytesVar, posVar)});`}
+                        }
                     }
-                }
-            `);
+                `);
+            } else {
+                // Handle unpacked encoding for strings and objects
+                const tempVar = getUniqueVarName("temp");
+                builder.addStatement(`
+                    {
+                        let ${tempVar};
+                        ${generateFieldParse(arrayElementType, tempVar, bytesVar, posVar, errorsArray, fieldName)}
+                        if (Array.isArray(${targetVar})) {
+                            ${targetVar}.push(${tempVar});
+                        } else {
+                            ${targetVar} = [${tempVar}];
+                        }
+                    }
+                `);
+            }
         }
     } else if (type.isObject()) {
         builder.addStatement(`
