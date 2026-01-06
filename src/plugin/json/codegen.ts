@@ -354,6 +354,9 @@ function generateUnionSerialize(type: Type, varName: string, partsArray: string,
     const undefinedType = unionTypes.find((t) => t.isUndefined());
     const otherTypes = unionTypes.filter((t) => !t.isNull() && !t.isUndefined());
 
+    // Note: undefined is not valid in JSON, so we skip it or treat it as null
+    // For JSON serialization, undefined values should typically be omitted at the property level
+
     if (nullType && otherTypes.length > 0) {
         // Has null and other types - check null first
         builder.addStatement(`
@@ -367,17 +370,17 @@ function generateUnionSerialize(type: Type, varName: string, partsArray: string,
         // Only null type
         builder.addStatement(`${partsArray}.push("null");`);
     } else if (undefinedType && otherTypes.length > 0) {
-        // Has undefined and other types
+        // Has undefined and other types - treat undefined as null for JSON compatibility
         builder.addStatement(`
             if (${varName} === undefined) {
-                ${partsArray}.push("undefined");
+                ${partsArray}.push("null");
             } else {
                 ${partsArray}.push(JSON.stringify(${varName}));
             }
         `);
     } else if (undefinedType) {
-        // Only undefined type
-        builder.addStatement(`${partsArray}.push("undefined");`);
+        // Only undefined type - treat as null for JSON compatibility
+        builder.addStatement(`${partsArray}.push("null");`);
     } else {
         // No null/undefined, just other types - use JSON.stringify
         builder.addStatement(`${partsArray}.push(JSON.stringify(${varName}));`);
@@ -480,6 +483,245 @@ function generateValidationCode(type: Type, varName: string, errorsArray: string
 }
 
 /**
+ * Generates validation code with dynamic path (for use in loops)
+ * The pathVar parameter should be a variable name that will be evaluated at runtime
+ */
+function generateValidationCodeDynamic(type: Type, varName: string, errorsArray: string, pathVar: string): string {
+    const builder = new CodeBuilder();
+
+    if (type.isString() || type.isStringLiteral()) {
+        builder.addStatement(`
+            if (typeof ${varName} !== "string") {
+                ${errorsArray}.push({
+                    path: ${pathVar},
+                    error: "expected string, got " + typeof ${varName},
+                    expected: { type: "string" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }
+        `);
+    } else if (type.isNumber() || type.isNumberLiteral()) {
+        builder.addStatement(`
+            if (typeof ${varName} !== "number") {
+                ${errorsArray}.push({
+                    path: ${pathVar},
+                    error: "expected number, got " + typeof ${varName},
+                    expected: { type: "number" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }
+        `);
+    } else if (type.isBoolean() || type.isBooleanLiteral()) {
+        builder.addStatement(`
+            if (typeof ${varName} !== "boolean") {
+                ${errorsArray}.push({
+                    path: ${pathVar},
+                    error: "expected boolean, got " + typeof ${varName},
+                    expected: { type: "boolean" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }
+        `);
+    } else if (type.isNull()) {
+        builder.addStatement(`
+            if (${varName} !== null) {
+                ${errorsArray}.push({
+                    path: ${pathVar},
+                    error: "expected null, got " + typeof ${varName},
+                    expected: { type: "null" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }
+        `);
+    } else if (type.isArray()) {
+        builder.addStatement(generateArrayValidationDynamic(type, varName, errorsArray, pathVar));
+    } else if (type.isUnion()) {
+        builder.addStatement(generateUnionValidationDynamic(type, varName, errorsArray, pathVar));
+    } else if (type.isObject()) {
+        builder.addStatement(generateObjectValidationDynamic(type, varName, errorsArray, pathVar));
+    }
+
+    return builder.getCode();
+}
+
+/**
+ * Helper for array validation with dynamic paths
+ */
+function generateArrayValidationDynamic(type: Type, varName: string, errorsArray: string, pathVar: string): string {
+    const builder = new CodeBuilder();
+    const arrayElementType = type.getArrayElementType();
+
+    if (!arrayElementType) {
+        builder.addStatement(`
+            if (!Array.isArray(${varName})) {
+                ${errorsArray}.push({
+                    path: ${pathVar},
+                    error: "expected array, got " + typeof ${varName},
+                    expected: { type: "array" },
+                    actual: { type: typeof ${varName}, value: ${varName} }
+                });
+            }
+        `);
+        return builder.getCode();
+    }
+
+    const itemVar = `_item_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const indexVar = `_i_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+    builder.addStatement(`
+        if (!Array.isArray(${varName})) {
+            ${errorsArray}.push({
+                path: ${pathVar},
+                error: "expected array, got " + typeof ${varName},
+                expected: { type: "array" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        } else {
+            for (let ${indexVar} = 0; ${indexVar} < ${varName}.length; ${indexVar}++) {
+                const ${itemVar} = ${varName}[${indexVar}];
+                const nestedPath = ${pathVar} + "[" + ${indexVar} + "]";
+                ${generateValidationCodeDynamic(arrayElementType, itemVar, errorsArray, "nestedPath")}
+            }
+        }
+    `);
+
+    return builder.getCode();
+}
+
+/**
+ * Helper for object validation with dynamic paths
+ */
+function generateObjectValidationDynamic(type: Type, varName: string, errorsArray: string, pathVar: string): string {
+    const builder = new CodeBuilder();
+
+    builder.addStatement(`
+        if (typeof ${varName} !== "object" || ${varName} === null) {
+            ${errorsArray}.push({
+                path: ${pathVar},
+                error: "expected object, got " + typeof ${varName},
+                expected: { type: "object" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        } else {
+    `);
+
+    const properties = type.getProperties();
+    for (const prop of properties) {
+        const propName = prop.getName();
+        const declaration = getFirstDeclaration(prop);
+        if (!declaration) continue;
+
+        const propType = prop.getTypeAtLocation(declaration);
+        const isOptional = prop.isOptional();
+        const propVarName = `${varName}.${propName}`;
+
+        if (isOptional) {
+            builder.addStatement(`
+                if (${propVarName} !== undefined) {
+                    const propPath = ${pathVar} + ".${propName}";
+                    ${generateValidationCodeDynamic(propType, propVarName, errorsArray, "propPath")}
+                }
+            `);
+        } else {
+            builder.addStatement(`
+                if (${propVarName} === undefined) {
+                    ${errorsArray}.push({
+                        path: ${pathVar} + ".${propName}",
+                        error: "required property is missing",
+                        expected: { type: "defined" },
+                        actual: { type: "undefined", value: undefined }
+                    });
+                } else {
+                    const propPath = ${pathVar} + ".${propName}";
+                    ${generateValidationCodeDynamic(propType, propVarName, errorsArray, "propPath")}
+                }
+            `);
+        }
+    }
+
+    builder.addStatement(`}`);
+
+    return builder.getCode();
+}
+
+/**
+ * Helper for union validation with dynamic paths
+ */
+function generateUnionValidationDynamic(type: Type, varName: string, errorsArray: string, pathVar: string): string {
+    const builder = new CodeBuilder();
+    const unionTypes = type.getUnionTypes();
+
+    const nullType = unionTypes.find((t) => t.isNull());
+    const undefinedType = unionTypes.find((t) => t.isUndefined());
+    const otherTypes = unionTypes.filter((t) => !t.isNull() && !t.isUndefined());
+
+    if (otherTypes.length === 0) {
+        if (nullType && undefinedType) {
+            builder.addStatement(`
+                if (${varName} !== null && ${varName} !== undefined) {
+                    ${errorsArray}.push({
+                        path: ${pathVar},
+                        error: "expected null or undefined",
+                        expected: { type: "null | undefined" },
+                        actual: { type: typeof ${varName}, value: ${varName} }
+                    });
+                }
+            `);
+        }
+        return builder.getCode();
+    }
+
+    // Try each union member
+    const tempVar = `_valid_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const errorCountVar = `_errorCount_${varName.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+    builder.addStatement(`
+        const ${errorCountVar} = ${errorsArray}.length;
+        let ${tempVar} = false;
+    `);
+
+    for (let i = 0; i < otherTypes.length; i++) {
+        const unionType = otherTypes[i]!;
+        builder.addStatement(`
+            if (!${tempVar}) {
+                const _errLen_${i} = ${errorsArray}.length;
+                ${generateValidationCodeDynamic(unionType, varName, errorsArray, pathVar)}
+                if (${errorsArray}.length === _errLen_${i}) {
+                    ${tempVar} = true;
+                } else {
+                    ${errorsArray}.length = _errLen_${i};
+                }
+            }
+        `);
+    }
+
+    if (nullType || undefinedType) {
+        const conditions: string[] = [];
+        if (nullType) conditions.push(`${varName} === null`);
+        if (undefinedType) conditions.push(`${varName} === undefined`);
+        builder.addStatement(`
+            if (${conditions.join(" || ")}) {
+                ${tempVar} = true;
+                ${errorsArray}.length = ${errorCountVar};
+            }
+        `);
+    }
+
+    builder.addStatement(`
+        if (!${tempVar}) {
+            ${errorsArray}.push({
+                path: ${pathVar},
+                error: "value does not match any union member",
+                expected: { type: "union" },
+                actual: { type: typeof ${varName}, value: ${varName} }
+            });
+        }
+    `);
+
+    return builder.getCode();
+}
+
+/**
  * Generates validation for arrays
  */
 function generateArrayValidation(type: Type, varName: string, errorsArray: string, path: string): string {
@@ -515,7 +757,7 @@ function generateArrayValidation(type: Type, varName: string, errorsArray: strin
             for (let ${indexVar} = 0; ${indexVar} < ${varName}.length; ${indexVar}++) {
                 const ${itemVar} = ${varName}[${indexVar}];
                 const itemPath = "${path}" + "[" + ${indexVar} + "]";
-                ${generateValidationCode(arrayElementType, itemVar, errorsArray, "")}
+                ${generateValidationCodeDynamic(arrayElementType, itemVar, errorsArray, "itemPath")}
             }
         }
     `);
