@@ -1,6 +1,7 @@
 import { Project, SourceFile, Type } from "ts-morph";
 import ts from "typescript";
 
+import { transformJson } from "./json/transform";
 import { transformOpenApiSchema } from "./openApiSchema/transform";
 import { transformProtobuf } from "./protobuf/transform";
 import { transformValidator } from "./validator/transform";
@@ -53,6 +54,7 @@ const wizPlugin: (opt?: WizPluginOptions) => Bun.BunPlugin = (opt = {}) => {
                 transformOpenApiSchema(sourceFile, { log, opt, path: args.path });
                 transformProtobuf(sourceFile, { log, opt, path: args.path });
                 transformValidator(sourceFile, { log, opt, path: args.path });
+                transformJson(sourceFile, { log, opt, path: args.path });
 
                 return {
                     contents: sourceFile.getFullText(),
