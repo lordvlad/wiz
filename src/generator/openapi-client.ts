@@ -918,6 +918,12 @@ function generateReactQueryFiles(
         }
     }
 
+    // Add React Query import to queries file
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "@tanstack/react-query",
+        namedImports: ["useQuery"],
+    });
+
     // Add imports to queries file
     const queryApiImports = ["api"];
     if (queryTypeImports.size > 0) {
@@ -931,6 +937,12 @@ function generateReactQueryFiles(
         moduleSpecifier: "./model",
         defaultImport: "* as Models",
         isTypeOnly: true,
+    });
+
+    // Add React Query import to mutations file
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "@tanstack/react-query",
+        namedImports: ["useMutation"],
     });
 
     // Add imports to mutations file
@@ -1052,7 +1064,7 @@ function generateQueryHook(
         params.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
         callParams.push("queryParams");
     }
-    params.push("options?: { enabled?: boolean }");
+    params.push("options?: Omit<Parameters<typeof useQuery>[0], 'queryKey' | 'queryFn'>");
 
     // Determine return type
     let dataType = "unknown";
@@ -1074,20 +1086,13 @@ function generateQueryHook(
         jsDocText += " */\n";
     }
 
-    // Note: We can't actually use React Query hooks here since we're just generating the code
-    // The user will need to import and use the actual useQuery from @tanstack/react-query
     sourceFile.addFunction({
         name: `use${capitalizedMethodName}`,
         isExported: true,
         parameters: params.map(parseParameter),
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine(`const queryOptions = get${capitalizedMethodName}QueryOptions(${callParams.join(", ")});`);
-            writer.writeLine(`// Note: This requires @tanstack/react-query to be installed`);
-            writer.writeLine(`// import { useQuery } from '@tanstack/react-query';`);
-            writer.writeLine(`// return useQuery({ ...queryOptions, ...options });`);
-            writer.writeLine(
-                `throw new Error("use${capitalizedMethodName}: React Query integration requires @tanstack/react-query");`,
-            );
+            writer.writeLine(`return useQuery({ ...queryOptions, ...options });`);
         },
     });
 }
@@ -1184,7 +1189,10 @@ function generateMutationHook(
         variableTypes.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
     }
     if (hasRequestBody) {
-        variableTypes.push(`requestBody: ${getRequestBodyType(op)}`);
+        const bodyType = getRequestBodyType(op);
+        // Request body types come from Models, so prefix them
+        const prefixedBodyType = bodyType !== "any" && !bodyType.includes("[]") ? `Models.${bodyType}` : bodyType;
+        variableTypes.push(`requestBody: ${prefixedBodyType}`);
     }
 
     // Determine return type
@@ -1209,19 +1217,13 @@ function generateMutationHook(
         jsDocText += " */\n";
     }
 
-    // Note: We can't actually use React Query hooks here since we're just generating the code
     sourceFile.addFunction({
         name: `use${capitalizedMethodName}`,
         isExported: true,
-        parameters: [{ name: "options?", type: "any" }],
+        parameters: [{ name: "options?", type: `Omit<Parameters<typeof useMutation>[0], 'mutationFn'>` }],
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine(`const mutationOptions = get${capitalizedMethodName}MutationOptions();`);
-            writer.writeLine(`// Note: This requires @tanstack/react-query to be installed`);
-            writer.writeLine(`// import { useMutation } from '@tanstack/react-query';`);
-            writer.writeLine(`// return useMutation({ ...mutationOptions, ...options });`);
-            writer.writeLine(
-                `throw new Error("use${capitalizedMethodName}: React Query integration requires @tanstack/react-query");`,
-            );
+            writer.writeLine(`return useMutation({ ...mutationOptions, ...options });`);
         },
     });
 }
