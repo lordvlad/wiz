@@ -35,10 +35,137 @@ type JSDocMetadata = {
     format?: string;
 };
 
+/**
+ * List of unsupported global types that should not be included in OpenAPI specs.
+ * These are typically browser DOM types, Web API types, or Node.js-specific types.
+ */
+const UNSUPPORTED_GLOBAL_TYPES = new Set([
+    // Browser DOM types
+    "HTMLElement",
+    "HTMLBodyElement",
+    "HTMLDivElement",
+    "HTMLSpanElement",
+    "HTMLAnchorElement",
+    "HTMLImageElement",
+    "HTMLInputElement",
+    "HTMLButtonElement",
+    "HTMLFormElement",
+    "HTMLCanvasElement",
+    "HTMLVideoElement",
+    "HTMLAudioElement",
+    "HTMLTableElement",
+    "HTMLIFrameElement",
+    "Element",
+    "Node",
+    "Document",
+    "Window",
+    "Event",
+    "MouseEvent",
+    "KeyboardEvent",
+    "EventTarget",
+    // Web API types
+    "Blob",
+    "File",
+    "FileList",
+    "FormData",
+    "XMLHttpRequest",
+    "WebSocket",
+    "MessageEvent",
+    "CryptoKey",
+    "SubtleCrypto",
+    "Crypto",
+    "ImageData",
+    "ImageBitmap",
+    // Node.js specific types
+    "Buffer",
+    "Stream",
+    "ReadableStream",
+    "WritableStream",
+    "EventEmitter",
+    // Other problematic types
+    "Function",
+    "Promise", // Note: Promise<T> might be okay if we extract T, but raw Promise is not
+]);
+
+/**
+ * Validates that a type is supported for OpenAPI schema generation.
+ * Throws an error if the type is a known unsupported global type.
+ */
+function validateTypeSupported(type: Type): void {
+    // First, check the type text for unsupported types
+    const typeText = type.getText();
+    for (const unsupportedType of UNSUPPORTED_GLOBAL_TYPES) {
+        if (typeText === unsupportedType || typeText.startsWith(unsupportedType + "<")) {
+            // Check if this is a user-defined type or a global type
+            // User-defined types will have declarations in the source files
+            const symbol = type.getSymbol() || type.getAliasSymbol();
+            if (symbol) {
+                const declarations = symbol.getDeclarations();
+                if (declarations && declarations.length > 0) {
+                    // Check if any declaration is from a source file (not from lib.d.ts files)
+                    const hasSourceDeclaration = declarations.some((decl) => {
+                        const sourceFile = decl.getSourceFile();
+                        const filePath = sourceFile.getFilePath();
+                        // If it's from a library file (lib.*.d.ts), it's a global type
+                        return !filePath.includes("/lib.") && !filePath.includes("\\lib.");
+                    });
+
+                    // If it has a source declaration, it's user-defined, so allow it
+                    if (hasSourceDeclaration) {
+                        continue;
+                    }
+                }
+            }
+
+            throw new Error(
+                `Unsupported global type '${unsupportedType}' detected. ` +
+                    `OpenAPI specs should not include browser/Node.js global types like ${unsupportedType}. ` +
+                    `Please use plain TypeScript types (objects, primitives, arrays) instead.`,
+            );
+        }
+    }
+
+    // Also check the symbol name
+    const symbol = type.getSymbol();
+    if (!symbol) return;
+
+    const typeName = symbol.getName();
+    if (!typeName || typeName === "__type") return;
+
+    // Check if this is an unsupported global type
+    if (UNSUPPORTED_GLOBAL_TYPES.has(typeName)) {
+        // Check if this is a user-defined type or a global type
+        const declarations = symbol.getDeclarations();
+        if (declarations && declarations.length > 0) {
+            // Check if any declaration is from a source file (not from lib.d.ts files)
+            const hasSourceDeclaration = declarations.some((decl) => {
+                const sourceFile = decl.getSourceFile();
+                const filePath = sourceFile.getFilePath();
+                // If it's from a library file (lib.*.d.ts), it's a global type
+                return !filePath.includes("/lib.") && !filePath.includes("\\lib.");
+            });
+
+            // If it has a source declaration, it's user-defined, so allow it
+            if (hasSourceDeclaration) {
+                return;
+            }
+        }
+
+        throw new Error(
+            `Unsupported global type '${typeName}' detected. ` +
+                `OpenAPI specs should not include browser/Node.js global types like ${typeName}. ` +
+                `Please use plain TypeScript types (objects, primitives, arrays) instead.`,
+        );
+    }
+}
+
 export function createOpenApiSchema(type: Type, context: SchemaContext = {}): unknown {
     const settings = context.settings ?? {};
     const availableTypes = context.availableTypes ?? new Set<string>();
     const processingStack = context.processingStack ?? new Set<string>();
+
+    // Validate that the type is supported before processing
+    validateTypeSupported(type);
 
     // Check for enum types EARLY, before union resolution
     // This is important because enums are resolved to union types by TypeScript

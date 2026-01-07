@@ -331,7 +331,9 @@ function generatePropertySerialize(
             }
         `);
     } else if (actualType.isArray()) {
-        builder.addStatement(generateArraySerialize(actualType, varName, writerVar, errorsArray, path, tag, fieldNumber));
+        builder.addStatement(
+            generateArraySerialize(actualType, varName, writerVar, errorsArray, path, tag, fieldNumber),
+        );
     } else if (actualType.isObject()) {
         builder.addStatement(generateNestedObjectSerialize(actualType, varName, writerVar, errorsArray, path, tag));
     } else {
@@ -383,7 +385,13 @@ function generateArraySerialize(
         arrayElementType.isBoolean() ||
         arrayElementType.isBooleanLiteral();
 
-    if (isPrimitive && (arrayElementType.isNumber() || arrayElementType.isNumberLiteral() || arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral())) {
+    if (
+        isPrimitive &&
+        (arrayElementType.isNumber() ||
+            arrayElementType.isNumberLiteral() ||
+            arrayElementType.isBoolean() ||
+            arrayElementType.isBooleanLiteral())
+    ) {
         // Use packed encoding for numbers and booleans
         const tempWriter = getUniqueVarName("tempWriter");
         builder.addStatement(`
@@ -717,9 +725,11 @@ function generateFieldParse(
         if (arrayElementType) {
             // Check if this is a primitive type that uses packed encoding
             const isPrimitivePackable =
-                (arrayElementType.isNumber() || arrayElementType.isNumberLiteral() ||
-                 arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral());
-            
+                arrayElementType.isNumber() ||
+                arrayElementType.isNumberLiteral() ||
+                arrayElementType.isBoolean() ||
+                arrayElementType.isBooleanLiteral();
+
             if (isPrimitivePackable) {
                 // Handle packed encoding for primitive arrays
                 builder.addStatement(`
@@ -735,9 +745,11 @@ function generateFieldParse(
                         
                         // Read packed values
                         while (${posVar} < endPos) {
-                            ${arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral()
-                                ? `${targetVar}.push(${readVarintCode(bytesVar, posVar)} !== 0);`
-                                : `${targetVar}.push(${readVarintCode(bytesVar, posVar)});`}
+                            ${
+                                arrayElementType.isBoolean() || arrayElementType.isBooleanLiteral()
+                                    ? `${targetVar}.push(${readVarintCode(bytesVar, posVar)} !== 0);`
+                                    : `${targetVar}.push(${readVarintCode(bytesVar, posVar)});`
+                            }
                         }
                     }
                 `);
