@@ -149,7 +149,7 @@ function getMethodName(op: OperationInfo): string {
  */
 function getDefaultBaseUrl(spec: OpenApiSpec): string {
     if (spec.servers && spec.servers.length > 0) {
-        return spec.servers[0].url || "";
+        return spec.servers[0]?.url || "";
     }
     return "";
 }
