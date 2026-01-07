@@ -860,7 +860,6 @@ function generateQueryOptions(
         }),
         returnType: `{ queryKey: unknown[]; queryFn: () => Promise<${dataType}> }`,
         statements: (writer: CodeBlockWriter) => {
-            writer.writeLine("const config = useApiConfig();");
             writer.writeLine(`return {`);
             writer.writeLine(`  queryKey: [${keyParts.join(", ")}],`);
             writer.writeLine(`  queryFn: async () => {`);
@@ -985,7 +984,6 @@ function generateMutationOptions(
         isExported: true,
         returnType: `{ mutationFn: (variables: ${variablesType}) => Promise<${dataType}> }`,
         statements: (writer: CodeBlockWriter) => {
-            writer.writeLine("const config = useApiConfig();");
             writer.writeLine(`return {`);
             writer.writeLine(`  mutationFn: async (variables: ${variablesType}) => {`);
 
