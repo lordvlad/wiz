@@ -543,6 +543,179 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         // Check that fetch implementation is used
         expect(api).toContain("const fetchImpl = config.fetch || fetch");
-        expect(api).toContain("return fetchImpl(fullUrl, options)");
+        expect(api).toContain("const response = await fetchImpl(fullUrl, options)");
+        expect(api).toContain("return response;");
+    });
+
+    it("should generate client with wiz validation when wizValidator option is enabled", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users/{id}": {
+                    get: {
+                        operationId: "getUserById",
+                        parameters: [
+                            {
+                                name: "id",
+                                in: "path",
+                                required: true,
+                                schema: { type: "string" },
+                            },
+                        ],
+                        responses: {
+                            "200": {
+                                description: "Success",
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "#/components/schemas/User",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "/users": {
+                    post: {
+                        operationId: "createUser",
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        $ref: "#/components/schemas/CreateUserRequest",
+                                    },
+                                },
+                            },
+                        },
+                        responses: {
+                            "201": {
+                                description: "Created",
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "#/components/schemas/User",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    get: {
+                        operationId: "listUsers",
+                        parameters: [
+                            {
+                                name: "page",
+                                in: "query",
+                                required: false,
+                                schema: { type: "number" },
+                            },
+                        ],
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: { type: "string" },
+                            name: { type: "string" },
+                        },
+                        required: ["id", "name"],
+                    },
+                    CreateUserRequest: {
+                        type: "object",
+                        properties: {
+                            name: { type: "string" },
+                        },
+                        required: ["name"],
+                    },
+                },
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec, { wizValidator: true });
+
+        // Check that validator is imported
+        expect(api).toContain('import { createValidator } from "wiz/validator"');
+
+        // Check that validators are created for model types (request/response bodies)
+        expect(api).toContain("validateUser = createValidator<Models.User>()");
+        expect(api).toContain("validateCreateUserRequest = createValidator<Models.CreateUserRequest>()");
+
+        // Check that validators are created for path params
+        expect(api).toContain("validateGetUserByIdPathParams = createValidator<GetUserByIdPathParams>()");
+
+        // Check that validators are created for query params
+        expect(api).toContain("validateListUsersQueryParams = createValidator<ListUsersQueryParams>()");
+
+        // Check that validation calls exist in method bodies
+        expect(api).toContain("// Validate path parameters");
+        expect(api).toContain("const pathParamsErrors = validateGetUserByIdPathParams(pathParams)");
+        expect(api).toContain('throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors))');
+
+        expect(api).toContain("// Validate query parameters");
+        expect(api).toContain("const queryParamsErrors = validateListUsersQueryParams(queryParams)");
+        expect(api).toContain('throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors))');
+
+        expect(api).toContain("// Validate request body");
+        expect(api).toContain("const requestBodyErrors = validateCreateUserRequest(requestBody)");
+        expect(api).toContain('throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors))');
+
+        expect(api).toContain("// Validate response body");
+        expect(api).toContain("const clonedResponse = response.clone()");
+        expect(api).toContain("const responseBody = await clonedResponse.json()");
+        expect(api).toContain("const responseBodyErrors = validateUser(responseBody)");
+        expect(api).toContain('throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors))');
+
+        // Check that response is still returned
+        expect(api).toContain("return response;");
+    });
+
+    it("should not include validation code when wizValidator is false", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users/{id}": {
+                    get: {
+                        operationId: "getUserById",
+                        parameters: [
+                            {
+                                name: "id",
+                                in: "path",
+                                required: true,
+                                schema: { type: "string" },
+                            },
+                        ],
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec, { wizValidator: false });
+
+        // Check that validator is NOT imported
+        expect(api).not.toContain("createValidator");
+
+        // Check that validation calls do NOT exist
+        expect(api).not.toContain("// Validate path parameters");
+        expect(api).not.toContain("pathParamsErrors");
+        expect(api).not.toContain("// Validate query parameters");
+        expect(api).not.toContain("// Validate request body");
+        expect(api).not.toContain("// Validate response body");
     });
 });
