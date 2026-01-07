@@ -30,6 +30,7 @@ interface OperationInfo {
     tags?: string[];
     summary?: string;
     description?: string;
+    deprecated?: boolean;
 }
 
 /**
@@ -96,11 +97,12 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
     if (options.reactQuery) {
         sourceFile.addImportDeclaration({
             moduleSpecifier: "react",
-            defaultImport: "* as React",
+            namedImports: ["createContext", "useContext"],
         });
         sourceFile.addImportDeclaration({
             moduleSpecifier: "react",
-            namedImports: ["createContext", "useContext"],
+            namedImports: ["ReactNode", "ReactElement"],
+            isTypeOnly: true,
         });
     }
 
@@ -185,6 +187,7 @@ function extractOperations(spec: OpenApiSpec): OperationInfo[] {
                     tags: operation.tags,
                     summary: operation.summary,
                     description: operation.description,
+                    deprecated: operation.deprecated,
                 });
             }
         }
@@ -646,14 +649,14 @@ function generateMethodBodyStatements(
 
     // Get config - use globalConfig directly in React Query mode
     if (options.reactQuery) {
-        lines.push("    const config = globalConfig || {};");
-        lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
-        lines.push("    const fetchImpl = config.fetch || fetch;");
+        lines.push("    const config = globalConfig ?? {};");
+        lines.push(`    const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";`);
+        lines.push("    const fetchImpl = config.fetch ?? fetch;");
     } else {
         // Standard mode uses getApiConfig
         lines.push("    const config = getApiConfig();");
-        lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
-        lines.push("    const fetchImpl = config.fetch || fetch;");
+        lines.push(`    const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";`);
+        lines.push("    const fetchImpl = config.fetch ?? fetch;");
     }
 
     // Add validation for path params
@@ -801,10 +804,7 @@ function generateReactQueryContext(sourceFile: SourceFile, defaultBaseUrl: strin
         returnType: "ApiConfig",
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine("const config = useContext(ApiContext);");
-            writer.writeLine("if (!config) {");
-            writer.writeLine('  throw new Error("useApiConfig must be used within an ApiContext.Provider");');
-            writer.writeLine("}");
-            writer.writeLine("return config;");
+            writer.writeLine("return config ?? defaultApiConfig;");
         },
     });
 
@@ -814,7 +814,7 @@ function generateReactQueryContext(sourceFile: SourceFile, defaultBaseUrl: strin
         isExported: true,
         properties: [
             { name: "config", type: "Partial<ApiConfig>", hasQuestionToken: true },
-            { name: "children", type: "React.ReactNode" },
+            { name: "children", type: "ReactNode" },
         ],
     });
 
@@ -822,14 +822,14 @@ function generateReactQueryContext(sourceFile: SourceFile, defaultBaseUrl: strin
         name: "ApiProvider",
         isExported: true,
         parameters: [{ name: "{ config, children }", type: "ApiProviderProps" }],
-        returnType: "React.ReactElement",
+        returnType: "ReactElement",
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine("const mergedConfig: ApiConfig = {");
             writer.writeLine("  ...defaultApiConfig,");
             writer.writeLine("  ...config,");
             writer.writeLine("  headers: {");
-            writer.writeLine("    ...defaultApiConfig.headers,");
-            writer.writeLine("    ...config?.headers,");
+            writer.writeLine("    ...(defaultApiConfig.headers ?? {}),");
+            writer.writeLine("    ...(config?.headers ?? {}),");
             writer.writeLine("  },");
             writer.writeLine("};");
             writer.writeLine("");
@@ -924,6 +924,22 @@ function generateReactQueryFiles(
         namedImports: ["useQuery"],
     });
 
+    // Add stable key helper function to queries file
+    queriesFile.addFunction({
+        name: "stableKey",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("if (obj === null || obj === undefined) return obj;");
+            writer.writeLine("if (typeof obj !== 'object') return obj;");
+            writer.writeLine("if (Array.isArray(obj)) return obj.map(stableKey);");
+            writer.writeLine("return Object.keys(obj).sort().reduce((acc, key) => {");
+            writer.writeLine("  acc[key] = stableKey(obj[key]);");
+            writer.writeLine("  return acc;");
+            writer.writeLine("}, {} as any);");
+        },
+        parameters: [{ name: "obj", type: "any" }],
+        returnType: "any",
+    });
+
     // Add imports to queries file
     const queryApiImports = ["api"];
     if (queryTypeImports.size > 0) {
@@ -1000,22 +1016,28 @@ function generateQueryOptions(
         callParams.push("queryParams");
     }
 
-    // Generate the query key
+    // Generate the query key with stable keys
     const keyParts: string[] = [`"${methodName}"`];
     if (pathParams.length > 0) {
-        keyParts.push("pathParams");
+        keyParts.push("stableKey(pathParams)");
     }
     if (queryParams.length > 0) {
-        keyParts.push("queryParams");
+        keyParts.push("stableKey(queryParams)");
     }
 
     // Determine return type
-    let dataType = "unknown";
     const responseBodyType = getResponseBodyType(op);
+    let dataType = "unknown";
+    let shouldParseJson = true;
+
     // Note: We check for '[]' because getTypeFromSchema only generates Type[] format for arrays,
     // never Array<Type> or readonly Type[]. This is safe for the generated code.
     if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
         dataType = `Models.${responseBodyType}`;
+    } else if (!responseBodyType) {
+        // No JSON response body type known, return Response directly
+        dataType = "Response";
+        shouldParseJson = false;
     }
 
     // Generate function
@@ -1029,10 +1051,14 @@ function generateQueryOptions(
             writer.writeLine(`  queryKey: [${keyParts.join(", ")}],`);
             writer.writeLine(`  queryFn: async () => {`);
             writer.writeLine(`    const response = await api.${methodName}(${callParams.join(", ")});`);
-            if (dataType !== "unknown") {
-                writer.writeLine(`    return response.json() as Promise<${dataType}>;`);
+            if (shouldParseJson) {
+                if (dataType !== "unknown") {
+                    writer.writeLine(`    return response.json() as Promise<${dataType}>;`);
+                } else {
+                    writer.writeLine(`    return response.json();`);
+                }
             } else {
-                writer.writeLine(`    return response.json();`);
+                writer.writeLine(`    return response;`);
             }
             writer.writeLine(`  },`);
             writer.writeLine(`};`);
@@ -1064,7 +1090,7 @@ function generateQueryHook(
         params.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
         callParams.push("queryParams");
     }
-    params.push("options?: Omit<Parameters<typeof useQuery>[0], 'queryKey' | 'queryFn'>");
+    params.push("options?: Omit<Parameters<typeof useQuery>[0], 'queryKey' | 'queryFn'> = {}");
 
     // Determine return type
     let dataType = "unknown";
@@ -1074,19 +1100,18 @@ function generateQueryHook(
     }
 
     // Add JSDoc
-    let jsDocText = "";
-    if (op.summary || op.description) {
-        jsDocText = "/**\n";
-        if (op.summary) {
-            jsDocText += ` * ${op.summary}\n`;
-        }
-        if (op.description && op.description !== op.summary) {
-            jsDocText += ` * ${op.description}\n`;
-        }
-        jsDocText += " */\n";
+    const jsDocLines: string[] = [];
+    if (op.summary) {
+        jsDocLines.push(op.summary);
+    }
+    if (op.description && op.description !== op.summary) {
+        jsDocLines.push(op.description);
+    }
+    if (op.deprecated) {
+        jsDocLines.push("@deprecated");
     }
 
-    sourceFile.addFunction({
+    const functionDef: any = {
         name: `use${capitalizedMethodName}`,
         isExported: true,
         parameters: params.map(parseParameter),
@@ -1094,7 +1119,13 @@ function generateQueryHook(
             writer.writeLine(`const queryOptions = get${capitalizedMethodName}QueryOptions(${callParams.join(", ")});`);
             writer.writeLine(`return useQuery({ ...queryOptions, ...options });`);
         },
-    });
+    };
+
+    if (jsDocLines.length > 0) {
+        functionDef.docs = [jsDocLines.join("\n")];
+    }
+
+    sourceFile.addFunction(functionDef);
 }
 
 /**
@@ -1205,25 +1236,30 @@ function generateMutationHook(
     const variablesType = variableTypes.length > 0 ? `{ ${variableTypes.join("; ")} }` : "void";
 
     // Add JSDoc
-    let jsDocText = "";
-    if (op.summary || op.description) {
-        jsDocText = "/**\n";
-        if (op.summary) {
-            jsDocText += ` * ${op.summary}\n`;
-        }
-        if (op.description && op.description !== op.summary) {
-            jsDocText += ` * ${op.description}\n`;
-        }
-        jsDocText += " */\n";
+    const jsDocLines: string[] = [];
+    if (op.summary) {
+        jsDocLines.push(op.summary);
+    }
+    if (op.description && op.description !== op.summary) {
+        jsDocLines.push(op.description);
+    }
+    if (op.deprecated) {
+        jsDocLines.push("@deprecated");
     }
 
-    sourceFile.addFunction({
+    const functionDef: any = {
         name: `use${capitalizedMethodName}`,
         isExported: true,
-        parameters: [{ name: "options?", type: `Omit<Parameters<typeof useMutation>[0], 'mutationFn'>` }],
+        parameters: [{ name: "options = {}", type: `Omit<Parameters<typeof useMutation>[0], 'mutationFn'>` }],
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine(`const mutationOptions = get${capitalizedMethodName}MutationOptions();`);
             writer.writeLine(`return useMutation({ ...mutationOptions, ...options });`);
         },
-    });
+    };
+
+    if (jsDocLines.length > 0) {
+        functionDef.docs = [jsDocLines.join("\n")];
+    }
+
+    sourceFile.addFunction(functionDef);
 }

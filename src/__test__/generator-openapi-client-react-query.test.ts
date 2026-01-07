@@ -36,7 +36,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
         // Should create useApiConfig hook
         expect(api).toContain("export function useApiConfig(): ApiConfig");
         expect(api).toContain("const config = useContext(ApiContext)");
-        expect(api).toContain('throw new Error("useApiConfig must be used within an ApiContext.Provider")');
+        expect(api).toContain("return config ?? defaultApiConfig");
     });
 
     it("should generate ApiProvider wrapper component with merged defaults", () => {
@@ -66,8 +66,8 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
 
         const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
 
-        // Should import React
-        expect(api).toContain('import * as React from "react"');
+        // Should import React types
+        expect(api).toContain('import type { ReactNode, ReactElement } from "react"');
 
         // Should create default config with baseUrl from servers
         expect(api).toContain("const defaultApiConfig: ApiConfig");
@@ -76,7 +76,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
         // Should create ApiProviderProps interface
         expect(api).toContain("export interface ApiProviderProps");
         expect(api).toContain("config?: Partial<ApiConfig>");
-        expect(api).toContain("children: React.ReactNode");
+        expect(api).toContain("children: ReactNode");
 
         // Should create ApiProvider component
         expect(api).toContain("export function ApiProvider");
