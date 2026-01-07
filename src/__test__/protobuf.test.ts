@@ -257,4 +257,76 @@ describe("createProtobufModel function", () => {
         expect(actual).toInclude("email");
         expect(actual).toInclude("uuid");
     });
+
+    it("must reject unsupported global type HTMLElement", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type Type = {
+                element: HTMLElement;
+            }
+            
+            export const model = createProtobufModel<[Type]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Unsupported global type.*HTMLElement/);
+    });
+
+    it("must reject unsupported global type CryptoKey", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type Type = {
+                key: CryptoKey;
+            }
+            
+            export const model = createProtobufModel<[Type]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Unsupported global type.*CryptoKey/);
+    });
+
+    it("must reject unsupported global type Blob", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type Type = {
+                data: Blob;
+            }
+            
+            export const model = createProtobufModel<[Type]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Unsupported global type.*Blob/);
+    });
+
+    it("must reject unsupported global type in nested object", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type Type = {
+                data: {
+                    element: HTMLDivElement;
+                };
+            }
+            
+            export const model = createProtobufModel<[Type]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Unsupported global type.*HTMLDivElement/);
+    });
+
+    it("must reject unsupported global type in array", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type Type = {
+                elements: HTMLElement[];
+            }
+            
+            export const model = createProtobufModel<[Type]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Unsupported global type.*HTMLElement/);
+    });
 });
