@@ -86,11 +86,11 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
         const typesToValidate = new Set<string>();
         for (const op of operations) {
             const requestBodyType = getRequestBodyType(op);
-            if (requestBodyType && requestBodyType !== "any") {
+            if (requestBodyType && requestBodyType !== "any" && !requestBodyType.includes("[]")) {
                 typesToValidate.add(requestBodyType);
             }
             const responseBodyType = getResponseBodyType(op);
-            if (responseBodyType && responseBodyType !== "any") {
+            if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
                 typesToValidate.add(responseBodyType);
             }
         }
@@ -596,7 +596,8 @@ function generateMethodBodyStatements(
     // Add validation for request body
     if (options.wizValidator && hasRequestBody) {
         const bodyType = getRequestBodyType(op);
-        if (bodyType !== "any") {
+        // Skip validation for array types and 'any' types
+        if (bodyType !== "any" && !bodyType.includes("[]")) {
             lines.push("");
             lines.push(`    // Validate request body`);
             lines.push(`    const requestBodyErrors = validate${bodyType}(requestBody);`);
@@ -658,7 +659,8 @@ function generateMethodBodyStatements(
     // Add response body validation
     if (options.wizValidator) {
         const responseBodyType = getResponseBodyType(op);
-        if (responseBodyType && responseBodyType !== "any") {
+        // Skip validation for array types and 'any' types
+        if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
             lines.push(...generateResponseValidation(responseBodyType));
         }
     }
