@@ -96,6 +96,10 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
     if (options.reactQuery) {
         sourceFile.addImportDeclaration({
             moduleSpecifier: "react",
+            defaultImport: "* as React",
+        });
+        sourceFile.addImportDeclaration({
+            moduleSpecifier: "react",
             namedImports: ["createContext", "useContext"],
         });
     }
@@ -148,7 +152,7 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
 
     // Generate React Query context if enabled
     if (options.reactQuery) {
-        generateReactQueryContext(sourceFile);
+        generateReactQueryContext(sourceFile, defaultBaseUrl);
     }
 
     // Generate client class
@@ -765,7 +769,7 @@ function generateMethodBodyStatements(
 /**
  * Generate React Query context
  */
-function generateReactQueryContext(sourceFile: SourceFile): void {
+function generateReactQueryContext(sourceFile: SourceFile, defaultBaseUrl: string): void {
     // Create ApiContext
     sourceFile.addVariableStatement({
         declarationKind: VariableDeclarationKind.Const,
@@ -774,6 +778,18 @@ function generateReactQueryContext(sourceFile: SourceFile): void {
             {
                 name: "ApiContext",
                 initializer: `createContext<ApiConfig | undefined>(undefined)`,
+            },
+        ],
+    });
+
+    // Create default config constant
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        declarations: [
+            {
+                name: "defaultApiConfig",
+                type: "ApiConfig",
+                initializer: `{ baseUrl: "${defaultBaseUrl}" }`,
             },
         ],
     });
@@ -789,6 +805,39 @@ function generateReactQueryContext(sourceFile: SourceFile): void {
             writer.writeLine('  throw new Error("useApiConfig must be used within an ApiContext.Provider");');
             writer.writeLine("}");
             writer.writeLine("return config;");
+        },
+    });
+
+    // Create ApiProvider component
+    sourceFile.addInterface({
+        name: "ApiProviderProps",
+        isExported: true,
+        properties: [
+            { name: "config", type: "Partial<ApiConfig>", hasQuestionToken: true },
+            { name: "children", type: "React.ReactNode" },
+        ],
+    });
+
+    sourceFile.addFunction({
+        name: "ApiProvider",
+        isExported: true,
+        parameters: [{ name: "{ config, children }", type: "ApiProviderProps" }],
+        returnType: "React.ReactElement",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("const mergedConfig: ApiConfig = {");
+            writer.writeLine("  ...defaultApiConfig,");
+            writer.writeLine("  ...config,");
+            writer.writeLine("  headers: {");
+            writer.writeLine("    ...defaultApiConfig.headers,");
+            writer.writeLine("    ...config?.headers,");
+            writer.writeLine("  },");
+            writer.writeLine("};");
+            writer.writeLine("");
+            writer.writeLine("return (");
+            writer.writeLine("  <ApiContext.Provider value={mergedConfig}>");
+            writer.writeLine("    {children}");
+            writer.writeLine("  </ApiContext.Provider>");
+            writer.writeLine(");");
         },
     });
 }

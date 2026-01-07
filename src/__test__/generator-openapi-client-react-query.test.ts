@@ -39,6 +39,53 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
         expect(api).toContain('throw new Error("useApiConfig must be used within an ApiContext.Provider")');
     });
 
+    it("should generate ApiProvider wrapper component with merged defaults", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            servers: [
+                {
+                    url: "https://api.example.com",
+                },
+            ],
+            paths: {
+                "/users": {
+                    get: {
+                        operationId: "getUsers",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+
+        // Should import React
+        expect(api).toContain('import * as React from "react"');
+
+        // Should create default config with baseUrl from servers
+        expect(api).toContain("const defaultApiConfig: ApiConfig");
+        expect(api).toContain('baseUrl: "https://api.example.com"');
+
+        // Should create ApiProviderProps interface
+        expect(api).toContain("export interface ApiProviderProps");
+        expect(api).toContain("config?: Partial<ApiConfig>");
+        expect(api).toContain("children: React.ReactNode");
+
+        // Should create ApiProvider component
+        expect(api).toContain("export function ApiProvider");
+        expect(api).toContain("const mergedConfig: ApiConfig");
+        expect(api).toContain("...defaultApiConfig");
+        expect(api).toContain("...config");
+        expect(api).toContain("<ApiContext.Provider value={mergedConfig}>");
+    });
+
     it("should not generate setApiConfig/getApiConfig when reactQuery is enabled", () => {
         const spec: OpenApiSpec = {
             openapi: "3.0.0",
