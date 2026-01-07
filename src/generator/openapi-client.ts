@@ -16,6 +16,8 @@ export interface ClientGeneratorOptions {
 export interface GeneratedClient {
     models: string;
     api: string;
+    queries?: string;
+    mutations?: string;
 }
 
 interface OperationInfo {
@@ -46,7 +48,21 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
 
     const api = sourceFile.getFullText();
 
-    return { models, api };
+    // Generate separate queries and mutations files if React Query is enabled
+    let queries: string | undefined;
+    let mutations: string | undefined;
+
+    if (options.reactQuery) {
+        const queriesFile = project.createSourceFile("queries.ts", "");
+        const mutationsFile = project.createSourceFile("mutations.ts", "");
+
+        generateReactQueryFiles(queriesFile, mutationsFile, spec, options);
+
+        queries = queriesFile.getFullText();
+        mutations = mutationsFile.getFullText();
+    }
+
+    return { models, api, queries, mutations };
 }
 
 /**
@@ -137,11 +153,6 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
 
     // Generate client class
     generateClientClass(sourceFile, operations, defaultBaseUrl, options);
-
-    // Generate React Query helpers if enabled
-    if (options.reactQuery) {
-        generateReactQueryHelpers(sourceFile, operations, options);
-    }
 }
 
 /**
@@ -475,6 +486,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
+            isExported: true,
             type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
@@ -502,6 +514,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
+            isExported: true,
             type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
@@ -821,6 +834,87 @@ function generateReactQueryHelpers(
 }
 
 /**
+ * Generate React Query files (queries.ts and mutations.ts)
+ */
+function generateReactQueryFiles(
+    queriesFile: SourceFile,
+    mutationsFile: SourceFile,
+    spec: OpenApiSpec,
+    options: ClientGeneratorOptions,
+): void {
+    const operations = extractOperations(spec);
+
+    // Collect parameter type names that need to be imported
+    const queryTypeImports = new Set<string>();
+    const mutationTypeImports = new Set<string>();
+
+    for (const op of operations) {
+        const { pathParams, queryParams } = analyzeParameters(op);
+        const isQuery = isQueryOperation(op);
+
+        if (isQuery) {
+            if (pathParams.length > 0) {
+                queryTypeImports.add(getPathParamsTypeName(op));
+            }
+            if (queryParams.length > 0) {
+                queryTypeImports.add(getQueryParamsTypeName(op));
+            }
+        } else {
+            if (pathParams.length > 0) {
+                mutationTypeImports.add(getPathParamsTypeName(op));
+            }
+            if (queryParams.length > 0) {
+                mutationTypeImports.add(getQueryParamsTypeName(op));
+            }
+        }
+    }
+
+    // Add imports to queries file
+    const queryApiImports = ["api"];
+    if (queryTypeImports.size > 0) {
+        queryApiImports.push(...Array.from(queryTypeImports));
+    }
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "./api",
+        namedImports: queryApiImports,
+    });
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "./model",
+        defaultImport: "* as Models",
+        isTypeOnly: true,
+    });
+
+    // Add imports to mutations file
+    const mutationApiImports = ["api"];
+    if (mutationTypeImports.size > 0) {
+        mutationApiImports.push(...Array.from(mutationTypeImports));
+    }
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "./api",
+        namedImports: mutationApiImports,
+    });
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "./model",
+        defaultImport: "* as Models",
+        isTypeOnly: true,
+    });
+
+    // Generate query and mutation options/hooks in separate files
+    for (const op of operations) {
+        const methodName = getMethodName(op);
+        const isQuery = isQueryOperation(op);
+
+        if (isQuery) {
+            generateQueryOptions(queriesFile, op, methodName, options);
+            generateQueryHook(queriesFile, op, methodName, options);
+        } else {
+            generateMutationOptions(mutationsFile, op, methodName, options);
+            generateMutationHook(mutationsFile, op, methodName, options);
+        }
+    }
+}
+
+/**
  * Generate query options method for GET/HEAD/OPTIONS operations
  */
 function generateQueryOptions(
@@ -970,7 +1064,10 @@ function generateMutationOptions(
         variableTypes.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
     }
     if (hasRequestBody) {
-        variableTypes.push(`requestBody: ${getRequestBodyType(op)}`);
+        const bodyType = getRequestBodyType(op);
+        // Request body types come from Models, so prefix them
+        const prefixedBodyType = bodyType !== "any" && !bodyType.includes("[]") ? `Models.${bodyType}` : bodyType;
+        variableTypes.push(`requestBody: ${prefixedBodyType}`);
     }
 
     // Determine return type

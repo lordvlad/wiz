@@ -28,36 +28,47 @@ export async function generateClient(specPath: string, options: ClientOptions = 
     }
 
     // Generate client
-    const { models, api } = generateClientFromOpenApi(spec, {
+    const result = generateClientFromOpenApi(spec, {
         wizValidator: options.wizValidator,
         reactQuery: options.reactQuery,
     });
 
     // Output client
     if (options.outdir) {
-        await writeClientToFiles(models, api, options.outdir);
+        await writeClientToFiles(result, options.outdir, options.reactQuery || false);
     } else {
-        outputClientToStdout(models, api);
+        outputClientToStdout(result);
     }
 }
 
 /**
  * Write client to separate files in output directory
  */
-async function writeClientToFiles(models: string, api: string, outdir: string): Promise<void> {
+async function writeClientToFiles(result: any, outdir: string, reactQuery: boolean): Promise<void> {
     // Create output directory
     await mkdir(outdir, { recursive: true });
 
     // Write models
     const modelsFile = resolve(outdir, "model.ts");
-    await writeFile(modelsFile, models);
+    await writeFile(modelsFile, result.models);
     console.log(`✓ Generated ${modelsFile}`);
 
     // Write API
     const apiFile = resolve(outdir, "api.ts");
-    const apiWithImport = `import type * as Models from "./model";\n\n${api}`;
+    const apiWithImport = `import type * as Models from "./model";\n\n${result.api}`;
     await writeFile(apiFile, apiWithImport);
     console.log(`✓ Generated ${apiFile}`);
+
+    // Write queries and mutations if React Query is enabled
+    if (reactQuery && result.queries && result.mutations) {
+        const queriesFile = resolve(outdir, "queries.ts");
+        await writeFile(queriesFile, result.queries);
+        console.log(`✓ Generated ${queriesFile}`);
+
+        const mutationsFile = resolve(outdir, "mutations.ts");
+        await writeFile(mutationsFile, result.mutations);
+        console.log(`✓ Generated ${mutationsFile}`);
+    }
 
     console.log(`\nGenerated client in ${outdir}`);
 }
@@ -65,9 +76,19 @@ async function writeClientToFiles(models: string, api: string, outdir: string): 
 /**
  * Output client to stdout
  */
-function outputClientToStdout(models: string, api: string): void {
+function outputClientToStdout(result: any): void {
     console.log("// Models");
-    console.log(models);
+    console.log(result.models);
     console.log("\n// API Client");
-    console.log(api);
+    console.log(result.api);
+
+    // Append queries and mutations if React Query is enabled
+    if (result.queries) {
+        console.log("\n// Queries");
+        console.log(result.queries);
+    }
+    if (result.mutations) {
+        console.log("\n// Mutations");
+        console.log(result.mutations);
+    }
 }

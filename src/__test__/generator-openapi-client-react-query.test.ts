@@ -113,14 +113,14 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { queries } = generateClientFromOpenApi(spec, { reactQuery: true });
 
-        // Should generate query options method
-        expect(api).toContain("export function getGetUserByIdQueryOptions");
-        expect(api).toContain("pathParams: GetUserByIdPathParams");
-        expect(api).toContain("queryKey:");
-        expect(api).toContain("queryFn:");
-        expect(api).toContain("Models.User");
+        // Should generate query options method in queries file
+        expect(queries).toContain("export function getGetUserByIdQueryOptions");
+        expect(queries).toContain("pathParams: GetUserByIdPathParams");
+        expect(queries).toContain("queryKey:");
+        expect(queries).toContain("queryFn:");
+        expect(queries).toContain("Models.User");
     });
 
     it("should generate custom query hook for GET operation", () => {
@@ -143,11 +143,11 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { queries } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should generate custom hook
-        expect(api).toContain("export function useGetUsers");
-        expect(api).toContain("getGetUsersQueryOptions");
+        expect(queries).toContain("export function useGetUsers");
+        expect(queries).toContain("getGetUsersQueryOptions");
     });
 
     it("should generate mutation options method for POST operation", () => {
@@ -202,12 +202,12 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { mutations } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should generate mutation options method
-        expect(api).toContain("export function getCreateUserMutationOptions");
-        expect(api).toContain("mutationFn:");
-        expect(api).toContain("Models.User");
+        expect(mutations).toContain("export function getCreateUserMutationOptions");
+        expect(mutations).toContain("mutationFn:");
+        expect(mutations).toContain("Models.User");
     });
 
     it("should generate custom mutation hook for POST operation", () => {
@@ -247,11 +247,11 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { mutations } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should generate custom hook
-        expect(api).toContain("export function useCreateUser");
-        expect(api).toContain("getCreateUserMutationOptions");
+        expect(mutations).toContain("export function useCreateUser");
+        expect(mutations).toContain("getCreateUserMutationOptions");
     });
 
     it("should handle query parameters in query options", () => {
@@ -288,12 +288,12 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { queries } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should include query params in the function signature
-        expect(api).toContain("export function getListUsersQueryOptions");
-        expect(api).toContain("queryParams?: ListUsersQueryParams");
-        expect(api).toContain("queryKey:");
+        expect(queries).toContain("export function getListUsersQueryOptions");
+        expect(queries).toContain("queryParams?: ListUsersQueryParams");
+        expect(queries).toContain("queryKey:");
     });
 
     it("should generate both regular api methods and React Query helpers", () => {
@@ -316,15 +316,15 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { api, queries, mutations } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should have regular api object
         expect(api).toContain("export const api =");
         expect(api).toContain("async getUsers");
 
         // Should have React Query helpers
-        expect(api).toContain("export function getGetUsersQueryOptions");
-        expect(api).toContain("export function useGetUsers");
+        expect(queries).toContain("export function getGetUsersQueryOptions");
+        expect(queries).toContain("export function useGetUsers");
     });
 
     it("should handle multiple operations with mixed query and mutation types", () => {
@@ -431,22 +431,22 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
             },
         };
 
-        const { api } = generateClientFromOpenApi(spec, { reactQuery: true });
+        const { queries, mutations } = generateClientFromOpenApi(spec, { reactQuery: true });
 
         // Should have query options for GET operations
-        expect(api).toContain("getListUsersQueryOptions");
-        expect(api).toContain("getGetUserByIdQueryOptions");
+        expect(queries).toContain("getListUsersQueryOptions");
+        expect(queries).toContain("getGetUserByIdQueryOptions");
 
         // Should have mutation options for POST/PUT/DELETE operations
-        expect(api).toContain("getCreateUserMutationOptions");
-        expect(api).toContain("getUpdateUserMutationOptions");
-        expect(api).toContain("getDeleteUserMutationOptions");
+        expect(mutations).toContain("getCreateUserMutationOptions");
+        expect(mutations).toContain("getUpdateUserMutationOptions");
+        expect(mutations).toContain("getDeleteUserMutationOptions");
 
         // Should have custom hooks for all operations
-        expect(api).toContain("useListUsers");
-        expect(api).toContain("useGetUserById");
-        expect(api).toContain("useCreateUser");
-        expect(api).toContain("useUpdateUser");
-        expect(api).toContain("useDeleteUser");
+        expect(queries).toContain("useListUsers");
+        expect(queries).toContain("useGetUserById");
+        expect(mutations).toContain("useCreateUser");
+        expect(mutations).toContain("useUpdateUser");
+        expect(mutations).toContain("useDeleteUser");
     });
 });
