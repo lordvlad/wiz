@@ -645,6 +645,15 @@ describe("OpenAPI to TypeScript client generator", () => {
         // Check that validator is imported
         expect(api).toContain('import { createValidator } from "wiz/validator"');
 
+        // Check that TypedResponse interface is defined
+        expect(api).toContain("export interface TypedResponse<T> extends Response");
+        expect(api).toContain("json(): Promise<T>");
+
+        // Check that createTypedResponse helper function is defined
+        expect(api).toContain("function createTypedResponse<T>(");
+        expect(api).toContain("validator: (value: unknown) => any[]");
+        expect(api).toContain("new Proxy(response");
+
         // Check that validators are created for model types (request/response bodies)
         expect(api).toContain("validateUser = createValidator<Models.User>()");
         expect(api).toContain("validateCreateUserRequest = createValidator<Models.CreateUserRequest>()");
@@ -668,14 +677,12 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("const requestBodyErrors = validateCreateUserRequest(requestBody)");
         expect(api).toContain('throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors))');
 
-        expect(api).toContain("// Validate response body");
-        expect(api).toContain("const clonedResponse = response.clone()");
-        expect(api).toContain("const responseBody = await clonedResponse.json()");
-        expect(api).toContain("const responseBodyErrors = validateUser(responseBody)");
-        expect(api).toContain('throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors))');
+        // Check that TypedResponse is returned for methods with response body types
+        expect(api).toContain("Promise<TypedResponse<Models.User>>");
+        expect(api).toContain("return createTypedResponse<Models.User>(response, validateUser)");
 
-        // Check that response is still returned
-        expect(api).toContain("return response;");
+        // Check that regular Response is returned for methods without response body types
+        expect(api).toContain("listUsers(queryParams?: ListUsersQueryParams, init?: RequestInit): Promise<Response>");
     });
 
     it("should not include validation code when wizValidator is false", () => {

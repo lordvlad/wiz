@@ -450,6 +450,8 @@ components:
             const apiContent = await apiFile.text();
 
             expect(apiContent).toContain('import { createValidator } from "wiz/validator"');
+            expect(apiContent).toContain("export interface TypedResponse<T> extends Response");
+            expect(apiContent).toContain("function createTypedResponse<T>(");
             expect(apiContent).toContain("validateUser = createValidator<Models.User>()");
             expect(apiContent).toContain("validateGetUserByIdPathParams");
             expect(apiContent).toContain("// Validate path parameters");
@@ -457,8 +459,7 @@ components:
             expect(apiContent).toContain('throw new TypeError("Invalid path parameters: "');
             expect(apiContent).toContain("// Validate request body");
             expect(apiContent).toContain("const requestBodyErrors = validateUser(requestBody)");
-            expect(apiContent).toContain("// Validate response body");
-            expect(apiContent).toContain("const responseBody = await clonedResponse.json()");
+            expect(apiContent).toContain("return createTypedResponse<Models.User>(response, validateUser)");
 
             expect(output).toContain("Generated client");
         } finally {

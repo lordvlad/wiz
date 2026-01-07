@@ -75,11 +75,25 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
     // Get default base URL
     const defaultBaseUrl = getDefaultBaseUrl(spec);
 
-    // Add validator import if wiz validation is enabled
+    // Add validator import and TypedResponse interface if wiz validation is enabled
     if (options.wizValidator) {
         sourceFile.addImportDeclaration({
             moduleSpecifier: "wiz/validator",
             namedImports: ["createValidator"],
+        });
+
+        // Add TypedResponse interface
+        sourceFile.addInterface({
+            name: "TypedResponse",
+            typeParameters: [{ name: "T" }],
+            extends: ["Response"],
+            isExported: true,
+            methods: [
+                {
+                    name: "json",
+                    returnType: "Promise<T>",
+                },
+            ],
         });
 
         // Collect all types that need validators (request bodies and response bodies)
@@ -99,6 +113,9 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
         for (const typeName of typesToValidate) {
             generateValidator(sourceFile, typeName, `Models.${typeName}`);
         }
+
+        // Generate createTypedResponse helper function
+        generateCreateTypedResponseHelper(sourceFile);
     }
 
     // Generate configuration interface
@@ -320,8 +337,17 @@ function generateMethod(
         jsDocText += " */\n";
     }
 
+    // Determine return type
+    let returnType = "Promise<Response>";
+    if (options.wizValidator) {
+        const responseBodyType = getResponseBodyType(op);
+        if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+            returnType = `Promise<TypedResponse<Models.${responseBodyType}>>`;
+        }
+    }
+
     // Return the method as a string to be inserted into the object literal
-    return `${jsDocText}async ${methodName}(${params.join(", ")}): Promise<Response> ${methodBody}`;
+    return `${jsDocText}async ${methodName}(${params.join(", ")}): ${returnType} ${methodBody}`;
 }
 
 /**
@@ -336,6 +362,40 @@ function generateValidator(sourceFile: SourceFile, typeName: string, typeReferen
                 initializer: `createValidator<${typeReference}>()`,
             },
         ],
+    });
+}
+
+/**
+ * Generate createTypedResponse helper function
+ */
+function generateCreateTypedResponseHelper(sourceFile: SourceFile): void {
+    sourceFile.addFunction({
+        name: "createTypedResponse",
+        typeParameters: [{ name: "T" }],
+        parameters: [
+            { name: "response", type: "Response" },
+            { name: "validator", type: "(value: unknown) => any[]" },
+        ],
+        returnType: "TypedResponse<T>",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("const originalJson = response.json.bind(response);");
+            writer.blankLine();
+            writer.writeLine("return new Proxy(response, {");
+            writer.writeLine("  get(target, prop) {");
+            writer.writeLine("    if (prop === 'json') {");
+            writer.writeLine("      return async () => {");
+            writer.writeLine("        const data = await originalJson();");
+            writer.writeLine("        const errors = validator(data);");
+            writer.writeLine("        if (errors.length > 0) {");
+            writer.writeLine('          throw new TypeError("Invalid response body: " + JSON.stringify(errors));');
+            writer.writeLine("        }");
+            writer.writeLine("        return data as T;");
+            writer.writeLine("      };");
+            writer.writeLine("    }");
+            writer.writeLine("    return Reflect.get(target, prop);");
+            writer.writeLine("  }");
+            writer.writeLine("}) as TypedResponse<T>;");
+        },
     });
 }
 
@@ -526,32 +586,6 @@ function getTypeFromSchema(schema: any): string {
 }
 
 /**
- * Generate response body validation code
- */
-function generateResponseValidation(responseBodyType: string): string[] {
-    const lines: string[] = [];
-    lines.push("");
-    lines.push(`    // Validate response body`);
-    lines.push(`    if (response.ok) {`);
-    lines.push(`      const clonedResponse = response.clone();`);
-    lines.push(`      try {`);
-    lines.push(`        const responseBody = await clonedResponse.json();`);
-    lines.push(`        const responseBodyErrors = validate${responseBodyType}(responseBody);`);
-    lines.push(`        if (responseBodyErrors.length > 0) {`);
-    lines.push(`          throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors));`);
-    lines.push(`        }`);
-    lines.push(`      } catch (error) {`);
-    lines.push(`        if (error instanceof SyntaxError) {`);
-    lines.push(`          // Not JSON, skip validation`);
-    lines.push(`        } else {`);
-    lines.push(`          throw error;`);
-    lines.push(`        }`);
-    lines.push(`      }`);
-    lines.push(`    }`);
-    return lines;
-}
-
-/**
  * Generate method body statements
  */
 function generateMethodBodyStatements(
@@ -656,17 +690,24 @@ function generateMethodBodyStatements(
     lines.push("");
     lines.push("    const response = await fetchImpl(fullUrl, options);");
 
-    // Add response body validation
+    // Wrap response with typed validation if wizValidator is enabled
     if (options.wizValidator) {
         const responseBodyType = getResponseBodyType(op);
         // Skip validation for array types and 'any' types
         if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
-            lines.push(...generateResponseValidation(responseBodyType));
+            lines.push("");
+            lines.push(
+                `    return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`,
+            );
+        } else {
+            lines.push("");
+            lines.push("    return response;");
         }
+    } else {
+        lines.push("");
+        lines.push("    return response;");
     }
 
-    lines.push("");
-    lines.push("    return response;");
     lines.push("  }");
 
     return lines.join("\n");
