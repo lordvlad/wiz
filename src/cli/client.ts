@@ -7,6 +7,7 @@ import { generateClientFromOpenApi } from "../generator/openapi-client";
 interface ClientOptions {
     outdir?: string;
     wizValidator?: boolean;
+    reactQuery?: boolean;
 }
 
 /**
@@ -27,7 +28,10 @@ export async function generateClient(specPath: string, options: ClientOptions = 
     }
 
     // Generate client
-    const { models, api } = generateClientFromOpenApi(spec, { wizValidator: options.wizValidator });
+    const { models, api } = generateClientFromOpenApi(spec, {
+        wizValidator: options.wizValidator,
+        reactQuery: options.reactQuery,
+    });
 
     // Output client
     if (options.outdir) {
