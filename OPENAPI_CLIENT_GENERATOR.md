@@ -12,6 +12,7 @@ The `wiz client` command generates fully typed TypeScript clients from OpenAPI s
 - ✅ **Duplicate Detection**: Throws errors on duplicate method names
 - ✅ **Fetch Overrides**: Deep merge support for per-request fetch init options
 - ✅ **Flexible Output**: Outputs to stdout or separate files
+- ✅ **Runtime Validation**: Optional wiz validator integration for request and response validation
 
 ## Usage
 
@@ -31,6 +32,21 @@ This creates:
 
 - `model.ts` - TypeScript type definitions
 - `api.ts` - Typed API client methods
+
+### Generate with validation
+
+```bash
+wiz client spec.yaml --outdir src/client --wiz-validator
+```
+
+Enables runtime validation using wiz validators for:
+
+- Path parameters
+- Query parameters
+- Request bodies
+- Response bodies
+
+Validation errors throw `TypeError` with detailed error messages.
 
 ## Example
 
@@ -391,18 +407,118 @@ Error: Duplicate method names detected: getUsers. Please specify unique operatio
 - ✅ Global headers
 - ✅ Per-request overrides
 
+## Runtime Validation
+
+The `--wiz-validator` option enables automatic runtime validation for API requests and responses. This feature integrates with wiz's compile-time validator generation to provide zero-runtime-overhead validation.
+
+### Usage
+
+```bash
+wiz client spec.yaml --outdir src/client --wiz-validator
+```
+
+### What Gets Validated
+
+When enabled, the generated client validates:
+
+1. **Path Parameters**: Validated before building the URL
+2. **Query Parameters**: Validated before adding to the request
+3. **Request Bodies**: Validated before serialization to JSON
+4. **Response Bodies**: Validated after receiving a successful response (200-204 status codes)
+
+### Validation Behavior
+
+- **Validation Errors**: Throw `TypeError` with detailed error messages including the validation errors array
+- **Response Validation**: Uses cloned response to preserve the original response body stream
+- **Non-JSON Responses**: Gracefully skips validation for responses that aren't JSON
+- **Error Handling**: Validation happens before the request for inputs, and after for responses
+
+### Example
+
+Given a spec with a User model:
+
+```yaml
+components:
+    schemas:
+        User:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                    minLength: 3
+            required:
+                - id
+                - name
+```
+
+The generated client will:
+
+```typescript
+// Validate path parameters
+const pathParamsErrors = validateGetUserByIdPathParams(pathParams);
+if (pathParamsErrors.length > 0) {
+    throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));
+}
+
+// Validate request body
+const requestBodyErrors = validateUser(requestBody);
+if (requestBodyErrors.length > 0) {
+    throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));
+}
+
+// Validate response body
+const response = await fetchImpl(fullUrl, options);
+if (response.ok) {
+    const clonedResponse = response.clone();
+    try {
+        const responseBody = await clonedResponse.json();
+        const responseBodyErrors = validateUser(responseBody);
+        if (responseBodyErrors.length > 0) {
+            throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors));
+        }
+    } catch (error) {
+        if (error instanceof SyntaxError) {
+            // Not JSON, skip validation
+        } else {
+            throw error;
+        }
+    }
+}
+return response;
+```
+
+### Benefits
+
+- **Type Safety**: Catch validation errors at runtime before making API calls
+- **Better Error Messages**: Detailed validation errors instead of cryptic API errors
+- **Schema Enforcement**: Ensure your API responses match the OpenAPI specification
+- **Zero Runtime Overhead**: Validators are generated at compile-time by the wiz plugin
+
+### Limitations
+
+- Only validates `application/json` content type
+- Response validation only checks successful responses (200-204 status codes)
+- Non-JSON responses are silently skipped
+
 ## Limitations
 
 - Only `application/json` content type is currently supported
 - Response types are not generated (returns `Promise<Response>`)
-- No validation of request/response data
 - No automatic retry or error handling
+- Validation (with `--wiz-validator`) only validates JSON request/response bodies
 
 ## Testing
 
 The implementation includes comprehensive test coverage:
 
-- 13 unit tests for the generator
-- 6 integration tests for the CLI
-- All 286 existing tests passing
-- No security vulnerabilities detected
+- 16 unit tests for the generator (including validation feature tests)
+- 7 integration tests for the CLI (including validation CLI tests)
+- All existing tests passing
+- Validation tests cover:
+    - Path parameter validation
+    - Query parameter validation
+    - Request body validation
+    - Response body validation
+    - Behavior with and without `--wiz-validator` flag

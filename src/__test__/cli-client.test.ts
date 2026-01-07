@@ -367,4 +367,103 @@ components:
             console.log = originalLog;
         }
     });
+
+    it("should generate client with wiz validation when --wiz-validator flag is used", async () => {
+        const specFile = resolve(tmpDir, "spec.json");
+        const outDir = resolve(tmpDir, "client-validation");
+        const spec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users/{id}": {
+                    get: {
+                        operationId: "getUserById",
+                        parameters: [
+                            {
+                                name: "id",
+                                in: "path",
+                                required: true,
+                                schema: { type: "string" },
+                            },
+                        ],
+                        responses: {
+                            "200": {
+                                description: "Success",
+                                content: {
+                                    "application/json": {
+                                        schema: {
+                                            $ref: "#/components/schemas/User",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "/users": {
+                    post: {
+                        operationId: "createUser",
+                        requestBody: {
+                            content: {
+                                "application/json": {
+                                    schema: {
+                                        $ref: "#/components/schemas/User",
+                                    },
+                                },
+                            },
+                        },
+                        responses: {
+                            "201": {
+                                description: "Created",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: { type: "string" },
+                            name: { type: "string" },
+                        },
+                        required: ["id", "name"],
+                    },
+                },
+            },
+        };
+
+        await writeFile(specFile, JSON.stringify(spec));
+
+        // Capture console output
+        let output = "";
+        const originalLog = console.log;
+        console.log = (...args: any[]) => {
+            output += args.join(" ") + "\n";
+        };
+
+        try {
+            await generateClient(specFile, { outdir: outDir, wizValidator: true });
+
+            // Check API file contains validation code
+            const apiFile = Bun.file(resolve(outDir, "api.ts"));
+            const apiContent = await apiFile.text();
+
+            expect(apiContent).toContain('import { createValidator } from "wiz/validator"');
+            expect(apiContent).toContain("export interface TypedResponse<T> extends Response");
+            expect(apiContent).toContain("function createTypedResponse<T>(");
+            expect(apiContent).toContain("validateUser = createValidator<Models.User>()");
+            expect(apiContent).toContain("validateGetUserByIdPathParams");
+            expect(apiContent).toContain("// Validate path parameters");
+            expect(apiContent).toContain("const pathParamsErrors = validateGetUserByIdPathParams(pathParams)");
+            expect(apiContent).toContain('throw new TypeError("Invalid path parameters: "');
+            expect(apiContent).toContain("// Validate request body");
+            expect(apiContent).toContain("const requestBodyErrors = validateUser(requestBody)");
+            expect(apiContent).toContain("return createTypedResponse<Models.User>(response, validateUser)");
+
+            expect(output).toContain("Generated client");
+        } finally {
+            console.log = originalLog;
+        }
+    });
 });
