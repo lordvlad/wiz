@@ -9,6 +9,7 @@ export interface ClientGeneratorOptions {
     includeTags?: boolean;
     tags?: Record<string, any>;
     disableWizTags?: boolean;
+    wizValidator?: boolean;
 }
 
 export interface GeneratedClient {
@@ -74,11 +75,45 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
     // Get default base URL
     const defaultBaseUrl = getDefaultBaseUrl(spec);
 
+    // Add validator import if wiz validation is enabled
+    if (options.wizValidator) {
+        sourceFile.addImportDeclaration({
+            moduleSpecifier: "wiz/validator",
+            namedImports: ["createValidator"],
+        });
+
+        // Collect all types that need validators (request bodies and response bodies)
+        const typesToValidate = new Set<string>();
+        for (const op of operations) {
+            const requestBodyType = getRequestBodyType(op);
+            if (requestBodyType && requestBodyType !== "any") {
+                typesToValidate.add(requestBodyType);
+            }
+            const responseBodyType = getResponseBodyType(op);
+            if (responseBodyType && responseBodyType !== "any") {
+                typesToValidate.add(responseBodyType);
+            }
+        }
+
+        // Generate validators for these types
+        for (const typeName of typesToValidate) {
+            sourceFile.addVariableStatement({
+                declarationKind: VariableDeclarationKind.Const,
+                declarations: [
+                    {
+                        name: `validate${typeName}`,
+                        initializer: `createValidator<Models.${typeName}>()`,
+                    },
+                ],
+            });
+        }
+    }
+
     // Generate configuration interface
     generateConfigInterface(sourceFile);
 
     // Generate client class
-    generateClientClass(sourceFile, operations, defaultBaseUrl);
+    generateClientClass(sourceFile, operations, defaultBaseUrl, options);
 }
 
 /**
@@ -202,12 +237,17 @@ function generateConfigInterface(sourceFile: SourceFile): void {
 /**
  * Generate client class with all API methods
  */
-function generateClientClass(sourceFile: SourceFile, operations: OperationInfo[], defaultBaseUrl: string): void {
+function generateClientClass(
+    sourceFile: SourceFile,
+    operations: OperationInfo[],
+    defaultBaseUrl: string,
+    options: ClientGeneratorOptions,
+): void {
     // Build the object literal properties for each method
     const methods: any[] = [];
 
     for (const op of operations) {
-        const method = generateMethod(sourceFile, op, defaultBaseUrl);
+        const method = generateMethod(sourceFile, op, defaultBaseUrl, options);
         methods.push(method);
     }
 
@@ -240,12 +280,17 @@ function generateClientClass(sourceFile: SourceFile, operations: OperationInfo[]
 /**
  * Generate a single API method
  */
-function generateMethod(sourceFile: SourceFile, op: OperationInfo, defaultBaseUrl: string): string {
+function generateMethod(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    defaultBaseUrl: string,
+    options: ClientGeneratorOptions,
+): string {
     const methodName = getMethodName(op);
     const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
 
     // Generate parameter type definitions first
-    generateParameterTypes(sourceFile, op, pathParams, queryParams);
+    generateParameterTypes(sourceFile, op, pathParams, queryParams, options);
 
     // Build parameter list
     const params: string[] = [];
@@ -261,7 +306,14 @@ function generateMethod(sourceFile: SourceFile, op: OperationInfo, defaultBaseUr
     params.push("init?: RequestInit");
 
     // Generate method body
-    const methodBody = generateMethodBodyStatements(op, pathParams, queryParams, hasRequestBody, defaultBaseUrl);
+    const methodBody = generateMethodBodyStatements(
+        op,
+        pathParams,
+        queryParams,
+        hasRequestBody,
+        defaultBaseUrl,
+        options,
+    );
 
     // Build JSDoc comment
     let jsDocText = "";
@@ -314,6 +366,7 @@ function generateParameterTypes(
     op: OperationInfo,
     pathParams: any[],
     queryParams: any[],
+    options: ClientGeneratorOptions,
 ): void {
     // Generate path params type
     if (pathParams.length > 0) {
@@ -335,6 +388,19 @@ function generateParameterTypes(
                 });
             },
         });
+
+        // Generate validator if wizValidator is enabled
+        if (options.wizValidator) {
+            sourceFile.addVariableStatement({
+                declarationKind: VariableDeclarationKind.Const,
+                declarations: [
+                    {
+                        name: `validate${typeName}`,
+                        initializer: `createValidator<${typeName}>()`,
+                    },
+                ],
+            });
+        }
     }
 
     // Generate query params type
@@ -357,6 +423,19 @@ function generateParameterTypes(
                 });
             },
         });
+
+        // Generate validator if wizValidator is enabled
+        if (options.wizValidator) {
+            sourceFile.addVariableStatement({
+                declarationKind: VariableDeclarationKind.Const,
+                declarations: [
+                    {
+                        name: `validate${typeName}`,
+                        initializer: `createValidator<${typeName}>()`,
+                    },
+                ],
+            });
+        }
     }
 }
 
@@ -395,6 +474,31 @@ function getRequestBodyType(op: OperationInfo): string {
     }
 
     return "any";
+}
+
+/**
+ * Get response body type from the 200/201 response
+ */
+function getResponseBodyType(op: OperationInfo): string | null {
+    if (!op.responses) {
+        return null;
+    }
+
+    // Try 200, 201, 202, 204 status codes in that order
+    const successCodes = ["200", "201", "202", "204"];
+    for (const code of successCodes) {
+        const response = op.responses[code];
+        if (response?.content?.["application/json"]?.schema) {
+            const schema = response.content["application/json"].schema;
+            if (schema.$ref) {
+                const refName = schema.$ref.split("/").pop();
+                return refName || null;
+            }
+            return getTypeFromSchema(schema);
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -439,6 +543,7 @@ function generateMethodBodyStatements(
     queryParams: any[],
     hasRequestBody: boolean,
     defaultBaseUrl: string,
+    options: ClientGeneratorOptions,
 ): string {
     const lines: string[] = ["{"];
 
@@ -447,15 +552,54 @@ function generateMethodBodyStatements(
     lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
     lines.push("    const fetchImpl = config.fetch || fetch;");
 
+    // Add validation for path params
+    if (options.wizValidator && pathParams.length > 0) {
+        const typeName = getPathParamsTypeName(op);
+        lines.push("");
+        lines.push(`    // Validate path parameters`);
+        lines.push(`    const pathParamsErrors = validate${typeName}(pathParams);`);
+        lines.push(`    if (pathParamsErrors.length > 0) {`);
+        lines.push(`      throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));`);
+        lines.push(`    }`);
+    }
+
+    // Add validation for query params
+    if (options.wizValidator && queryParams.length > 0) {
+        const typeName = getQueryParamsTypeName(op);
+        lines.push("");
+        lines.push(`    // Validate query parameters`);
+        lines.push(`    if (queryParams) {`);
+        lines.push(`      const queryParamsErrors = validate${typeName}(queryParams);`);
+        lines.push(`      if (queryParamsErrors.length > 0) {`);
+        lines.push(`        throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));`);
+        lines.push(`      }`);
+        lines.push(`    }`);
+    }
+
+    // Add validation for request body
+    if (options.wizValidator && hasRequestBody) {
+        const bodyType = getRequestBodyType(op);
+        if (bodyType !== "any") {
+            lines.push("");
+            lines.push(`    // Validate request body`);
+            lines.push(`    const requestBodyErrors = validate${bodyType}(requestBody);`);
+            lines.push(`    if (requestBodyErrors.length > 0) {`);
+            lines.push(`      throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));`);
+            lines.push(`    }`);
+        }
+    }
+
     // Build URL with path params
     let urlTemplate = op.path;
     if (pathParams.length > 0) {
+        lines.push("");
         lines.push(`    let url = baseUrl + \`${urlTemplate}\`;`);
         // Replace path parameters
         for (const param of pathParams) {
             lines.push(`    url = url.replace("{${param.name}}", String(pathParams.${param.name}));`);
         }
     } else {
+        lines.push("");
         lines.push(`    const url = baseUrl + "${urlTemplate}";`);
     }
 
@@ -476,6 +620,7 @@ function generateMethodBodyStatements(
     }
 
     // Build fetch options
+    lines.push("");
     lines.push("    const options: RequestInit = {");
     lines.push(`      method: "${op.method}",`);
     lines.push("      headers: {");
@@ -490,7 +635,38 @@ function generateMethodBodyStatements(
     lines.push("    };");
 
     // Make fetch call
-    lines.push("    return fetchImpl(fullUrl, options);");
+    lines.push("");
+    lines.push("    const response = await fetchImpl(fullUrl, options);");
+
+    // Add response body validation
+    if (options.wizValidator) {
+        const responseBodyType = getResponseBodyType(op);
+        if (responseBodyType && responseBodyType !== "any") {
+            lines.push("");
+            lines.push(`    // Validate response body`);
+            lines.push(`    if (response.ok) {`);
+            lines.push(`      const clonedResponse = response.clone();`);
+            lines.push(`      try {`);
+            lines.push(`        const responseBody = await clonedResponse.json();`);
+            lines.push(`        const responseBodyErrors = validate${responseBodyType}(responseBody);`);
+            lines.push(`        if (responseBodyErrors.length > 0) {`);
+            lines.push(
+                `          throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors));`,
+            );
+            lines.push(`        }`);
+            lines.push(`      } catch (error) {`);
+            lines.push(`        if (error instanceof SyntaxError) {`);
+            lines.push(`          // Not JSON, skip validation`);
+            lines.push(`        } else {`);
+            lines.push(`          throw error;`);
+            lines.push(`        }`);
+            lines.push(`      }`);
+            lines.push(`    }`);
+        }
+    }
+
+    lines.push("");
+    lines.push("    return response;");
     lines.push("  }");
 
     return lines.join("\n");

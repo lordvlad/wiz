@@ -34,6 +34,8 @@ Model Options:
 Client Options:
   --outdir <directory>   Output directory for generated client (default: stdout)
                          If provided, generates model.ts and api.ts files
+  --wiz-validator        Enable wiz validation for path params, query params,
+                         request body, and response body
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -75,6 +77,9 @@ Examples:
 
   # Generate TypeScript client from OpenAPI spec (write to directory)
   wiz client spec.json --outdir src/client
+
+  # Generate TypeScript client with wiz validation
+  wiz client spec.json --outdir src/client --wiz-validator
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -224,20 +229,24 @@ async function main() {
                 outdir: {
                     type: "string",
                 },
+                "wiz-validator": {
+                    type: "boolean",
+                },
             },
             allowPositionals: true,
         });
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz client <spec-file> [--outdir <dir>]");
+            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator]");
             process.exit(1);
         }
 
         const specFile = positionals[0]!;
         const outdir = values.outdir;
+        const wizValidator = values["wiz-validator"] || false;
 
-        await generateClient(specFile, { outdir });
+        await generateClient(specFile, { outdir, wizValidator });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {
