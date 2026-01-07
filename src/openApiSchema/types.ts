@@ -1,3 +1,5 @@
+import type { OpenAPIV3 } from "openapi-types";
+
 type PrimitiveSchema = { type: "string" | "number" | "boolean" };
 
 type ArraySchema = { type: "array"; items: OpenApiSchema<any> };
@@ -19,74 +21,12 @@ type CompositeSchema<T = unknown> = {
 
 export type OpenApiSchema<T> = PrimitiveSchema | ArraySchema | ObjectSchema | UnknownSchema | CompositeSchema<T>;
 
-// OpenAPI specification types
-export type OpenApiInfo = {
-    title: string;
-    description?: string;
-    termsOfService?: string;
-    contact?: {
-        name?: string;
-        url?: string;
-        email?: string;
-    };
-    license?: {
-        name: string;
-        url?: string;
-    };
-    version: string;
-};
-
-export type OpenApiServer = {
-    url: string;
-    description?: string;
-    variables?: Record<
-        string,
-        {
-            default: string;
-            enum?: string[];
-            description?: string;
-        }
-    >;
-};
-
-export type OpenApiOAuthFlow = {
-    authorizationUrl?: string;
-    tokenUrl?: string;
-    refreshUrl?: string;
-    scopes: Record<string, string>;
-};
-
-export type OpenApiOAuthFlows = {
-    implicit?: OpenApiOAuthFlow;
-    password?: OpenApiOAuthFlow;
-    clientCredentials?: OpenApiOAuthFlow;
-    authorizationCode?: OpenApiOAuthFlow;
-};
-
-export type OpenApiSecurityScheme = {
-    type: "apiKey" | "http" | "oauth2" | "openIdConnect";
-    description?: string;
-    name?: string;
-    in?: "query" | "header" | "cookie";
-    scheme?: string;
-    bearerFormat?: string;
-    flows?: OpenApiOAuthFlows;
-    openIdConnectUrl?: string;
-};
-
-export type OpenApiTag = {
-    name: string;
-    description?: string;
-    externalDocs?: {
-        description?: string;
-        url: string;
-    };
-};
-
-export type OpenApiExternalDocs = {
-    description?: string;
-    url: string;
-};
+// Re-export OpenAPI specification types from openapi-types
+export type OpenApiInfo = OpenAPIV3.InfoObject;
+export type OpenApiServer = OpenAPIV3.ServerObject;
+export type OpenApiSecurityScheme = OpenAPIV3.SecuritySchemeObject;
+export type OpenApiTag = OpenAPIV3.TagObject;
+export type OpenApiExternalDocs = OpenAPIV3.ExternalDocumentationObject;
 
 // OpenAPI path operation types
 export type PathOperation<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = unknown> = {
@@ -137,7 +77,7 @@ export type PathBuilder = {
 export type OpenApiConfig = {
     info?: OpenApiInfo;
     servers?: OpenApiServer[];
-    security?: Record<string, string[]>[];
+    security?: OpenAPIV3.SecurityRequirementObject[];
     tags?: OpenApiTag[];
     externalDocs?: OpenApiExternalDocs;
 };
@@ -147,7 +87,7 @@ export type OpenApiConfigWithPaths = OpenApiConfig & {
     paths?: PathOperation[];
 };
 
-// Full OpenAPI specification
+// Full OpenAPI specification (based on OpenAPIV3.Document but with custom components type)
 export type OpenApiSpec<T = unknown> = {
     openapi: string;
     info: OpenApiInfo;
@@ -157,7 +97,7 @@ export type OpenApiSpec<T = unknown> = {
         schemas?: Record<string, ObjectSchema | PrimitiveSchema | ArraySchema | UnknownSchema>;
         securitySchemes?: Record<string, OpenApiSecurityScheme>;
     };
-    security?: Record<string, string[]>[];
+    security?: OpenAPIV3.SecurityRequirementObject[];
     tags?: OpenApiTag[];
     externalDocs?: OpenApiExternalDocs;
 };

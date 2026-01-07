@@ -1,38 +1,32 @@
 /**
  * OpenAPI to TypeScript model generator
  */
+import type { OpenAPIV3 } from "openapi-types";
 
-export interface OpenApiSchema {
-    type?: string;
-    properties?: Record<string, any>;
-    required?: string[];
-    items?: any;
-    $ref?: string;
-    allOf?: any[];
-    oneOf?: any[];
-    anyOf?: any[];
-    enum?: any[];
-    description?: string;
-    format?: string;
-    pattern?: string;
-    minLength?: number;
-    maxLength?: number;
-    minimum?: number;
-    maximum?: number;
-    default?: any;
-    example?: any;
-    deprecated?: boolean;
-    nullable?: boolean;
+// Extend OpenAPIV3.SchemaObject to support custom extensions and OpenAPI 3.1 features
+export type OpenApiSchema = (OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject) & {
+    // Allow x-* extensions
     [key: string]: any;
-}
+    // OpenAPI 3.1 allows type to be an array
+    type?: OpenAPIV3.ArraySchemaObjectType | OpenAPIV3.NonArraySchemaObjectType | string | string[];
+};
 
-export interface OpenApiSpec {
+// More permissive OpenApiSpec type to allow partial specs and variations
+export type OpenApiSpec = {
     openapi?: string;
+    info?: OpenAPIV3.InfoObject;
+    servers?: OpenAPIV3.ServerObject[];
+    paths?: OpenAPIV3.PathsObject;
     components?: {
-        schemas?: Record<string, OpenApiSchema>;
+        schemas?: Record<string, any>; // Allow any schema structure
+        securitySchemes?: Record<string, OpenAPIV3.SecuritySchemeObject>;
+        [key: string]: any;
     };
+    security?: OpenAPIV3.SecurityRequirementObject[];
+    tags?: OpenAPIV3.TagObject[];
+    externalDocs?: OpenAPIV3.ExternalDocumentationObject;
     [key: string]: any;
-}
+};
 
 export interface GeneratorOptions {
     includeTags?: boolean;
@@ -43,7 +37,7 @@ export interface GeneratorOptions {
 /**
  * Parse x-wiz-format extension and return the appropriate TypeScript type
  */
-function parseWizFormat(wizFormat: string, schema: OpenApiSchema): string | null {
+function parseWizFormat(wizFormat: string, schema: OpenAPIV3.SchemaObject): string | null {
     // Match patterns like BigIntFormat<"int64">, StrFormat<"email">, etc.
     const match = wizFormat.match(/^(\w+)<"([^"]+)">$/);
     if (!match) return null;
@@ -128,6 +122,11 @@ function formatJsDoc(lines: string[]): string {
 function collectJsDocLines(schema: OpenApiSchema, options: GeneratorOptions): string[] {
     const lines: string[] = [];
 
+    // Skip if it's a reference
+    if (isReferenceObject(schema)) {
+        return lines;
+    }
+
     // Description
     if (schema.description) {
         lines.push(schema.description);
@@ -196,6 +195,13 @@ function generatePropertyJsDoc(propName: string, schema: OpenApiSchema, options:
 }
 
 /**
+ * Type guard to check if schema is a ReferenceObject
+ */
+function isReferenceObject(schema: OpenApiSchema): schema is OpenAPIV3.ReferenceObject {
+    return "$ref" in schema;
+}
+
+/**
  * Generate TypeScript type definition from schema
  */
 function generateTypeDefinition(
@@ -205,7 +211,7 @@ function generateTypeDefinition(
     depth: number,
 ): string {
     // Handle $ref
-    if (schema.$ref) {
+    if (isReferenceObject(schema)) {
         const refName = schema.$ref.split("/").pop();
         return refName || "any";
     }
@@ -240,7 +246,7 @@ function generateTypeDefinition(
     }
 
     // Check for x-wiz-format extension
-    const wizFormat = schema["x-wiz-format"];
+    const wizFormat = (schema as any)["x-wiz-format"];
     if (wizFormat && !options.disableWizTags) {
         const wizType = parseWizFormat(wizFormat, schema);
         if (wizType) {
@@ -264,7 +270,7 @@ function generateTypeDefinition(
 
     // Handle nullable array types in OpenAPI 3.1
     if (Array.isArray(schema.type)) {
-        const types = schema.type.map((t: string) => {
+        const types = (schema.type as string[]).map((t: string) => {
             if (t === "null") return "null";
             if (t === "string") return "string";
             if (t === "number" || t === "integer") return "number";
@@ -286,6 +292,11 @@ function generateObjectType(
     options: GeneratorOptions,
     depth: number,
 ): string {
+    // Skip if it's a reference
+    if (isReferenceObject(schema)) {
+        return "any";
+    }
+
     const indent = "  ".repeat(depth + 1);
     const lines: string[] = ["{"];
 
