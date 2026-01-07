@@ -846,6 +846,8 @@ function generateQueryOptions(
     // Determine return type
     let dataType = "unknown";
     const responseBodyType = getResponseBodyType(op);
+    // Note: We check for '[]' because getTypeFromSchema only generates Type[] format for arrays,
+    // never Array<Type> or readonly Type[]. This is safe for the generated code.
     if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
         dataType = `Models.${responseBodyType}`;
     }
@@ -855,8 +857,11 @@ function generateQueryOptions(
         name: `get${capitalizedMethodName}QueryOptions`,
         isExported: true,
         parameters: params.map((p) => {
-            const [name, type] = p.split(": ");
-            return { name: name!, type: type! };
+            const colonIndex = p.indexOf(":");
+            if (colonIndex === -1) return { name: p, type: "any" };
+            const name = p.substring(0, colonIndex).trim();
+            const type = p.substring(colonIndex + 1).trim();
+            return { name, type };
         }),
         returnType: `{ queryKey: unknown[]; queryFn: () => Promise<${dataType}> }`,
         statements: (writer: CodeBlockWriter) => {
@@ -972,6 +977,8 @@ function generateMutationOptions(
     // Determine return type
     let dataType = "unknown";
     const responseBodyType = getResponseBodyType(op);
+    // Note: We check for '[]' because getTypeFromSchema only generates Type[] format for arrays,
+    // never Array<Type> or readonly Type[]. This is safe for the generated code.
     if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
         dataType = `Models.${responseBodyType}`;
     }
