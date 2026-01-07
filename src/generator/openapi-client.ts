@@ -97,15 +97,7 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
 
         // Generate validators for these types
         for (const typeName of typesToValidate) {
-            sourceFile.addVariableStatement({
-                declarationKind: VariableDeclarationKind.Const,
-                declarations: [
-                    {
-                        name: `validate${typeName}`,
-                        initializer: `createValidator<Models.${typeName}>()`,
-                    },
-                ],
-            });
+            generateValidator(sourceFile, typeName, `Models.${typeName}`);
         }
     }
 
@@ -333,6 +325,21 @@ function generateMethod(
 }
 
 /**
+ * Generate validator for a type
+ */
+function generateValidator(sourceFile: SourceFile, typeName: string, typeReference: string): void {
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        declarations: [
+            {
+                name: `validate${typeName}`,
+                initializer: `createValidator<${typeReference}>()`,
+            },
+        ],
+    });
+}
+
+/**
  * Analyze operation parameters
  */
 function analyzeParameters(op: OperationInfo): {
@@ -391,15 +398,7 @@ function generateParameterTypes(
 
         // Generate validator if wizValidator is enabled
         if (options.wizValidator) {
-            sourceFile.addVariableStatement({
-                declarationKind: VariableDeclarationKind.Const,
-                declarations: [
-                    {
-                        name: `validate${typeName}`,
-                        initializer: `createValidator<${typeName}>()`,
-                    },
-                ],
-            });
+            generateValidator(sourceFile, typeName, typeName);
         }
     }
 
@@ -426,15 +425,7 @@ function generateParameterTypes(
 
         // Generate validator if wizValidator is enabled
         if (options.wizValidator) {
-            sourceFile.addVariableStatement({
-                declarationKind: VariableDeclarationKind.Const,
-                declarations: [
-                    {
-                        name: `validate${typeName}`,
-                        initializer: `createValidator<${typeName}>()`,
-                    },
-                ],
-            });
+            generateValidator(sourceFile, typeName, typeName);
         }
     }
 }
@@ -532,6 +523,32 @@ function getTypeFromSchema(schema: any): string {
     }
 
     return "any";
+}
+
+/**
+ * Generate response body validation code
+ */
+function generateResponseValidation(responseBodyType: string): string[] {
+    const lines: string[] = [];
+    lines.push("");
+    lines.push(`    // Validate response body`);
+    lines.push(`    if (response.ok) {`);
+    lines.push(`      const clonedResponse = response.clone();`);
+    lines.push(`      try {`);
+    lines.push(`        const responseBody = await clonedResponse.json();`);
+    lines.push(`        const responseBodyErrors = validate${responseBodyType}(responseBody);`);
+    lines.push(`        if (responseBodyErrors.length > 0) {`);
+    lines.push(`          throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors));`);
+    lines.push(`        }`);
+    lines.push(`      } catch (error) {`);
+    lines.push(`        if (error instanceof SyntaxError) {`);
+    lines.push(`          // Not JSON, skip validation`);
+    lines.push(`        } else {`);
+    lines.push(`          throw error;`);
+    lines.push(`        }`);
+    lines.push(`      }`);
+    lines.push(`    }`);
+    return lines;
 }
 
 /**
@@ -642,26 +659,7 @@ function generateMethodBodyStatements(
     if (options.wizValidator) {
         const responseBodyType = getResponseBodyType(op);
         if (responseBodyType && responseBodyType !== "any") {
-            lines.push("");
-            lines.push(`    // Validate response body`);
-            lines.push(`    if (response.ok) {`);
-            lines.push(`      const clonedResponse = response.clone();`);
-            lines.push(`      try {`);
-            lines.push(`        const responseBody = await clonedResponse.json();`);
-            lines.push(`        const responseBodyErrors = validate${responseBodyType}(responseBody);`);
-            lines.push(`        if (responseBodyErrors.length > 0) {`);
-            lines.push(
-                `          throw new TypeError("Invalid response body: " + JSON.stringify(responseBodyErrors));`,
-            );
-            lines.push(`        }`);
-            lines.push(`      } catch (error) {`);
-            lines.push(`        if (error instanceof SyntaxError) {`);
-            lines.push(`          // Not JSON, skip validation`);
-            lines.push(`        } else {`);
-            lines.push(`          throw error;`);
-            lines.push(`        }`);
-            lines.push(`      }`);
-            lines.push(`    }`);
+            lines.push(...generateResponseValidation(responseBodyType));
         }
     }
 
