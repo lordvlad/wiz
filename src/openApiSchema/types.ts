@@ -1,4 +1,4 @@
-import type { OpenAPIV3 } from "openapi-types";
+import type { OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 
 type PrimitiveSchema = { type: "string" | "number" | "boolean" };
 
@@ -21,12 +21,12 @@ type CompositeSchema<T = unknown> = {
 
 export type OpenApiSchema<T> = PrimitiveSchema | ArraySchema | ObjectSchema | UnknownSchema | CompositeSchema<T>;
 
-// Re-export OpenAPI specification types from openapi-types
-export type OpenApiInfo = OpenAPIV3.InfoObject;
-export type OpenApiServer = OpenAPIV3.ServerObject;
-export type OpenApiSecurityScheme = OpenAPIV3.SecuritySchemeObject;
-export type OpenApiTag = OpenAPIV3.TagObject;
-export type OpenApiExternalDocs = OpenAPIV3.ExternalDocumentationObject;
+// Re-export OpenAPI specification types from openapi-types (supporting both 3.0 and 3.1)
+export type OpenApiInfo = OpenAPIV3.InfoObject | OpenAPIV3_1.InfoObject;
+export type OpenApiServer = OpenAPIV3.ServerObject | OpenAPIV3_1.ServerObject;
+export type OpenApiSecurityScheme = OpenAPIV3.SecuritySchemeObject | OpenAPIV3_1.SecuritySchemeObject;
+export type OpenApiTag = OpenAPIV3.TagObject | OpenAPIV3_1.TagObject;
+export type OpenApiExternalDocs = OpenAPIV3.ExternalDocumentationObject | OpenAPIV3_1.ExternalDocumentationObject;
 
 // OpenAPI path operation types
 export type PathOperation<PathParams = never, QueryParams = never, RequestBody = never, ResponseBody = unknown> = {
@@ -77,7 +77,7 @@ export type PathBuilder = {
 export type OpenApiConfig = {
     info?: OpenApiInfo;
     servers?: OpenApiServer[];
-    security?: OpenAPIV3.SecurityRequirementObject[];
+    security?: OpenAPIV3.SecurityRequirementObject[] | OpenAPIV3_1.SecurityRequirementObject[];
     tags?: OpenApiTag[];
     externalDocs?: OpenApiExternalDocs;
 };
@@ -87,7 +87,7 @@ export type OpenApiConfigWithPaths = OpenApiConfig & {
     paths?: PathOperation[];
 };
 
-// Full OpenAPI specification (based on OpenAPIV3.Document but with custom components type)
+// Full OpenAPI specification (based on OpenAPIV3/OpenAPIV3_1.Document but with custom components type)
 export type OpenApiSpec<T = unknown> = {
     openapi: string;
     info: OpenApiInfo;
@@ -97,7 +97,7 @@ export type OpenApiSpec<T = unknown> = {
         schemas?: Record<string, ObjectSchema | PrimitiveSchema | ArraySchema | UnknownSchema>;
         securitySchemes?: Record<string, OpenApiSecurityScheme>;
     };
-    security?: OpenAPIV3.SecurityRequirementObject[];
+    security?: OpenAPIV3.SecurityRequirementObject[] | OpenAPIV3_1.SecurityRequirementObject[];
     tags?: OpenApiTag[];
     externalDocs?: OpenApiExternalDocs;
 };

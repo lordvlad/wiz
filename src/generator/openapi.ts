@@ -1,30 +1,29 @@
 /**
  * OpenAPI to TypeScript model generator
  */
-import type { OpenAPIV3 } from "openapi-types";
+import type { OpenAPIV3, OpenAPIV3_1 } from "openapi-types";
 
-// Extend OpenAPIV3.SchemaObject to support custom extensions and OpenAPI 3.1 features
-export type OpenApiSchema = (OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject) & {
-    // Allow x-* extensions
-    [key: string]: any;
-    // OpenAPI 3.1 allows type to be an array
-    type?: OpenAPIV3.ArraySchemaObjectType | OpenAPIV3.NonArraySchemaObjectType | string | string[];
-};
+// Union of OpenAPI 3.0 and 3.1 schema types to support both versions
+export type OpenApiSchema =
+    | OpenAPIV3.SchemaObject
+    | OpenAPIV3.ReferenceObject
+    | OpenAPIV3_1.SchemaObject
+    | OpenAPIV3_1.ReferenceObject;
 
-// More permissive OpenApiSpec type to allow partial specs and variations
+// More permissive OpenApiSpec type to allow partial specs and support both OpenAPI 3.0 and 3.1
 export type OpenApiSpec = {
     openapi?: string;
-    info?: OpenAPIV3.InfoObject;
-    servers?: OpenAPIV3.ServerObject[];
-    paths?: OpenAPIV3.PathsObject;
+    info?: OpenAPIV3.InfoObject | OpenAPIV3_1.InfoObject;
+    servers?: OpenAPIV3.ServerObject[] | OpenAPIV3_1.ServerObject[];
+    paths?: OpenAPIV3.PathsObject | OpenAPIV3_1.PathsObject;
     components?: {
-        schemas?: Record<string, any>; // Allow any schema structure
-        securitySchemes?: Record<string, OpenAPIV3.SecuritySchemeObject>;
+        schemas?: Record<string, any>; // Allow any schema structure for both 3.0 and 3.1
+        securitySchemes?: Record<string, OpenAPIV3.SecuritySchemeObject | OpenAPIV3_1.SecuritySchemeObject>;
         [key: string]: any;
     };
-    security?: OpenAPIV3.SecurityRequirementObject[];
-    tags?: OpenAPIV3.TagObject[];
-    externalDocs?: OpenAPIV3.ExternalDocumentationObject;
+    security?: OpenAPIV3.SecurityRequirementObject[] | OpenAPIV3_1.SecurityRequirementObject[];
+    tags?: OpenAPIV3.TagObject[] | OpenAPIV3_1.TagObject[];
+    externalDocs?: OpenAPIV3.ExternalDocumentationObject | OpenAPIV3_1.ExternalDocumentationObject;
     [key: string]: any;
 };
 
@@ -37,7 +36,7 @@ export interface GeneratorOptions {
 /**
  * Parse x-wiz-format extension and return the appropriate TypeScript type
  */
-function parseWizFormat(wizFormat: string, schema: OpenAPIV3.SchemaObject): string | null {
+function parseWizFormat(wizFormat: string, schema: OpenAPIV3.SchemaObject | OpenAPIV3_1.SchemaObject): string | null {
     // Match patterns like BigIntFormat<"int64">, StrFormat<"email">, etc.
     const match = wizFormat.match(/^(\w+)<"([^"]+)">$/);
     if (!match) return null;
@@ -197,7 +196,7 @@ function generatePropertyJsDoc(propName: string, schema: OpenApiSchema, options:
 /**
  * Type guard to check if schema is a ReferenceObject
  */
-function isReferenceObject(schema: OpenApiSchema): schema is OpenAPIV3.ReferenceObject {
+function isReferenceObject(schema: OpenApiSchema): schema is OpenAPIV3.ReferenceObject | OpenAPIV3_1.ReferenceObject {
     return "$ref" in schema;
 }
 
@@ -250,19 +249,24 @@ function generateTypeDefinition(
     if (wizFormat && !options.disableWizTags) {
         const wizType = parseWizFormat(wizFormat, schema);
         if (wizType) {
-            return schema.nullable ? `${wizType} | null` : wizType;
+            // Check nullable property (OpenAPI 3.0 only)
+            const nullable = (schema as any).nullable;
+            return nullable ? `${wizType} | null` : wizType;
         }
     }
 
     // Handle primitive types
+    // Check nullable property (OpenAPI 3.0 only)
+    const nullable = (schema as any).nullable;
+
     if (schema.type === "string") {
-        return schema.nullable ? "string | null" : "string";
+        return nullable ? "string | null" : "string";
     }
     if (schema.type === "number" || schema.type === "integer") {
-        return schema.nullable ? "number | null" : "number";
+        return nullable ? "number | null" : "number";
     }
     if (schema.type === "boolean") {
-        return schema.nullable ? "boolean | null" : "boolean";
+        return nullable ? "boolean | null" : "boolean";
     }
     if (schema.type === "null") {
         return "null";
