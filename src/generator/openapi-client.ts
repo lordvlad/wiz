@@ -788,6 +788,17 @@ function isQueryOperation(op: OperationInfo): boolean {
 }
 
 /**
+ * Parse parameter string into name and type
+ */
+function parseParameter(param: string): { name: string; type: string } {
+    const colonIndex = param.indexOf(":");
+    if (colonIndex === -1) return { name: param, type: "any" };
+    const name = param.substring(0, colonIndex).trim();
+    const type = param.substring(colonIndex + 1).trim();
+    return { name, type };
+}
+
+/**
  * Generate React Query helpers (query/mutation options and hooks)
  */
 function generateReactQueryHelpers(
@@ -856,13 +867,7 @@ function generateQueryOptions(
     sourceFile.addFunction({
         name: `get${capitalizedMethodName}QueryOptions`,
         isExported: true,
-        parameters: params.map((p) => {
-            const colonIndex = p.indexOf(":");
-            if (colonIndex === -1) return { name: p, type: "any" };
-            const name = p.substring(0, colonIndex).trim();
-            const type = p.substring(colonIndex + 1).trim();
-            return { name, type };
-        }),
+        parameters: params.map(parseParameter),
         returnType: `{ queryKey: unknown[]; queryFn: () => Promise<${dataType}> }`,
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine(`return {`);
@@ -931,13 +936,7 @@ function generateQueryHook(
     sourceFile.addFunction({
         name: `use${capitalizedMethodName}`,
         isExported: true,
-        parameters: params.map((p) => {
-            const colonIndex = p.indexOf(":");
-            if (colonIndex === -1) return { name: p, type: "any" };
-            const name = p.substring(0, colonIndex).trim();
-            const type = p.substring(colonIndex + 1).trim();
-            return { name, type };
-        }),
+        parameters: params.map(parseParameter),
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine(`const queryOptions = get${capitalizedMethodName}QueryOptions(${callParams.join(", ")});`);
             writer.writeLine(`// Note: This requires @tanstack/react-query to be installed`);
