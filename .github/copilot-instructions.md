@@ -40,19 +40,21 @@ bun run format       # Format code with Prettier
 ### CLI Usage
 
 ```bash
-# Generate OpenAPI spec from TypeScript
+# Generate OpenAPI spec from TypeScript (outputs to stdout)
 wiz openapi src/
 
-# Generate TypeScript models from OpenAPI/Protobuf
-wiz model spec.yaml --outdir src/models
+# Generate TypeScript models from OpenAPI/Protobuf (outputs to stdout by default)
+wiz model spec.yaml
+wiz model spec.yaml --outdir src/models  # Optional: write to directory
 
-# Generate API client from OpenAPI
-wiz client spec.yaml --outdir src/client
+# Generate API client from OpenAPI (outputs to stdout by default)
+wiz client spec.yaml
+wiz client spec.yaml --outdir src/client  # Optional: write to directory
 
-# Generate Protobuf spec from TypeScript
+# Generate Protobuf spec from TypeScript (outputs to stdout)
 wiz protobuf src/
 
-# Inline validators
+# Inline validators (requires --outdir)
 wiz inline src/ --outdir dist/
 ```
 
