@@ -20,12 +20,6 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install global dev tools
-        run: |
-          bun install -g typescript prettier
-
       - name: Verify toolchain
         run: |
           bun --version
-          tsc --version
-          prettier --version
