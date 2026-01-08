@@ -11,7 +11,11 @@ Wiz is a compile-time schema generation tool that transforms TypeScript types in
 ### Setup & Installation
 
 ```bash
-bun install          # Install dependencies (requires Bun ≥1.3.3)
+# Install Bun (if not already installed)
+curl -fsSL https://bun.com/install | bash
+
+# Install project dependencies (requires Bun ≥1.3.3)
+bun install
 ```
 
 ### Testing
