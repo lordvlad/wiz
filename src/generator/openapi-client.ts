@@ -925,19 +925,24 @@ function generateReactQueryFiles(
     });
 
     // Add stable key helper function to queries file
+    // This function serializes objects to JSON strings with sorted keys
+    // so that {page: 0, limit: 1} and {limit: 1, page: 0} produce the same string
     queriesFile.addFunction({
         name: "stableKey",
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine("if (obj === null || obj === undefined) return obj;");
             writer.writeLine("if (typeof obj !== 'object') return obj;");
-            writer.writeLine("if (Array.isArray(obj)) return obj.map(stableKey);");
-            writer.writeLine("return Object.keys(obj).sort().reduce((acc, key) => {");
-            writer.writeLine("  acc[key] = stableKey(obj[key]);");
-            writer.writeLine("  return acc;");
-            writer.writeLine("}, {} as any);");
+            writer.writeLine("if (Array.isArray(obj)) {");
+            writer.writeLine("  return JSON.stringify(obj.map(stableKey));");
+            writer.writeLine("}");
+            writer.writeLine("const sorted: Record<string, any> = {};");
+            writer.writeLine("Object.keys(obj).sort().forEach(key => {");
+            writer.writeLine("  sorted[key] = obj[key];");
+            writer.writeLine("});");
+            writer.writeLine("return JSON.stringify(sorted);");
         },
         parameters: [{ name: "obj", type: "any" }],
-        returnType: "any",
+        returnType: "string | null | undefined",
     });
 
     // Add imports to queries file
