@@ -23,10 +23,12 @@ bun install
 ```bash
 bun test                                      # Run all tests
 bun test --filter "<case name>"               # Run specific test
-bun test src/__test__/openApiSchema.test.ts   # Run specific file
+bun test src/__test__/<module>.test.ts        # Run specific module's tests
 bun run test:coverage                         # Run with coverage
 bun run test:report                           # Generate coverage reports (used in CI)
 ```
+
+**Test files by module**: `openApiSchema.test.ts`, `protobuf.test.ts`, `validator.test.ts`, `json.test.ts`, etc.
 
 ### Code Quality
 
@@ -81,13 +83,13 @@ wiz inline src/ --outdir dist/
 
 2. **Transformation Pipeline**
    - Plugin loads each TypeScript file into a ts-morph `Project`
-   - Finds special function calls (e.g., `createOpenApiSchema<T>()`)
+   - Finds special function calls (e.g., `createOpenApiSchema<T>()`, `createProtobufModel<T>()`, `createValidator<T>()`)
    - Extracts type arguments from these calls
    - Generates schema JSON from type information
    - Replaces function call with literal JSON object
 
 3. **Code Generation**
-   - Each feature has its own codegen module (e.g., `plugin/openApiSchema/codegen.ts`)
+   - Each feature has its own codegen module (e.g., `plugin/openApiSchema/codegen.ts`, `plugin/protobuf/codegen.ts`, `plugin/validator/codegen.ts`)
    - Codegen interrogates ts-morph `Type` objects
    - Produces JSON schemas compatible with target format
    - Output is pretty-printed with `JSON.stringify(schema, null, 2)`
@@ -96,14 +98,19 @@ wiz inline src/ --outdir dist/
 
 ```
 src/
-├── __test__/              # Integration tests (test actual Bun builds with plugin)
+├── __test__/              # Integration tests - one test file per module
+│   ├── openApiSchema.test.ts   # OpenAPI schema tests
+│   ├── protobuf.test.ts        # Protobuf tests
+│   ├── validator.test.ts       # Validator tests
+│   ├── json.test.ts            # JSON tests
+│   └── ...                     # Other module-specific tests
 ├── cli/                   # CLI commands and argument parsing
 ├── generator/             # Code generators (OpenAPI client, Protobuf, etc.)
 ├── plugin/                # Bun plugin and AST transformations
-│   ├── openApiSchema/     # OpenAPI schema generation
-│   ├── protobuf/          # Protobuf generation
-│   ├── json/              # JSON utilities
-│   └── validator/         # Validator generation
+│   ├── openApiSchema/     # OpenAPI schema generation module
+│   ├── protobuf/          # Protobuf generation module
+│   ├── json/              # JSON utilities module
+│   └── validator/         # Validator generation module
 ├── openApiSchema/         # OpenAPI schema public API (runtime stubs)
 ├── protobuf/              # Protobuf public API (runtime stubs)
 ├── validator/             # Validator public API
@@ -112,32 +119,42 @@ src/
 └── errors.ts              # pluginNotEnabled() sentinel error
 ```
 
+**Module Structure**: Each major feature (openApiSchema, protobuf, validator, json) follows the same pattern:
+- Runtime API in `src/<module>/` (throws `pluginNotEnabled()`)
+- Transform/codegen logic in `src/plugin/<module>/`
+- Tests in `src/__test__/<module>.test.ts`
+
 ### Key Files & Their Roles
 
 - **`src/errors.ts`**: Central `pluginNotEnabled()` helper - throw this when plugin must be active
-- **`src/plugin/index.ts`**: Plugin registration and orchestration
-- **`src/plugin/openApiSchema/transform.ts`**: AST pattern matching and node replacement
-- **`src/plugin/openApiSchema/codegen.ts`**: Type-to-OpenAPI-schema conversion logic
+- **`src/plugin/index.ts`**: Plugin registration and orchestration for all modules
+- **`src/plugin/<module>/transform.ts`**: AST pattern matching and node replacement (per module)
+- **`src/plugin/<module>/codegen.ts`**: Type-to-schema conversion logic (per module)
 - **`src/__test__/utils.ts`**: Test utilities for building with the plugin
 - **`tsconfig.json`**: TypeScript configuration (bundler mode, strict, noEmit)
+
+**Note**: Examples below use openApiSchema, but the same patterns apply to protobuf, validator, and other modules.
 
 ## Development Workflow
 
 ### Making Changes
 
-1. **Start with a test** in `src/__test__/` that describes the desired behavior
-2. Use existing test utilities (`compile()` helper from `utils.ts`)
-3. Run focused tests: `bun test --filter "<test name>"`
-4. Implement the feature in the appropriate codegen/transform file
-5. Run lint and format: `bun run lint && bun run format`
-6. Verify all tests pass: `bun test`
+1. **Identify the module** you're working on (openApiSchema, protobuf, validator, json, etc.)
+2. **Start with a test** in the corresponding `src/__test__/<module>.test.ts` file
+3. Use existing test utilities (`compile()` helper from `utils.ts`)
+4. Run focused tests: `bun test --filter "<test name>"` or `bun test src/__test__/<module>.test.ts`
+5. Implement the feature in `src/plugin/<module>/codegen.ts` or `transform.ts`
+6. Run lint and format: `bun run lint && bun run format`
+7. Verify all tests pass: `bun test`
 
 ### TDD Approach (Recommended)
 
 ```bash
+# Example: Adding a feature to OpenAPI module
 # 1. Add failing test case to src/__test__/openApiSchema.test.ts
 # 2. Run specific test to see failure
 bun test --filter "should handle my new type"
+# OR: bun test src/__test__/openApiSchema.test.ts
 
 # 3. Implement in plugin/openApiSchema/codegen.ts
 # 4. Run test again until it passes
@@ -147,6 +164,8 @@ bun test
 # 6. Lint and format
 bun run lint && bun run format
 ```
+
+**For other modules**: Replace `openApiSchema` with `protobuf`, `validator`, `json`, etc.
 
 ### Test Structure
 
@@ -211,8 +230,10 @@ Use scope when helpful: `plugin`, `codegen`, `cli`, `generator`, `tests`, `docs`
 # All tests
 bun test
 
-# Specific file
-bun test src/__test__/openApiSchema.test.ts
+# Specific module's tests
+bun test src/__test__/openApiSchema.test.ts  # OpenAPI tests
+bun test src/__test__/protobuf.test.ts       # Protobuf tests
+bun test src/__test__/validator.test.ts      # Validator tests
 
 # Filter by test name
 bun test --filter "nullable"
@@ -275,12 +296,14 @@ Location: `.github/workflows/test.yml`
 
 ## Common Patterns
 
-### Adding a New Schema Feature
+### Adding a New Feature to a Module
 
-1. Add test cases to `src/__test__/openApiSchema.test.ts`
+**Identify the module first**: openApiSchema, protobuf, validator, json, etc.
+
+1. Add test cases to `src/__test__/<module>.test.ts` (e.g., `openApiSchema.test.ts` for OpenAPI features)
 2. Define expected input (TypeScript type) and output (compiled JS with schema)
-3. Run test to see failure: `bun test --filter "new feature"`
-4. Implement in `plugin/openApiSchema/codegen.ts`:
+3. Run test to see failure: `bun test --filter "new feature"` or `bun test src/__test__/<module>.test.ts`
+4. Implement in `src/plugin/<module>/codegen.ts`:
    - Add type checking logic
    - Extract properties/metadata from ts-morph `Type`
    - Generate appropriate JSON schema structure
