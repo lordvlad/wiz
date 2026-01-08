@@ -36,6 +36,8 @@ Client Options:
                          If provided, generates model.ts and api.ts files
   --wiz-validator        Enable wiz validation for path params, query params,
                          request body, and response body
+  --react-query          Enable React Query integration with context, query/mutation
+                         options methods, and custom hooks
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -80,6 +82,9 @@ Examples:
 
   # Generate TypeScript client with wiz validation
   wiz client spec.json --outdir src/client --wiz-validator
+
+  # Generate TypeScript client with React Query integration
+  wiz client spec.json --outdir src/client --react-query
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -232,21 +237,25 @@ async function main() {
                 "wiz-validator": {
                     type: "boolean",
                 },
+                "react-query": {
+                    type: "boolean",
+                },
             },
             allowPositionals: true,
         });
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator]");
+            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator] [--react-query]");
             process.exit(1);
         }
 
         const specFile = positionals[0]!;
         const outdir = values.outdir;
         const wizValidator = values["wiz-validator"] || false;
+        const reactQuery = values["react-query"] || false;
 
-        await generateClient(specFile, { outdir, wizValidator });
+        await generateClient(specFile, { outdir, wizValidator, reactQuery });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

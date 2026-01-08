@@ -315,7 +315,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         const { api } = generateClientFromOpenApi(spec);
 
         // The default baseUrl should be used in the method body
-        expect(api).toContain('const baseUrl = config.baseUrl || "https://api.example.com" || "";');
+        expect(api).toContain('const baseUrl = config.baseUrl ?? "https://api.example.com";');
     });
 
     it("should generate models alongside API", () => {
@@ -542,7 +542,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).not.toContain("async function getApiConfig");
 
         // Check that fetch implementation is used
-        expect(api).toContain("const fetchImpl = config.fetch || fetch");
+        expect(api).toContain("const fetchImpl = config.fetch ?? fetch");
         expect(api).toContain("const response = await fetchImpl(fullUrl, options)");
         expect(api).toContain("return response;");
     });

@@ -205,7 +205,7 @@ components:
             expect(apiContent).toContain("getUserById");
             expect(apiContent).toContain("updateUser");
             expect(apiContent).toContain("GetUserByIdPathParams");
-            expect(apiContent).toContain('config.baseUrl || "https://api.example.com"');
+            expect(apiContent).toContain('config.baseUrl ?? "https://api.example.com"');
 
             expect(output).toContain("model.ts");
             expect(output).toContain("api.ts");
@@ -362,7 +362,7 @@ components:
 
         try {
             await generateClient(specFile);
-            expect(output).toContain('config.baseUrl || ""');
+            expect(output).toContain('config.baseUrl ?? ""');
         } finally {
             console.log = originalLog;
         }

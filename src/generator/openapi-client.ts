@@ -10,11 +10,14 @@ export interface ClientGeneratorOptions {
     tags?: Record<string, any>;
     disableWizTags?: boolean;
     wizValidator?: boolean;
+    reactQuery?: boolean;
 }
 
 export interface GeneratedClient {
     models: string;
     api: string;
+    queries?: string;
+    mutations?: string;
 }
 
 interface OperationInfo {
@@ -27,6 +30,7 @@ interface OperationInfo {
     tags?: string[];
     summary?: string;
     description?: string;
+    deprecated?: boolean;
 }
 
 /**
@@ -45,7 +49,21 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
 
     const api = sourceFile.getFullText();
 
-    return { models, api };
+    // Generate separate queries and mutations files if React Query is enabled
+    let queries: string | undefined;
+    let mutations: string | undefined;
+
+    if (options.reactQuery) {
+        const queriesFile = project.createSourceFile("queries.ts", "");
+        const mutationsFile = project.createSourceFile("mutations.ts", "");
+
+        generateReactQueryFiles(queriesFile, mutationsFile, spec, options);
+
+        queries = queriesFile.getFullText();
+        mutations = mutationsFile.getFullText();
+    }
+
+    return { models, api, queries, mutations };
 }
 
 /**
@@ -74,6 +92,19 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
 
     // Get default base URL
     const defaultBaseUrl = getDefaultBaseUrl(spec);
+
+    // Add React imports if React Query is enabled
+    if (options.reactQuery) {
+        sourceFile.addImportDeclaration({
+            moduleSpecifier: "react",
+            namedImports: ["createContext", "useContext"],
+        });
+        sourceFile.addImportDeclaration({
+            moduleSpecifier: "react",
+            namedImports: ["ReactNode", "ReactElement"],
+            isTypeOnly: true,
+        });
+    }
 
     // Add validator import and TypedResponse interface if wiz validation is enabled
     if (options.wizValidator) {
@@ -119,7 +150,12 @@ function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: C
     }
 
     // Generate configuration interface
-    generateConfigInterface(sourceFile);
+    generateConfigInterface(sourceFile, options);
+
+    // Generate React Query context if enabled
+    if (options.reactQuery) {
+        generateReactQueryContext(sourceFile, defaultBaseUrl);
+    }
 
     // Generate client class
     generateClientClass(sourceFile, operations, defaultBaseUrl, options);
@@ -151,6 +187,7 @@ function extractOperations(spec: OpenApiSpec): OperationInfo[] {
                     tags: operation.tags,
                     summary: operation.summary,
                     description: operation.description,
+                    deprecated: operation.deprecated,
                 });
             }
         }
@@ -201,7 +238,7 @@ function getDefaultBaseUrl(spec: OpenApiSpec): string {
 /**
  * Generate configuration interface
  */
-function generateConfigInterface(sourceFile: SourceFile): void {
+function generateConfigInterface(sourceFile: SourceFile, options: ClientGeneratorOptions): void {
     // Create ApiConfig interface
     sourceFile.addInterface({
         name: "ApiConfig",
@@ -213,7 +250,7 @@ function generateConfigInterface(sourceFile: SourceFile): void {
         ],
     });
 
-    // Create globalConfig variable
+    // Always create globalConfig (even in React Query mode, for direct api method calls)
     sourceFile.addVariableStatement({
         declarationKind: VariableDeclarationKind.Let,
         declarations: [
@@ -225,22 +262,32 @@ function generateConfigInterface(sourceFile: SourceFile): void {
         ],
     });
 
-    // Create setApiConfig function
-    sourceFile.addFunction({
-        name: "setApiConfig",
-        isExported: true,
-        parameters: [{ name: "config", type: "ApiConfig" }],
-        returnType: "void",
-        statements: "globalConfig = config;",
-    });
+    if (!options.reactQuery) {
+        // Create setApiConfig and getApiConfig only in non-React Query mode
+        sourceFile.addFunction({
+            name: "setApiConfig",
+            isExported: true,
+            parameters: [{ name: "config", type: "ApiConfig" }],
+            returnType: "void",
+            statements: "globalConfig = config;",
+        });
 
-    // Create getApiConfig function
-    sourceFile.addFunction({
-        name: "getApiConfig",
-        isExported: true,
-        returnType: "ApiConfig",
-        statements: "return globalConfig;",
-    });
+        sourceFile.addFunction({
+            name: "getApiConfig",
+            isExported: true,
+            returnType: "ApiConfig",
+            statements: "return globalConfig;",
+        });
+    } else {
+        // In React Query mode, provide a function to set global config for direct API calls
+        sourceFile.addFunction({
+            name: "setGlobalApiConfig",
+            isExported: true,
+            parameters: [{ name: "config", type: "ApiConfig" }],
+            returnType: "void",
+            statements: "globalConfig = config;",
+        });
+    }
 }
 
 /**
@@ -446,6 +493,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
+            isExported: true,
             type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
@@ -473,6 +521,7 @@ function generateParameterTypes(
 
         sourceFile.addTypeAlias({
             name: typeName,
+            isExported: true,
             type: (writer: CodeBlockWriter) => {
                 writer.block(() => {
                     for (const prop of properties) {
@@ -598,10 +647,17 @@ function generateMethodBodyStatements(
 ): string {
     const lines: string[] = ["{"];
 
-    // Get config
-    lines.push("    const config = getApiConfig();");
-    lines.push(`    const baseUrl = config.baseUrl || "${defaultBaseUrl}" || "";`);
-    lines.push("    const fetchImpl = config.fetch || fetch;");
+    // Get config - use globalConfig directly in React Query mode
+    if (options.reactQuery) {
+        lines.push("    const config = globalConfig ?? {};");
+        lines.push(`    const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";`);
+        lines.push("    const fetchImpl = config.fetch ?? fetch;");
+    } else {
+        // Standard mode uses getApiConfig
+        lines.push("    const config = getApiConfig();");
+        lines.push(`    const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";`);
+        lines.push("    const fetchImpl = config.fetch ?? fetch;");
+    }
 
     // Add validation for path params
     if (options.wizValidator && pathParams.length > 0) {
@@ -711,4 +767,504 @@ function generateMethodBodyStatements(
     lines.push("  }");
 
     return lines.join("\n");
+}
+
+/**
+ * Generate React Query context
+ */
+function generateReactQueryContext(sourceFile: SourceFile, defaultBaseUrl: string): void {
+    // Create ApiContext
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        isExported: true,
+        declarations: [
+            {
+                name: "ApiContext",
+                initializer: `createContext<ApiConfig | undefined>(undefined)`,
+            },
+        ],
+    });
+
+    // Create default config constant
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        declarations: [
+            {
+                name: "defaultApiConfig",
+                type: "ApiConfig",
+                initializer: `{ baseUrl: "${defaultBaseUrl}" }`,
+            },
+        ],
+    });
+
+    // Create useApiConfig hook
+    sourceFile.addFunction({
+        name: "useApiConfig",
+        isExported: true,
+        returnType: "ApiConfig",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("const config = useContext(ApiContext);");
+            writer.writeLine("return config ?? defaultApiConfig;");
+        },
+    });
+
+    // Create ApiProvider component
+    sourceFile.addInterface({
+        name: "ApiProviderProps",
+        isExported: true,
+        properties: [
+            { name: "config", type: "Partial<ApiConfig>", hasQuestionToken: true },
+            { name: "children", type: "ReactNode" },
+        ],
+    });
+
+    sourceFile.addFunction({
+        name: "ApiProvider",
+        isExported: true,
+        parameters: [{ name: "{ config, children }", type: "ApiProviderProps" }],
+        returnType: "ReactElement",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("const mergedConfig: ApiConfig = {");
+            writer.writeLine("  ...defaultApiConfig,");
+            writer.writeLine("  ...config,");
+            writer.writeLine("  headers: {");
+            writer.writeLine("    ...(defaultApiConfig.headers ?? {}),");
+            writer.writeLine("    ...(config?.headers ?? {}),");
+            writer.writeLine("  },");
+            writer.writeLine("};");
+            writer.writeLine("");
+            writer.writeLine("return (");
+            writer.writeLine("  <ApiContext.Provider value={mergedConfig}>");
+            writer.writeLine("    {children}");
+            writer.writeLine("  </ApiContext.Provider>");
+            writer.writeLine(");");
+        },
+    });
+}
+
+/**
+ * Determine if operation is a query (GET, HEAD, OPTIONS) or mutation
+ */
+function isQueryOperation(op: OperationInfo): boolean {
+    return ["GET", "HEAD", "OPTIONS"].includes(op.method);
+}
+
+/**
+ * Parse parameter string into name and type
+ */
+function parseParameter(param: string): { name: string; type: string } {
+    const colonIndex = param.indexOf(":");
+    if (colonIndex === -1) return { name: param, type: "any" };
+    const name = param.substring(0, colonIndex).trim();
+    const type = param.substring(colonIndex + 1).trim();
+    return { name, type };
+}
+
+/**
+ * Generate React Query helpers (query/mutation options and hooks)
+ */
+function generateReactQueryHelpers(
+    sourceFile: SourceFile,
+    operations: OperationInfo[],
+    options: ClientGeneratorOptions,
+): void {
+    for (const op of operations) {
+        const methodName = getMethodName(op);
+        const isQuery = isQueryOperation(op);
+
+        if (isQuery) {
+            generateQueryOptions(sourceFile, op, methodName, options);
+            generateQueryHook(sourceFile, op, methodName, options);
+        } else {
+            generateMutationOptions(sourceFile, op, methodName, options);
+            generateMutationHook(sourceFile, op, methodName, options);
+        }
+    }
+}
+
+/**
+ * Generate React Query files (queries.ts and mutations.ts)
+ */
+function generateReactQueryFiles(
+    queriesFile: SourceFile,
+    mutationsFile: SourceFile,
+    spec: OpenApiSpec,
+    options: ClientGeneratorOptions,
+): void {
+    const operations = extractOperations(spec);
+
+    // Collect parameter type names that need to be imported
+    const queryTypeImports = new Set<string>();
+    const mutationTypeImports = new Set<string>();
+
+    for (const op of operations) {
+        const { pathParams, queryParams } = analyzeParameters(op);
+        const isQuery = isQueryOperation(op);
+
+        if (isQuery) {
+            if (pathParams.length > 0) {
+                queryTypeImports.add(getPathParamsTypeName(op));
+            }
+            if (queryParams.length > 0) {
+                queryTypeImports.add(getQueryParamsTypeName(op));
+            }
+        } else {
+            if (pathParams.length > 0) {
+                mutationTypeImports.add(getPathParamsTypeName(op));
+            }
+            if (queryParams.length > 0) {
+                mutationTypeImports.add(getQueryParamsTypeName(op));
+            }
+        }
+    }
+
+    // Add React Query import to queries file
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "@tanstack/react-query",
+        namedImports: ["useQuery"],
+    });
+
+    // Add stable key helper function to queries file
+    // This function serializes objects to JSON strings with sorted keys
+    // so that {page: 0, limit: 1} and {limit: 1, page: 0} produce the same string
+    queriesFile.addFunction({
+        name: "stableKey",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("if (obj === null || obj === undefined) return obj;");
+            writer.writeLine("if (typeof obj !== 'object') return obj;");
+            writer.writeLine("if (Array.isArray(obj)) {");
+            writer.writeLine("  return JSON.stringify(obj.map(stableKey));");
+            writer.writeLine("}");
+            writer.writeLine("const sorted: Record<string, any> = {};");
+            writer.writeLine("Object.keys(obj).sort().forEach(key => {");
+            writer.writeLine("  sorted[key] = obj[key];");
+            writer.writeLine("});");
+            writer.writeLine("return JSON.stringify(sorted);");
+        },
+        parameters: [{ name: "obj", type: "any" }],
+        returnType: "string | null | undefined",
+    });
+
+    // Add imports to queries file
+    const queryApiImports = ["api"];
+    if (queryTypeImports.size > 0) {
+        queryApiImports.push(...Array.from(queryTypeImports));
+    }
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "./api",
+        namedImports: queryApiImports,
+    });
+    queriesFile.addImportDeclaration({
+        moduleSpecifier: "./model",
+        defaultImport: "* as Models",
+        isTypeOnly: true,
+    });
+
+    // Add React Query import to mutations file
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "@tanstack/react-query",
+        namedImports: ["useMutation"],
+    });
+
+    // Add imports to mutations file
+    const mutationApiImports = ["api"];
+    if (mutationTypeImports.size > 0) {
+        mutationApiImports.push(...Array.from(mutationTypeImports));
+    }
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "./api",
+        namedImports: mutationApiImports,
+    });
+    mutationsFile.addImportDeclaration({
+        moduleSpecifier: "./model",
+        defaultImport: "* as Models",
+        isTypeOnly: true,
+    });
+
+    // Generate query and mutation options/hooks in separate files
+    for (const op of operations) {
+        const methodName = getMethodName(op);
+        const isQuery = isQueryOperation(op);
+
+        if (isQuery) {
+            generateQueryOptions(queriesFile, op, methodName, options);
+            generateQueryHook(queriesFile, op, methodName, options);
+        } else {
+            generateMutationOptions(mutationsFile, op, methodName, options);
+            generateMutationHook(mutationsFile, op, methodName, options);
+        }
+    }
+}
+
+/**
+ * Generate query options method for GET/HEAD/OPTIONS operations
+ */
+function generateQueryOptions(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    methodName: string,
+    options: ClientGeneratorOptions,
+): void {
+    const { pathParams, queryParams } = analyzeParameters(op);
+    const capitalizedMethodName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
+
+    // Build parameter list
+    const params: string[] = [];
+    const callParams: string[] = [];
+
+    if (pathParams.length > 0) {
+        params.push(`pathParams: ${getPathParamsTypeName(op)}`);
+        callParams.push("pathParams");
+    }
+    if (queryParams.length > 0) {
+        params.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
+        callParams.push("queryParams");
+    }
+
+    // Generate the query key with stable keys
+    const keyParts: string[] = [`"${methodName}"`];
+    if (pathParams.length > 0) {
+        keyParts.push("stableKey(pathParams)");
+    }
+    if (queryParams.length > 0) {
+        keyParts.push("stableKey(queryParams)");
+    }
+
+    // Determine return type
+    const responseBodyType = getResponseBodyType(op);
+    let dataType = "unknown";
+    let shouldParseJson = true;
+
+    // Note: We check for '[]' because getTypeFromSchema only generates Type[] format for arrays,
+    // never Array<Type> or readonly Type[]. This is safe for the generated code.
+    if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+        dataType = `Models.${responseBodyType}`;
+    } else if (!responseBodyType) {
+        // No JSON response body type known, return Response directly
+        dataType = "Response";
+        shouldParseJson = false;
+    }
+
+    // Generate function
+    sourceFile.addFunction({
+        name: `get${capitalizedMethodName}QueryOptions`,
+        isExported: true,
+        parameters: params.map(parseParameter),
+        returnType: `{ queryKey: unknown[]; queryFn: () => Promise<${dataType}> }`,
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine(`return {`);
+            writer.writeLine(`  queryKey: [${keyParts.join(", ")}],`);
+            writer.writeLine(`  queryFn: async () => {`);
+            writer.writeLine(`    const response = await api.${methodName}(${callParams.join(", ")});`);
+            if (shouldParseJson) {
+                if (dataType !== "unknown") {
+                    writer.writeLine(`    return response.json() as Promise<${dataType}>;`);
+                } else {
+                    writer.writeLine(`    return response.json();`);
+                }
+            } else {
+                writer.writeLine(`    return response;`);
+            }
+            writer.writeLine(`  },`);
+            writer.writeLine(`};`);
+        },
+    });
+}
+
+/**
+ * Generate custom query hook for GET/HEAD/OPTIONS operations
+ */
+function generateQueryHook(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    methodName: string,
+    options: ClientGeneratorOptions,
+): void {
+    const { pathParams, queryParams } = analyzeParameters(op);
+    const capitalizedMethodName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
+
+    // Build parameter list
+    const params: string[] = [];
+    const callParams: string[] = [];
+
+    if (pathParams.length > 0) {
+        params.push(`pathParams: ${getPathParamsTypeName(op)}`);
+        callParams.push("pathParams");
+    }
+    if (queryParams.length > 0) {
+        params.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
+        callParams.push("queryParams");
+    }
+    params.push("options?: Omit<Parameters<typeof useQuery>[0], 'queryKey' | 'queryFn'> = {}");
+
+    // Determine return type
+    let dataType = "unknown";
+    const responseBodyType = getResponseBodyType(op);
+    if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+        dataType = `Models.${responseBodyType}`;
+    }
+
+    // Add JSDoc
+    const jsDocLines: string[] = [];
+    if (op.summary) {
+        jsDocLines.push(op.summary);
+    }
+    if (op.description && op.description !== op.summary) {
+        jsDocLines.push(op.description);
+    }
+    if (op.deprecated) {
+        jsDocLines.push("@deprecated");
+    }
+
+    const functionDef: any = {
+        name: `use${capitalizedMethodName}`,
+        isExported: true,
+        parameters: params.map(parseParameter),
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine(`const queryOptions = get${capitalizedMethodName}QueryOptions(${callParams.join(", ")});`);
+            writer.writeLine(`return useQuery({ ...queryOptions, ...options });`);
+        },
+    };
+
+    if (jsDocLines.length > 0) {
+        functionDef.docs = [jsDocLines.join("\n")];
+    }
+
+    sourceFile.addFunction(functionDef);
+}
+
+/**
+ * Generate mutation options method for POST/PUT/PATCH/DELETE operations
+ */
+function generateMutationOptions(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    methodName: string,
+    options: ClientGeneratorOptions,
+): void {
+    const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
+    const capitalizedMethodName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
+
+    // Build parameter types
+    const variableTypes: string[] = [];
+    if (pathParams.length > 0) {
+        variableTypes.push(`pathParams: ${getPathParamsTypeName(op)}`);
+    }
+    if (queryParams.length > 0) {
+        variableTypes.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
+    }
+    if (hasRequestBody) {
+        const bodyType = getRequestBodyType(op);
+        // Request body types come from Models, so prefix them
+        const prefixedBodyType = bodyType !== "any" && !bodyType.includes("[]") ? `Models.${bodyType}` : bodyType;
+        variableTypes.push(`requestBody: ${prefixedBodyType}`);
+    }
+
+    // Determine return type
+    let dataType = "unknown";
+    const responseBodyType = getResponseBodyType(op);
+    // Note: We check for '[]' because getTypeFromSchema only generates Type[] format for arrays,
+    // never Array<Type> or readonly Type[]. This is safe for the generated code.
+    if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+        dataType = `Models.${responseBodyType}`;
+    }
+
+    const variablesType = variableTypes.length > 0 ? `{ ${variableTypes.join("; ")} }` : "void";
+
+    // Generate function
+    sourceFile.addFunction({
+        name: `get${capitalizedMethodName}MutationOptions`,
+        isExported: true,
+        returnType: `{ mutationFn: (variables: ${variablesType}) => Promise<${dataType}> }`,
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine(`return {`);
+            writer.writeLine(`  mutationFn: async (variables: ${variablesType}) => {`);
+
+            // Build call parameters
+            const callParams: string[] = [];
+            if (pathParams.length > 0) {
+                callParams.push("variables.pathParams");
+            }
+            if (queryParams.length > 0) {
+                callParams.push("variables.queryParams");
+            }
+            if (hasRequestBody) {
+                callParams.push("variables.requestBody");
+            }
+
+            writer.writeLine(`    const response = await api.${methodName}(${callParams.join(", ")});`);
+            if (dataType !== "unknown") {
+                writer.writeLine(`    return response.json() as Promise<${dataType}>;`);
+            } else {
+                writer.writeLine(`    return response.json();`);
+            }
+            writer.writeLine(`  },`);
+            writer.writeLine(`};`);
+        },
+    });
+}
+
+/**
+ * Generate custom mutation hook for POST/PUT/PATCH/DELETE operations
+ */
+function generateMutationHook(
+    sourceFile: SourceFile,
+    op: OperationInfo,
+    methodName: string,
+    options: ClientGeneratorOptions,
+): void {
+    const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
+    const capitalizedMethodName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
+
+    // Build parameter types
+    const variableTypes: string[] = [];
+    if (pathParams.length > 0) {
+        variableTypes.push(`pathParams: ${getPathParamsTypeName(op)}`);
+    }
+    if (queryParams.length > 0) {
+        variableTypes.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
+    }
+    if (hasRequestBody) {
+        const bodyType = getRequestBodyType(op);
+        // Request body types come from Models, so prefix them
+        const prefixedBodyType = bodyType !== "any" && !bodyType.includes("[]") ? `Models.${bodyType}` : bodyType;
+        variableTypes.push(`requestBody: ${prefixedBodyType}`);
+    }
+
+    // Determine return type
+    let dataType = "unknown";
+    const responseBodyType = getResponseBodyType(op);
+    if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+        dataType = `Models.${responseBodyType}`;
+    }
+
+    const variablesType = variableTypes.length > 0 ? `{ ${variableTypes.join("; ")} }` : "void";
+
+    // Add JSDoc
+    const jsDocLines: string[] = [];
+    if (op.summary) {
+        jsDocLines.push(op.summary);
+    }
+    if (op.description && op.description !== op.summary) {
+        jsDocLines.push(op.description);
+    }
+    if (op.deprecated) {
+        jsDocLines.push("@deprecated");
+    }
+
+    const functionDef: any = {
+        name: `use${capitalizedMethodName}`,
+        isExported: true,
+        parameters: [{ name: "options = {}", type: `Omit<Parameters<typeof useMutation>[0], 'mutationFn'>` }],
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine(`const mutationOptions = get${capitalizedMethodName}MutationOptions();`);
+            writer.writeLine(`return useMutation({ ...mutationOptions, ...options });`);
+        },
+    };
+
+    if (jsDocLines.length > 0) {
+        functionDef.docs = [jsDocLines.join("\n")];
+    }
+
+    sourceFile.addFunction(functionDef);
 }

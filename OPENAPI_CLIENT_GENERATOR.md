@@ -13,6 +13,7 @@ The `wiz client` command generates fully typed TypeScript clients from OpenAPI s
 - ✅ **Fetch Overrides**: Deep merge support for per-request fetch init options
 - ✅ **Flexible Output**: Outputs to stdout or separate files
 - ✅ **Runtime Validation**: Optional wiz validator integration for request and response validation
+- ✅ **React Query Integration**: Context-based configuration with query/mutation options and custom hooks
 
 ## Usage
 
@@ -47,6 +48,19 @@ Enables runtime validation using wiz validators for:
 - Response bodies
 
 Validation errors throw `TypeError` with detailed error messages.
+
+### Generate with React Query integration
+
+```bash
+wiz client spec.yaml --outdir src/client --react-query
+```
+
+Enables React Query integration which includes:
+
+- **ApiContext**: React context for providing API configuration
+- **Query Options Methods**: Helper functions that return options for `useQuery` (GET/HEAD/OPTIONS operations)
+- **Mutation Options Methods**: Helper functions that return options for `useMutation` (POST/PUT/PATCH/DELETE operations)
+- **Custom Hooks**: Ready-to-use hooks for each endpoint (requires `@tanstack/react-query`)
 
 ## Example
 
@@ -501,6 +515,232 @@ return response;
 - Only validates `application/json` content type
 - Response validation only checks successful responses (200-204 status codes)
 - Non-JSON responses are silently skipped
+
+## React Query Integration
+
+The `--react-query` option generates a client optimized for use with [TanStack Query (React Query)](https://tanstack.com/query/latest). This provides a more React-friendly API with context-based configuration and hooks.
+
+### Usage
+
+```bash
+wiz client spec.yaml --outdir src/client --react-query
+```
+
+### Generated API
+
+When React Query integration is enabled, the generated code includes:
+
+#### 1. ApiContext
+
+A React context for providing API configuration throughout your application:
+
+```typescript
+import { ApiContext } from "./client/api";
+
+function App() {
+  const apiConfig = {
+    baseUrl: "https://api.example.com/v1",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  return (
+    <ApiContext.Provider value={apiConfig}>
+      <YourApp />
+    </ApiContext.Provider>
+  );
+}
+```
+
+#### 2. Query Options Methods
+
+For GET, HEAD, and OPTIONS operations, the generator creates functions that return options for `useQuery`:
+
+```typescript
+// Generated function signature
+export function getGetUserByIdQueryOptions(
+  pathParams: GetUserByIdPathParams
+): {
+  queryKey: unknown[];
+  queryFn: () => Promise<User>;
+}
+
+// Usage with React Query
+import { useQuery } from "@tanstack/react-query";
+import { getGetUserByIdQueryOptions } from "./client/api";
+
+function UserProfile({ userId }: { userId: string }) {
+  const query = useQuery(
+    getGetUserByIdQueryOptions({ userId })
+  );
+
+  if (query.isLoading) return <div>Loading...</div>;
+  if (query.error) return <div>Error: {query.error.message}</div>;
+
+  return <div>User: {query.data.name}</div>;
+}
+```
+
+The query key is automatically generated based on the operation name and parameters, ensuring proper caching and invalidation.
+
+#### 3. Mutation Options Methods
+
+For POST, PUT, PATCH, and DELETE operations, the generator creates functions that return options for `useMutation`:
+
+```typescript
+// Generated function signature
+export function getCreateUserMutationOptions(): {
+  mutationFn: (variables: { requestBody: CreateUserRequest }) => Promise<User>;
+}
+
+// Usage with React Query
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCreateUserMutationOptions } from "./client/api";
+
+function CreateUserForm() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    ...getCreateUserMutationOptions(),
+    onSuccess: () => {
+      // Invalidate and refetch users list
+      queryClient.invalidateQueries({ queryKey: ["listUsers"] });
+    },
+  });
+
+  const handleSubmit = (name: string, email: string) => {
+    mutation.mutate({ requestBody: { name, email } });
+  };
+
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      handleSubmit(name, email);
+    }}>
+      {/* form fields */}
+    </form>
+  );
+}
+```
+
+#### 4. Custom Hooks (Placeholder)
+
+The generator also creates custom hook stubs for each endpoint:
+
+```typescript
+export function useGetUserById(pathParams: GetUserByIdPathParams, options?: { enabled?: boolean });
+
+export function useCreateUser(options?: any);
+```
+
+**Note**: These hooks currently throw an error with instructions to use the query/mutation options methods with React Query. This is because the hooks would need to import from `@tanstack/react-query`, which is an optional peer dependency.
+
+To use these hooks, you would need to implement them in your own code:
+
+```typescript
+// In your codebase
+import { useQuery } from "@tanstack/react-query";
+
+import { getGetUserByIdQueryOptions } from "./client/api";
+
+export function useGetUserById(pathParams: GetUserByIdPathParams, options?: { enabled?: boolean }) {
+    return useQuery({
+        ...getGetUserByIdQueryOptions(pathParams),
+        ...options,
+    });
+}
+```
+
+### Configuration
+
+In React Query mode:
+
+- `ApiContext` provides configuration via React context
+- `setGlobalApiConfig()` is available for setting a global fallback config (useful for direct API method calls outside React components)
+- The regular `api` object methods still work and use the global config
+
+### Example: Complete React Query Setup
+
+```typescript
+// App.tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ApiContext } from "./client/api";
+
+const queryClient = new QueryClient();
+
+function App() {
+  const apiConfig = {
+    baseUrl: import.meta.env.VITE_API_BASE_URL,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ApiContext.Provider value={apiConfig}>
+        <YourApp />
+      </ApiContext.Provider>
+    </QueryClientProvider>
+  );
+}
+
+// UserList.tsx
+import { useQuery } from "@tanstack/react-query";
+import { getListUsersQueryOptions } from "./client/api";
+
+function UserList() {
+  const query = useQuery(
+    getListUsersQueryOptions({ page: 1, limit: 10 })
+  );
+
+  return (
+    <div>
+      {query.data?.map(user => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+    </div>
+  );
+}
+
+// CreateUserButton.tsx
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getCreateUserMutationOptions } from "./client/api";
+
+function CreateUserButton() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    ...getCreateUserMutationOptions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listUsers"] });
+    },
+  });
+
+  return (
+    <button
+      onClick={() => mutation.mutate({
+        requestBody: { name: "John Doe", email: "john@example.com" }
+      })}
+    >
+      Create User
+    </button>
+  );
+}
+```
+
+### Benefits
+
+- **Type Safety**: Full TypeScript support with inferred types from your OpenAPI spec
+- **Automatic Cache Keys**: Query keys are automatically generated based on operation and parameters
+- **React Context**: Configuration managed via React context for better component composition
+- **Consistent API**: Same patterns for all endpoints
+- **Optimistic Updates**: Easy to implement with React Query's built-in features
+- **Separation of Concerns**: API logic separate from React Query logic
+
+### Requirements
+
+- React 16.8+ (for hooks and context)
+- `@tanstack/react-query` v5+ (peer dependency, not included)
 
 ## Limitations
 
