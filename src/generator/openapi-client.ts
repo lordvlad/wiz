@@ -249,7 +249,7 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
             { name: "fetch", type: "typeof fetch", hasQuestionToken: true },
             {
                 name: "bearerTokenProvider",
-                type: "() => Promise<{ token: string; expiresAt: number }>",
+                type: "() => Promise<string>",
                 hasQuestionToken: true,
             },
         ],
@@ -265,35 +265,6 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
                 initializer: "{}",
             },
         ],
-    });
-
-    // Add bearer token cache
-    sourceFile.addVariableStatement({
-        declarationKind: VariableDeclarationKind.Let,
-        declarations: [
-            {
-                name: "cachedToken",
-                type: "{ token: string; expiresAt: number } | null",
-                initializer: "null",
-            },
-        ],
-    });
-
-    // Add function to get bearer token
-    sourceFile.addFunction({
-        name: "getBearerToken",
-        isAsync: true,
-        parameters: [{ name: "provider", type: "() => Promise<{ token: string; expiresAt: number }>" }],
-        returnType: "Promise<string>",
-        statements: (writer: CodeBlockWriter) => {
-            writer.writeLine("const now = Date.now();");
-            writer.writeLine("const buffer = 30000; // 30 seconds buffer to avoid race conditions");
-            writer.writeLine("if (cachedToken && cachedToken.expiresAt > now + buffer) {");
-            writer.writeLine("  return cachedToken.token;");
-            writer.writeLine("}");
-            writer.writeLine("cachedToken = await provider();");
-            writer.writeLine("return cachedToken.token;");
-        },
     });
 
     if (!options.reactQuery) {
@@ -765,7 +736,7 @@ function generateMethodBodyStatements(
     lines.push("");
     lines.push("    // Add bearer token if configured");
     lines.push("    if (config.bearerTokenProvider) {");
-    lines.push("      const token = await getBearerToken(config.bearerTokenProvider);");
+    lines.push("      const token = await config.bearerTokenProvider();");
     lines.push("      if (!init?.headers) {");
     lines.push("        init = { ...init, headers: {} };");
     lines.push("      }");

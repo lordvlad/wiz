@@ -196,7 +196,7 @@ export interface ApiConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
   fetch?: typeof fetch;
-  bearerTokenProvider?: () => Promise<{ token: string; expiresAt: number }>;
+  bearerTokenProvider?: () => Promise<string>;
 }
 
 export function setApiConfig(config: ApiConfig): void;
@@ -272,63 +272,57 @@ setApiConfig({
 
 #### Bearer Token Provider (OAuth/JWT)
 
-For dynamic token management with automatic refresh, use the `bearerTokenProvider` option. This is ideal for OAuth flows, JWT tokens, or any authentication that requires periodic token renewal:
+For dynamic token management, use the `bearerTokenProvider` option. This is ideal for OAuth flows, JWT tokens, or any authentication that requires bearer tokens. The provider is responsible for token caching and refresh logic:
 
 ```typescript
 setApiConfig({
     baseUrl: "https://api.example.com/v1",
     bearerTokenProvider: async () => {
         // Fetch or refresh your token
+        // You're responsible for caching and expiry handling
         const token = await getAccessToken();
-        const expiresAt = Date.now() + 3600 * 1000; // Token expires in 1 hour
-
-        return {
-            token,
-            expiresAt, // Absolute Unix timestamp in milliseconds
-        };
+        return token;
     },
 });
 ```
 
-The client automatically:
-
-- Caches the token until it expires
-- Calls your provider function only when the token is expired or missing
-- Adds the token as an `Authorization: Bearer <token>` header to all requests
+The client automatically adds the token as an `Authorization: Bearer <token>` header to all requests.
 
 **Benefits over custom fetch:**
 
 - Simpler API - no need to manually manage the fetch lifecycle
-- Built-in token caching with expiry checking
 - Automatic header injection
 - Works seamlessly with all other configuration options
 
-**Example with OAuth refresh flow:**
+**Example with OAuth refresh flow and caching:**
 
 ```typescript
-let refreshToken = loadRefreshToken();
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
 
 setApiConfig({
     baseUrl: "https://api.example.com/v1",
     bearerTokenProvider: async () => {
-        // Exchange refresh token for access token
+        // Return cached token if still valid
+        if (cachedToken && Date.now() < tokenExpiry - 30000) {
+            return cachedToken;
+        }
+
+        // Fetch new token
         const response = await fetch("https://auth.example.com/token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 grant_type: "refresh_token",
-                refresh_token: refreshToken,
+                refresh_token: loadRefreshToken(),
             }),
         });
 
         const data = await response.json();
-        refreshToken = data.refresh_token; // Update refresh token if provided
-        saveRefreshToken(refreshToken);
+        cachedToken = data.access_token;
+        tokenExpiry = Date.now() + data.expires_in * 1000;
 
-        return {
-            token: data.access_token,
-            expiresAt: Date.now() + data.expires_in * 1000,
-        };
+        return cachedToken;
     },
 });
 ```
