@@ -65,9 +65,9 @@ wiz inline src/ --outdir dist/
 - **Runtime**: Bun ≥1.3.3 (JavaScript runtime with native TypeScript support)
 - **Language**: TypeScript ^5 with strict mode enabled
 - **Build System**: Bun bundler with custom plugin architecture
-- **Key Dependencies**: 
-  - `ts-morph` ^27.0.2 (TypeScript AST manipulation)
-  - `openapi-types` ^12.1.3 (OpenAPI type definitions)
+- **Key Dependencies**:
+    - `ts-morph` ^27.0.2 (TypeScript AST manipulation)
+    - `openapi-types` ^12.1.3 (OpenAPI type definitions)
 - **Testing**: Bun's built-in test runner
 - **Formatting**: Prettier with import sorting
 
@@ -76,23 +76,23 @@ wiz inline src/ --outdir dist/
 ### Core Concepts
 
 1. **Plugin System** (`src/plugin/index.ts`)
-   - Registers as a Bun plugin
-   - Intercepts `.ts/.tsx` file loading
-   - Transforms AST using ts-morph
-   - Returns modified source to Bun
+    - Registers as a Bun plugin
+    - Intercepts `.ts/.tsx` file loading
+    - Transforms AST using ts-morph
+    - Returns modified source to Bun
 
 2. **Transformation Pipeline**
-   - Plugin loads each TypeScript file into a ts-morph `Project`
-   - Finds special function calls (e.g., `createOpenApiSchema<T>()`, `createProtobufModel<T>()`, `createValidator<T>()`)
-   - Extracts type arguments from these calls
-   - Generates schema JSON from type information
-   - Replaces function call with literal JSON object
+    - Plugin loads each TypeScript file into a ts-morph `Project`
+    - Finds special function calls (e.g., `createOpenApiSchema<T>()`, `createProtobufModel<T>()`, `createValidator<T>()`)
+    - Extracts type arguments from these calls
+    - Generates schema JSON from type information
+    - Replaces function call with literal JSON object
 
 3. **Code Generation**
-   - Each feature has its own codegen module (e.g., `plugin/openApiSchema/codegen.ts`, `plugin/protobuf/codegen.ts`, `plugin/validator/codegen.ts`)
-   - Codegen interrogates ts-morph `Type` objects
-   - Produces JSON schemas compatible with target format
-   - Output is pretty-printed with `JSON.stringify(schema, null, 2)`
+    - Each feature has its own codegen module (e.g., `plugin/openApiSchema/codegen.ts`, `plugin/protobuf/codegen.ts`, `plugin/validator/codegen.ts`)
+    - Codegen interrogates ts-morph `Type` objects
+    - Produces JSON schemas compatible with target format
+    - Output is pretty-printed with `JSON.stringify(schema, null, 2)`
 
 ### Directory Structure
 
@@ -120,6 +120,7 @@ src/
 ```
 
 **Module Structure**: Each major feature (openApiSchema, protobuf, validator, json) follows the same pattern:
+
 - Runtime API in `src/<module>/` (throws `pluginNotEnabled()`)
 - Transform/codegen logic in `src/plugin/<module>/`
 - Tests in `src/__test__/<module>.test.ts`
@@ -170,6 +171,7 @@ bun run lint && bun run format
 ### Test Structure
 
 Tests use real Bun builds with the plugin enabled:
+
 - Create temporary TypeScript files
 - Build with `Bun.build()` including the Wiz plugin
 - Assert on the compiled JavaScript output
@@ -198,14 +200,15 @@ Tests use real Bun builds with the plugin enabled:
 
 - **$ref for known types**: Generate `$ref` references for types in the schema tuple
 - **Inline for anonymous types**: Generate inline schemas for object literals
-- **Handle null carefully**: 
-  - OpenAPI 3.0: use `nullable: true`
-  - OpenAPI 3.1: use `type: ["string", "null"]` array syntax
+- **Handle null carefully**:
+    - OpenAPI 3.0: use `nullable: true`
+    - OpenAPI 3.1: use `type: ["string", "null"]` array syntax
 - **Date handling**: Defaults to `{ type: "string", format: "date-time" }`, configurable via plugin options
 
 ### Commit Messages
 
 Follow Conventional Commits:
+
 ```
 feat(plugin): add union type support
 fix(codegen): handle circular references correctly
@@ -251,14 +254,14 @@ bun run test:report
 import { compile, createTempProject } from "./utils";
 
 describe("my feature", () => {
-  it("should generate schema for X", async () => {
-    const result = await compile(`
+    it("should generate schema for X", async () => {
+        const result = await compile(`
       type MyType = { foo: string };
       export const schema = createOpenApiSchema<[MyType], "3.0">();
     `);
-    
-    expect(result).toContain(`"foo": { "type": "string" }`);
-  });
+
+        expect(result).toContain(`"foo": { "type": "string" }`);
+    });
 });
 ```
 
@@ -275,11 +278,13 @@ describe("my feature", () => {
 
 Location: `.github/workflows/test.yml`
 
-**Triggers**: 
+**Triggers**:
+
 - Push to `master` branch
 - Pull requests to `master` branch
 
 **Jobs**:
+
 1. Checkout code
 2. Setup Bun (v1.3.4)
 3. Install dependencies (`bun install`)
@@ -304,9 +309,9 @@ Location: `.github/workflows/test.yml`
 2. Define expected input (TypeScript type) and output (compiled JS with schema)
 3. Run test to see failure: `bun test --filter "new feature"` or `bun test src/__test__/<module>.test.ts`
 4. Implement in `src/plugin/<module>/codegen.ts`:
-   - Add type checking logic
-   - Extract properties/metadata from ts-morph `Type`
-   - Generate appropriate JSON schema structure
+    - Add type checking logic
+    - Extract properties/metadata from ts-morph `Type`
+    - Generate appropriate JSON schema structure
 5. Run test until it passes
 6. Add edge cases to test
 7. Run full test suite: `bun test`
@@ -336,6 +341,7 @@ Location: `.github/workflows/test.yml`
 **Symptoms**: `pluginNotEnabled()` errors at runtime
 
 **Solutions**:
+
 - Verify Bun version ≥1.3.3: `bun --version`
 - Check plugin is registered in build config
 - Ensure function name matches exactly (e.g., `createOpenApiSchema`)
@@ -345,12 +351,14 @@ Location: `.github/workflows/test.yml`
 ### Test Failures
 
 **Common Issues**:
+
 - `.tmp` directories not cleaned → set `DEBUG=false` in test
 - Indentation mismatch → linebreaks matter, spaces don't in dedented strings
 - Type resolution failure → avoid complex conditional/inferred types initially
 - ts-morph version mismatch → check that dependencies are installed correctly
 
 **Debugging Steps**:
+
 1. Run specific test: `bun test --filter "failing test name"`
 2. Check `.tmp` directory for actual compiled output
 3. Compare expected vs actual output carefully
@@ -360,6 +368,7 @@ Location: `.github/workflows/test.yml`
 ### Type Errors
 
 **Solutions**:
+
 - Verify `tsconfig.json` settings match project requirements
 - Check all source files are under `src/`
 - Ensure TypeScript ^5 is installed: `bun pm ls typescript`
@@ -369,6 +378,7 @@ Location: `.github/workflows/test.yml`
 ### Build Errors
 
 **Common Issues**:
+
 - Missing dependencies → run `bun install`
 - Bun version too old → upgrade Bun to ≥1.3.3
 - TypeScript errors → fix with `bun run lint`
@@ -381,6 +391,7 @@ Location: `.github/workflows/test.yml`
 Functions like `createOpenApiSchema<T>()` are compile-time only. They throw `pluginNotEnabled()` at runtime by design.
 
 **Solutions**:
+
 - Ensure build process includes Wiz plugin
 - Don't call these functions at runtime
 - Only use in files processed by Bun build with plugin
@@ -446,13 +457,14 @@ Functions like `createOpenApiSchema<T>()` are compile-time only. They throw `plu
 Default: `{ type: "string", format: "date-time" }`
 
 Override via plugin option:
+
 ```typescript
 wizPlugin({
-  transformDate(type) {
-    return { type: "number" }; // Unix timestamp
-    // return undefined; // Fall back to default
-  }
-})
+    transformDate(type) {
+        return { type: "number" }; // Unix timestamp
+        // return undefined; // Fall back to default
+    },
+});
 ```
 
 ### Union Style (oneOf vs anyOf)
@@ -460,17 +472,19 @@ wizPlugin({
 Default: `oneOf` (stricter, value must match exactly one schema)
 
 Configure via plugin:
+
 ```typescript
 wizPlugin({
-  unionStyle: "anyOf" // More lenient, value can match one or more schemas
-})
+    unionStyle: "anyOf", // More lenient, value can match one or more schemas
+});
 ```
 
 ### JSDoc Annotations
 
 Wiz supports JSDoc tags for schema enrichment:
+
 - `@description`: Add descriptions
-- `@default`: Specify default values  
+- `@default`: Specify default values
 - `@example`: Provide examples
 - `@deprecated`: Mark as deprecated
 - `@minimum`, `@maximum`: Number constraints
@@ -482,6 +496,7 @@ Wiz supports JSDoc tags for schema enrichment:
 ### Discriminated Unions
 
 Wiz automatically detects discriminator properties:
+
 - All union members must be objects
 - Must share a common property with distinct literal values
 - Generates OpenAPI `discriminator` with `propertyName`
@@ -516,6 +531,7 @@ Wiz automatically detects discriminator properties:
 ## Best Practices Summary
 
 ✅ **DO**:
+
 - Write tests before implementing features (TDD)
 - Run `bun run lint && bun run format` before committing
 - Use focused test runs during development (`--filter`)
@@ -527,6 +543,7 @@ Wiz automatically detects discriminator properties:
 - Follow Conventional Commits format
 
 ❌ **DON'T**:
+
 - Mix raw TypeScript compiler APIs with ts-morph
 - Use `console.log` for plugin debugging (use log option)
 - Skip linting and formatting
