@@ -247,6 +247,11 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
             { name: "baseUrl", type: "string", hasQuestionToken: true },
             { name: "headers", type: "Record<string, string>", hasQuestionToken: true },
             { name: "fetch", type: "typeof fetch", hasQuestionToken: true },
+            {
+                name: "bearerTokenProvider",
+                type: "() => Promise<{ token: string; expiresAt: number }>",
+                hasQuestionToken: true,
+            },
         ],
     });
 
@@ -260,6 +265,34 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
                 initializer: "{}",
             },
         ],
+    });
+
+    // Add bearer token cache
+    sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Let,
+        declarations: [
+            {
+                name: "cachedToken",
+                type: "{ token: string; expiresAt: number } | null",
+                initializer: "null",
+            },
+        ],
+    });
+
+    // Add function to get bearer token
+    sourceFile.addFunction({
+        name: "getBearerToken",
+        isAsync: true,
+        parameters: [{ name: "provider", type: "() => Promise<{ token: string; expiresAt: number }>" }],
+        returnType: "Promise<string>",
+        statements: (writer: CodeBlockWriter) => {
+            writer.writeLine("const now = Date.now();");
+            writer.writeLine("if (cachedToken && cachedToken.expiresAt > now) {");
+            writer.writeLine("  return cachedToken.token;");
+            writer.writeLine("}");
+            writer.writeLine("cachedToken = await provider();");
+            writer.writeLine("return cachedToken.token;");
+        },
     });
 
     if (!options.reactQuery) {
@@ -726,6 +759,17 @@ function generateMethodBodyStatements(
     } else {
         lines.push("    const fullUrl = url;");
     }
+
+    // Add bearer token if provider is configured
+    lines.push("");
+    lines.push("    // Add bearer token if configured");
+    lines.push("    if (config.bearerTokenProvider) {");
+    lines.push("      const token = await getBearerToken(config.bearerTokenProvider);");
+    lines.push("      if (!init?.headers) {");
+    lines.push("        init = { ...init, headers: {} };");
+    lines.push("      }");
+    lines.push('      (init.headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;');
+    lines.push("    }");
 
     // Build fetch options
     lines.push("");

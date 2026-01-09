@@ -725,4 +725,88 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).not.toContain("// Validate request body");
         expect(api).not.toContain("// Validate response body");
     });
+
+    it("should include bearerTokenProvider in ApiConfig", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users": {
+                    get: {
+                        operationId: "getUsers",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec);
+
+        expect(api).toContain("export interface ApiConfig");
+        expect(api).toContain("bearerTokenProvider?:");
+        expect(api).toContain("() => Promise<{ token: string; expiresAt: number }>");
+    });
+
+    it("should generate token cache and getBearerToken helper", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users": {
+                    get: {
+                        operationId: "getUsers",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec);
+
+        expect(api).toContain("let cachedToken: { token: string; expiresAt: number } | null = null;");
+        expect(api).toContain("async function getBearerToken(");
+        expect(api).toContain("provider: () => Promise<{ token: string; expiresAt: number }>");
+        expect(api).toContain("if (cachedToken && cachedToken.expiresAt > now)");
+        expect(api).toContain("cachedToken = await provider();");
+    });
+
+    it("should use bearerTokenProvider in generated methods", () => {
+        const spec: OpenApiSpec = {
+            openapi: "3.0.0",
+            paths: {
+                "/users": {
+                    get: {
+                        operationId: "getUsers",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+            components: {
+                schemas: {},
+            },
+        };
+
+        const { api } = generateClientFromOpenApi(spec);
+
+        expect(api).toContain("// Add bearer token if configured");
+        expect(api).toContain("if (config.bearerTokenProvider)");
+        expect(api).toContain("const token = await getBearerToken(config.bearerTokenProvider);");
+        expect(api).toContain('(init.headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;');
+    });
 });
