@@ -247,6 +247,11 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
             { name: "baseUrl", type: "string", hasQuestionToken: true },
             { name: "headers", type: "Record<string, string>", hasQuestionToken: true },
             { name: "fetch", type: "typeof fetch", hasQuestionToken: true },
+            {
+                name: "bearerTokenProvider",
+                type: "() => Promise<string>",
+                hasQuestionToken: true,
+            },
         ],
     });
 
@@ -726,6 +731,17 @@ function generateMethodBodyStatements(
     } else {
         lines.push("    const fullUrl = url;");
     }
+
+    // Add bearer token if provider is configured
+    lines.push("");
+    lines.push("    // Add bearer token if configured");
+    lines.push("    if (config.bearerTokenProvider) {");
+    lines.push("      const token = await config.bearerTokenProvider();");
+    lines.push("      if (!init?.headers) {");
+    lines.push("        init = { ...init, headers: {} };");
+    lines.push("      }");
+    lines.push('      (init.headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;');
+    lines.push("    }");
 
     // Build fetch options
     lines.push("");

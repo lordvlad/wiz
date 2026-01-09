@@ -8,6 +8,7 @@ The `wiz client` command generates fully typed TypeScript clients from OpenAPI s
 - ✅ **Typed API Methods**: Fully typed methods with path parameters, query parameters, and request bodies
 - ✅ **Runtime Fetch**: Uses the global `fetch` API for maximum compatibility
 - ✅ **Configuration**: Configurable base URL and global headers
+- ✅ **Bearer Token Provider**: Built-in OAuth/JWT token management with automatic refresh and caching
 - ✅ **Smart Naming**: Uses `operationId` or falls back to `methodPath` pattern
 - ✅ **Duplicate Detection**: Throws errors on duplicate method names
 - ✅ **Fetch Overrides**: Deep merge support for per-request fetch init options
@@ -195,6 +196,7 @@ export interface ApiConfig {
   baseUrl?: string;
   headers?: Record<string, string>;
   fetch?: typeof fetch;
+  bearerTokenProvider?: () => Promise<string>;
 }
 
 export function setApiConfig(config: ApiConfig): void;
@@ -268,18 +270,77 @@ setApiConfig({
 });
 ```
 
+#### Bearer Token Provider (OAuth/JWT)
+
+For dynamic token management, use the `bearerTokenProvider` option. This is ideal for OAuth flows, JWT tokens, or any authentication that requires bearer tokens. The provider is responsible for token caching and refresh logic:
+
+```typescript
+setApiConfig({
+    baseUrl: "https://api.example.com/v1",
+    bearerTokenProvider: async () => {
+        // Fetch or refresh your token
+        // You're responsible for caching and expiry handling
+        const token = await getAccessToken();
+        return token;
+    },
+});
+```
+
+The client automatically adds the token as an `Authorization: Bearer <token>` header to all requests.
+
+**Benefits over custom fetch:**
+
+- Simpler API - no need to manually manage the fetch lifecycle
+- Automatic header injection
+- Works seamlessly with all other configuration options
+
+**Example with OAuth refresh flow and caching:**
+
+```typescript
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
+
+setApiConfig({
+    baseUrl: "https://api.example.com/v1",
+    bearerTokenProvider: async () => {
+        // Return cached token if still valid
+        if (cachedToken && Date.now() < tokenExpiry - 30000) {
+            return cachedToken;
+        }
+
+        // Fetch new token
+        const response = await fetch("https://auth.example.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                grant_type: "refresh_token",
+                refresh_token: loadRefreshToken(),
+            }),
+        });
+
+        const data = await response.json();
+        cachedToken = data.access_token;
+        tokenExpiry = Date.now() + data.expires_in * 1000;
+
+        return cachedToken;
+    },
+});
+```
+
 #### Custom Fetch Implementation
 
 You can provide a custom `fetch` implementation to intercept and customize all API requests. This is useful for:
 
-- Adding authentication tokens dynamically
 - Implementing request/response logging
 - Adding retry logic
 - Using a custom HTTP client (e.g., undici, node-fetch)
 - Mocking requests in tests
+- Complex authentication scenarios (for simple bearer token auth, use `bearerTokenProvider` instead)
+
+**Note:** For bearer token authentication with automatic refresh, use the `bearerTokenProvider` option instead (see above). It's simpler and handles caching automatically.
 
 ```typescript
-// Example: Custom fetch with token refresh
+// Example: Custom fetch with token refresh (prefer bearerTokenProvider for this use case)
 let cachedToken: string | null = null;
 
 const customFetch: typeof fetch = async (input, init) => {
