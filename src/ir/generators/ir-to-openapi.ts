@@ -3,9 +3,18 @@
  *
  * Converts IR types to OpenAPI 3.0/3.1 schema format.
  */
-
 import type { IRSchema, IRType, IRTypeDefinition } from "../types";
-import { isArray, isEnum, isIntersection, isLiteral, isMap, isObject, isPrimitive, isReference, isUnion } from "../utils";
+import {
+    isArray,
+    isEnum,
+    isIntersection,
+    isLiteral,
+    isMap,
+    isObject,
+    isPrimitive,
+    isReference,
+    isUnion,
+} from "../utils";
 
 /**
  * Options for IR to OpenAPI conversion
@@ -20,10 +29,7 @@ export interface IrToOpenApiOptions {
 /**
  * Convert IR schema to OpenAPI components.schemas
  */
-export function irToOpenApiSchemas(
-    schema: IRSchema,
-    options: IrToOpenApiOptions = {},
-): Record<string, any> {
+export function irToOpenApiSchemas(schema: IRSchema, options: IrToOpenApiOptions = {}): Record<string, any> {
     const version = options.version || "3.0";
     const unionStyle = options.unionStyle || "oneOf";
     const schemas: Record<string, any> = {};
@@ -55,10 +61,7 @@ interface ConversionContext {
 /**
  * Convert an IR type to OpenAPI schema
  */
-export function irTypeToOpenApiSchema(
-    type: IRType,
-    context: Partial<ConversionContext> = {},
-): any {
+export function irTypeToOpenApiSchema(type: IRType, context: Partial<ConversionContext> = {}): any {
     const ctx: ConversionContext = {
         version: context.version || "3.0",
         unionStyle: context.unionStyle || "oneOf",
@@ -93,8 +96,10 @@ function convertType(type: IRType, context: ConversionContext): any {
     if (type.constraints) {
         if (type.constraints.minimum !== undefined) schema.minimum = type.constraints.minimum;
         if (type.constraints.maximum !== undefined) schema.maximum = type.constraints.maximum;
-        if (type.constraints.exclusiveMinimum !== undefined) schema.exclusiveMinimum = type.constraints.exclusiveMinimum;
-        if (type.constraints.exclusiveMaximum !== undefined) schema.exclusiveMaximum = type.constraints.exclusiveMaximum;
+        if (type.constraints.exclusiveMinimum !== undefined)
+            schema.exclusiveMinimum = type.constraints.exclusiveMinimum;
+        if (type.constraints.exclusiveMaximum !== undefined)
+            schema.exclusiveMaximum = type.constraints.exclusiveMaximum;
         if (type.constraints.multipleOf !== undefined) schema.multipleOf = type.constraints.multipleOf;
         if (type.constraints.minLength !== undefined) schema.minLength = type.constraints.minLength;
         if (type.constraints.maxLength !== undefined) schema.maxLength = type.constraints.maxLength;

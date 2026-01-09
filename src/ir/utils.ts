@@ -1,7 +1,6 @@
 /**
  * Utility functions for working with IR types
  */
-
 import type {
     IRArray,
     IRConstraints,
@@ -40,10 +39,7 @@ export function createPrimitive(
 /**
  * Create a literal IR type
  */
-export function createLiteral(
-    value: string | number | boolean | null,
-    metadata?: IRMetadata,
-): IRLiteral {
+export function createLiteral(value: string | number | boolean | null, metadata?: IRMetadata): IRLiteral {
     return {
         kind: "literal",
         value,

@@ -3,18 +3,9 @@
  *
  * Converts ts-morph Type objects to our common IR representation.
  */
-
 import { Node, Symbol as MorphSymbol, Type, TypeFlags } from "ts-morph";
 
-import type {
-    IRConstraints,
-    IREnum,
-    IRFormat,
-    IRMetadata,
-    IRProperty,
-    IRType,
-    IRTypeDefinition,
-} from "../types";
+import type { IRConstraints, IREnum, IRFormat, IRMetadata, IRProperty, IRType, IRTypeDefinition } from "../types";
 import {
     createArray,
     createEnum,
@@ -430,11 +421,7 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
 /**
  * Convert a named type to an IR type definition
  */
-export function namedTypeToIrDefinition(
-    name: string,
-    type: Type,
-    options: TsToIrOptions = {},
-): IRTypeDefinition {
+export function namedTypeToIrDefinition(name: string, type: Type, options: TsToIrOptions = {}): IRTypeDefinition {
     const context: ConversionContext = {
         availableTypes: options.availableTypes || new Set(),
         processingStack: new Set([name]),
