@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { WizPluginOptions } from "../plugin/index";
-import { compile, dedent } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
 
 // Type definition for test cases
 type TestCase = {
@@ -4217,10 +4217,20 @@ describe("openApiSchema plugin", () => {
         `;
 
             if (schema) {
-                const transformed = `var schema = ${schema};`;
                 const actual = await compile(code, pluginOptions);
-                const expected = dedent(transformed);
-                expect(actual).toInclude(expected);
+
+                // Parse the compiled output using ts-morph
+                const ast = parseOutput(actual);
+                const schemaDecl = findVariableDeclaration(ast, "schema");
+                const actualValue = extractValue(schemaDecl.getInitializer());
+
+                // Parse the expected schema (which is JavaScript object literal syntax)
+                const expectedAst = parseOutput(`var expected = ${schema};`);
+                const expectedDecl = findVariableDeclaration(expectedAst, "expected");
+                const expectedValue = extractValue(expectedDecl.getInitializer());
+
+                // Use toMatchObject for structural comparison
+                expect(actualValue).toMatchObject(expectedValue);
                 return;
             }
 

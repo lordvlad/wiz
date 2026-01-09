@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { compile, dedent } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
 
 describe("createProtobufSpec function", () => {
     it("must create protobuf spec without services", async () => {
@@ -19,11 +19,17 @@ describe("createProtobufSpec function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude('syntax: "proto3"');
-        expect(actual).toInclude('package: "user.api"');
-        expect(actual).toInclude("messages:");
-        expect(actual).toInclude("User:");
+        expect(specValue).toMatchObject({
+            syntax: "proto3",
+            package: "user.api",
+            messages: expect.objectContaining({
+                User: expect.any(Object),
+            }),
+        });
     });
 
     it("must create protobuf spec with RPC service", async () => {
@@ -51,11 +57,20 @@ describe("createProtobufSpec function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude("services:");
-        expect(actual).toInclude("UserService:");
-        expect(actual).toInclude("getUser");
-        expect(actual).toInclude("GetUserRequest");
+        expect(specValue.services).toHaveProperty("UserService");
+        expect(specValue.services.UserService.methods).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    name: "getUser",
+                    requestType: "GetUserRequest",
+                    responseType: "User",
+                }),
+            ]),
+        );
     });
 
     it("must handle multiple RPC methods", async () => {

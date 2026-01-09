@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { compile, dedent } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
 
 describe("createOpenApi function", () => {
     it("must create full OpenAPI spec without config", async () => {
@@ -16,22 +16,24 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        // Check that it includes openapi version (JS object notation)
-        expect(actual).toInclude('openapi: "3.0.3"');
-
-        // Check that it includes default info
-        expect(actual).toInclude("info:");
-        expect(actual).toInclude('title: "API"');
-        expect(actual).toInclude('version: "1.0.0"');
-
-        // Check that it includes components with schemas
-        expect(actual).toInclude("components:");
-        expect(actual).toInclude("schemas:");
-        expect(actual).toInclude("User:");
-
-        // Check that it includes paths
-        expect(actual).toInclude("paths: {}");
+        // Validate structure using AST
+        expect(specValue).toMatchObject({
+            openapi: "3.0.3",
+            info: {
+                title: "API",
+                version: "1.0.0",
+            },
+            components: {
+                schemas: expect.objectContaining({
+                    User: expect.any(Object),
+                }),
+            },
+            paths: expect.any(Object),
+        });
     });
 
     it("must create full OpenAPI spec with custom info", async () => {
@@ -53,10 +55,15 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude('title: "My API"');
-        expect(actual).toInclude('description: "A great API"');
-        expect(actual).toInclude('version: "2.0.0"');
+        expect(specValue.info).toMatchObject({
+            title: "My API",
+            description: "A great API",
+            version: "2.0.0",
+        });
     });
 
     it("must create full OpenAPI spec with servers", async () => {
@@ -87,12 +94,20 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude("servers:");
-        expect(actual).toInclude('url: "https://api.example.com/v1"');
-        expect(actual).toInclude('description: "Production server"');
-        expect(actual).toInclude('url: "https://staging.example.com/v1"');
-        expect(actual).toInclude('description: "Staging server"');
+        expect(specValue.servers).toEqual([
+            {
+                url: "https://api.example.com/v1",
+                description: "Production server",
+            },
+            {
+                url: "https://staging.example.com/v1",
+                description: "Staging server",
+            },
+        ]);
     });
 
     it("must create full OpenAPI spec with tags", async () => {
@@ -123,12 +138,20 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude("tags:");
-        expect(actual).toInclude('name: "users"');
-        expect(actual).toInclude('description: "User management"');
-        expect(actual).toInclude('name: "posts"');
-        expect(actual).toInclude('description: "Post management"');
+        expect(specValue.tags).toEqual([
+            {
+                name: "users",
+                description: "User management",
+            },
+            {
+                name: "posts",
+                description: "Post management",
+            },
+        ]);
     });
 
     it("must create full OpenAPI spec with multiple types", async () => {
@@ -155,10 +178,13 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude("User:");
-        expect(actual).toInclude("Post:");
-        expect(actual).toInclude("authorId:");
+        expect(specValue.components.schemas).toHaveProperty("User");
+        expect(specValue.components.schemas).toHaveProperty("Post");
+        expect(specValue.components.schemas.Post.properties).toHaveProperty("authorId");
     });
 
     it("must create OpenAPI 3.1 spec", async () => {
@@ -179,8 +205,11 @@ describe("createOpenApi function", () => {
         `;
 
         const actual = await compile(code);
+        const ast = parseOutput(actual);
+        const specDecl = findVariableDeclaration(ast, "spec");
+        const specValue = extractValue(specDecl.getInitializer());
 
-        expect(actual).toInclude('openapi: "3.1.0"');
+        expect(specValue.openapi).toBe("3.1.0");
     });
 
     it("must create full OpenAPI spec with security", async () => {
