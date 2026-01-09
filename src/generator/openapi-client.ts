@@ -287,7 +287,8 @@ function generateConfigInterface(sourceFile: SourceFile, options: ClientGenerato
         returnType: "Promise<string>",
         statements: (writer: CodeBlockWriter) => {
             writer.writeLine("const now = Date.now();");
-            writer.writeLine("if (cachedToken && cachedToken.expiresAt > now) {");
+            writer.writeLine("const buffer = 30000; // 30 seconds buffer to avoid race conditions");
+            writer.writeLine("if (cachedToken && cachedToken.expiresAt > now + buffer) {");
             writer.writeLine("  return cachedToken.token;");
             writer.writeLine("}");
             writer.writeLine("cachedToken = await provider();");

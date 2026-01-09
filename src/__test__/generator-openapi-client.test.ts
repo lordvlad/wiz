@@ -778,7 +778,8 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("let cachedToken: { token: string; expiresAt: number } | null = null;");
         expect(api).toContain("async function getBearerToken(");
         expect(api).toContain("provider: () => Promise<{ token: string; expiresAt: number }>");
-        expect(api).toContain("if (cachedToken && cachedToken.expiresAt > now)");
+        expect(api).toContain("const buffer = 30000; // 30 seconds buffer to avoid race conditions");
+        expect(api).toContain("if (cachedToken && cachedToken.expiresAt > now + buffer)");
         expect(api).toContain("cachedToken = await provider();");
     });
 
