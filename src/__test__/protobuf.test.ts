@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { compile, dedent } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
 
 describe("createProtobufModel function", () => {
     it("must create protobuf model with single type", async () => {
