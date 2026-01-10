@@ -37,9 +37,10 @@ export function irToJsonStringify(type: IRType, options: JsonGeneratorOptions = 
 
     const serializeCode = generateSerializeCode(type, "value", "parts");
 
+    // Generate as IIFE for easier AST replacement in transforms
     if (validate) {
         return `
-function ${functionName}(value, buf) {
+(function(value, buf) {
     const parts = [];
     const errors = [];
     ${serializeCode}
@@ -55,11 +56,11 @@ function ${functionName}(value, buf) {
     } else {
         return parts.join("");
     }
-}
+})
         `.trim();
     } else {
         return `
-function ${functionName}(value, buf) {
+(function(value, buf) {
     const parts = [];
     ${serializeCode}
     
@@ -69,7 +70,7 @@ function ${functionName}(value, buf) {
     } else {
         return parts.join("");
     }
-}
+})
         `.trim();
     }
 }

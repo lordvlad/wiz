@@ -2,6 +2,7 @@ import { CallExpression, SourceFile, SyntaxKind } from "ts-morph";
 
 import type { WizPluginContext } from "../index";
 import { generateSerializerCode, generateParserCode } from "./codegen";
+import { createJsonStringifyViaIr } from "./codegen-ir";
 
 const JSON_FUNCTIONS = ["jsonSerialize", "createJsonSerializer", "jsonParse", "createJsonParser"] as const;
 
@@ -36,13 +37,16 @@ export function transformJson(src: SourceFile, context: WizPluginContext): void 
 
             switch (functionName) {
                 case "createJsonSerializer": {
-                    // createJsonSerializer<T>() - return serializer function
-                    replacementCode = generateSerializerCode(type);
+                    // createJsonSerializer<T>() - return serializer function via IR
+                    replacementCode = createJsonStringifyViaIr(type, {
+                        stringifyName: "anonymous",
+                        validate: true,
+                    });
                     break;
                 }
 
                 case "jsonSerialize": {
-                    // jsonSerialize<T>(value) or jsonSerialize<T>(value, buf)
+                    // jsonSerialize<T>(value) or jsonSerialize<T>(value, buf) via IR
                     const args = callExpr.getArguments();
                     if (args.length === 0) {
                         throw new Error("jsonSerialize requires at least one argument (value)");
@@ -51,7 +55,10 @@ export function transformJson(src: SourceFile, context: WizPluginContext): void 
                     const valueCode = args[0]!.getText();
                     const bufCode = args.length > 1 ? args[1]!.getText() : undefined;
 
-                    const serializerFunc = generateSerializerCode(type);
+                    const serializerFunc = createJsonStringifyViaIr(type, {
+                        stringifyName: "anonymous",
+                        validate: true,
+                    });
                     if (bufCode) {
                         replacementCode = `${serializerFunc}(${valueCode}, ${bufCode})`;
                     } else {
