@@ -24,6 +24,8 @@ export interface ValidatorOptions {
     functionName?: string;
     /** Whether to throw on validation failure or return errors */
     throwOnError?: boolean;
+    /** Output style: 'function' for named function, 'iife' for IIFE, 'errors' for error array only */
+    outputStyle?: "function" | "iife" | "errors";
 }
 
 /**
@@ -32,9 +34,46 @@ export interface ValidatorOptions {
 export function irToValidator(type: IRType, options: ValidatorOptions = {}): string {
     const functionName = options.functionName || "validate";
     const throwOnError = options.throwOnError ?? true;
+    const outputStyle = options.outputStyle || "function";
 
     const validationCode = generateValidationCode(type, "value", "");
 
+    // Base validator that returns errors array
+    if (outputStyle === "errors") {
+        return `
+(function(value) {
+    const errors = [];
+    ${validationCode}
+    return errors;
+})
+        `.trim();
+    }
+
+    // IIFE style
+    if (outputStyle === "iife") {
+        if (throwOnError) {
+            return `
+(function(value) {
+    const errors = [];
+    ${validationCode}
+    if (errors.length > 0) {
+        throw new TypeError("Validation failed: " + errors.map(e => e.path + ": " + e.message).join(", "));
+    }
+    return value;
+})
+            `.trim();
+        } else {
+            return `
+(function(value) {
+    const errors = [];
+    ${validationCode}
+    return { valid: errors.length === 0, errors, value };
+})
+            `.trim();
+        }
+    }
+
+    // Named function style
     if (throwOnError) {
         return `
 function ${functionName}(value) {

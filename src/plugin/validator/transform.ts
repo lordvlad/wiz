@@ -1,7 +1,12 @@
 import { CallExpression, SourceFile, SyntaxKind } from "ts-morph";
 
 import type { WizPluginContext } from "../index";
-import { generateValidatorCode, generateIsCode, generateAssertCode, generateValidateCode } from "./codegen";
+import {
+    generateValidatorCodeViaIr,
+    generateIsCodeViaIr,
+    generateAssertCodeViaIr,
+    generateValidateCodeViaIr,
+} from "./codegen-ir";
 
 const VALIDATOR_FUNCTIONS = ["createValidator", "validate", "assert", "createAssert", "createIs", "is"] as const;
 
@@ -36,7 +41,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
 
             switch (functionName) {
                 case "createValidator":
-                    replacementCode = generateValidatorCode(type);
+                    replacementCode = generateValidatorCodeViaIr(type);
                     break;
 
                 case "validate":
@@ -46,7 +51,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                         throw new Error("validate requires a value argument");
                     }
                     const validateValueCode = validateArg.getText();
-                    replacementCode = `${generateValidateCode(type)}(${validateValueCode})`;
+                    replacementCode = `${generateValidateCodeViaIr(type)}(${validateValueCode})`;
                     break;
 
                 case "assert":
@@ -56,7 +61,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                         throw new Error("assert requires a value argument");
                     }
                     const assertValueCode = assertArg.getText();
-                    replacementCode = `${generateAssertCode(type, false)}(${assertValueCode})`;
+                    replacementCode = `${generateAssertCodeViaIr(type, false)}(${assertValueCode})`;
                     break;
 
                 case "createAssert":
@@ -64,15 +69,15 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                     const errorFactoryArg = callExpr.getArguments()[0];
                     if (errorFactoryArg) {
                         const errorFactoryCode = errorFactoryArg.getText();
-                        replacementCode = `${generateAssertCode(type, true)}(${errorFactoryCode})`;
+                        replacementCode = `${generateAssertCodeViaIr(type, true)}(${errorFactoryCode})`;
                     } else {
                         // No error factory - return a function that uses default error
-                        replacementCode = generateAssertCode(type, false);
+                        replacementCode = generateAssertCodeViaIr(type, false);
                     }
                     break;
 
                 case "createIs":
-                    replacementCode = generateIsCode(type);
+                    replacementCode = generateIsCodeViaIr(type);
                     break;
 
                 case "is":
@@ -82,7 +87,7 @@ export function transformValidator(src: SourceFile, context: WizPluginContext): 
                         throw new Error("is requires a value argument");
                     }
                     const isValueCode = isArg.getText();
-                    replacementCode = `${generateIsCode(type)}(${isValueCode})`;
+                    replacementCode = `${generateIsCodeViaIr(type)}(${isValueCode})`;
                     break;
 
                 default:

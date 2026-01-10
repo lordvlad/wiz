@@ -34,10 +34,7 @@ return createUnion(simplified, metadata);
 
 ```typescript
 // Import helper functions
-import {
-    unionContainsNull,
-    removeNullFromUnion,
-} from "../utils";
+import { unionContainsNull, removeNullFromUnion } from "../utils";
 
 // Added logic to detect T | null patterns
 const hasNull = unionContainsNull(type.types);
@@ -56,38 +53,45 @@ if (hasNull && nonNullTypes.length === 1) {
 ### Test Results
 
 **JSON Tests:** ✅ 23/23 passing (100%)
+
 - All serialization tests
 - All validation tests
 - All buffer tests
 - **Nullable union test now passing!**
 
 **OpenAPI Tests:** ✅ 117/117 passing (100%)
+
 - All nullable property tests
 - All union tests
 - Both OpenAPI 3.0 and 3.1 tests
 
 **IR Integration Tests:** ✅ 8/8 passing (100%)
+
 - All converter tests
 - All generator tests
 
 ### Architecture Benefits
 
 **1. Source of Truth**
+
 - IR now accurately represents source TypeScript types
 - No information loss during conversion
 - Predictable behavior
 
 **2. Separation of Concerns**
+
 - TypeScript converter: faithful representation
 - OpenAPI generator: format-specific optimization
 - JSON generator: gets full type information
 
 **3. Maintainability**
+
 - Clear responsibility boundaries
 - Easy to understand and debug
 - Less "magic" behavior
 
 **4. Extensibility**
+
 - New generators can handle nullable unions their own way
 - No hidden assumptions baked into IR
 - Future formats will work correctly
@@ -95,6 +99,7 @@ if (hasNull && nonNullTypes.length === 1) {
 ### Comparison: Before vs After
 
 #### Before (Approach #1 - Simplification)
+
 ```typescript
 // Source
 type Data = { value: string | null }
@@ -110,6 +115,7 @@ type Data = { value: string | null }
 ```
 
 #### After (Approach #2 - Full Union)
+
 ```typescript
 // Source
 type Data = { value: string | null }
@@ -144,6 +150,7 @@ Union serialization with both types  // ✅ Handles null correctly
 ### Future Work
 
 This architecture makes it easy to:
+
 - Add nullable handling for other generators (Protobuf, GraphQL, etc.)
 - Support more complex union patterns
 - Add union validation strategies
@@ -152,6 +159,7 @@ This architecture makes it easy to:
 ### Conclusion
 
 **Approach #2 is the right choice:**
+
 - ✅ All tests passing
 - ✅ Clean architecture
 - ✅ No information loss
