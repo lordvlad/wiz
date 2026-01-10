@@ -314,17 +314,8 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             return simplified[0]!;
         }
 
-        // Check for nullable union
-        const hasNull = unionContainsNull(simplified);
-        let unionTypes = hasNull ? removeNullFromUnion(simplified) : simplified;
-
-        // If after removing null we have one type, handle it specially
-        if (hasNull && unionTypes.length === 1) {
-            const singleType = unionTypes[0]!;
-            // For OpenAPI we'll add nullable later based on version
-            return singleType;
-        }
-
+        // Keep full union information including null
+        // OpenAPI generator will handle nullable unions specially
         return createUnion(simplified, metadata);
     }
 

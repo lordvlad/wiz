@@ -14,6 +14,8 @@ import {
     isPrimitive,
     isReference,
     isUnion,
+    unionContainsNull,
+    removeNullFromUnion,
 } from "../utils";
 
 /**
@@ -212,16 +214,47 @@ function convertType(type: IRType, context: ConversionContext): any {
             ...schema,
         };
     } else if (isUnion(type)) {
-        const unionKey = context.unionStyle;
-        schema[unionKey] = type.types.map((t) => convertType(t, { ...context, title: undefined }));
+        // Check for nullable union (e.g., string | null)
+        const hasNull = unionContainsNull(type.types);
+        const nonNullTypes = removeNullFromUnion(type.types);
 
-        // Handle discriminator
-        if (type.discriminator) {
-            schema.discriminator = {
-                propertyName: type.discriminator.propertyName,
-            };
-            if (type.discriminator.mapping) {
-                schema.discriminator.mapping = type.discriminator.mapping;
+        // If union is just T | null, convert to nullable T
+        if (hasNull && nonNullTypes.length === 1) {
+            const baseType = nonNullTypes[0]!;
+            const baseSchema = convertType(baseType, { ...context, title: undefined });
+
+            if (context.version === "3.1") {
+                // OpenAPI 3.1: use type array
+                if (baseSchema.type) {
+                    schema.type = [baseSchema.type, "null"];
+                } else {
+                    // If base schema doesn't have a simple type, use anyOf
+                    schema.anyOf = [baseSchema, { type: "null" }];
+                }
+                // Copy other properties from base schema
+                Object.keys(baseSchema).forEach((key) => {
+                    if (key !== "type" && key !== "anyOf") {
+                        schema[key] = baseSchema[key];
+                    }
+                });
+            } else {
+                // OpenAPI 3.0: use nullable property
+                Object.assign(schema, baseSchema);
+                schema.nullable = true;
+            }
+        } else {
+            // Regular union or complex nullable union
+            const unionKey = context.unionStyle;
+            schema[unionKey] = type.types.map((t) => convertType(t, { ...context, title: undefined }));
+
+            // Handle discriminator
+            if (type.discriminator) {
+                schema.discriminator = {
+                    propertyName: type.discriminator.propertyName,
+                };
+                if (type.discriminator.mapping) {
+                    schema.discriminator.mapping = type.discriminator.mapping;
+                }
             }
         }
     } else if (isIntersection(type)) {
