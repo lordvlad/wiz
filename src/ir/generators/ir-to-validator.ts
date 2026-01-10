@@ -3,7 +3,7 @@
  *
  * Generates optimized validator functions from IR types.
  */
-import type { IRConstraints, IRType } from "../types";
+import type { IRConstraints, IRFormat, IRType } from "../types";
 import {
     isArray,
     isEnum,
@@ -103,7 +103,7 @@ function generateValidationCode(type: IRType, varName: string, path: string): st
     const pathExpr = path ? `"${path}"` : '""';
 
     if (isPrimitive(type)) {
-        return generatePrimitiveValidation(type.primitiveType, varName, pathExpr, type.constraints);
+        return generatePrimitiveValidation(type.primitiveType, varName, pathExpr, type.constraints, type.format);
     }
 
     if (isLiteral(type)) {
@@ -270,6 +270,7 @@ function generatePrimitiveValidation(
     varName: string,
     pathExpr: string,
     constraints?: IRConstraints,
+    format?: { format: string },
 ): string {
     let code = "";
 
@@ -314,9 +315,9 @@ function generatePrimitiveValidation(
         });
     }`;
             }
-            // Add format validation
-            if (constraints?.format) {
-                code += ` else { ${generateFormatValidation(constraints.format, varName, pathExpr)} }`;
+            // Add format validation (from IRFormat)
+            if (format?.format) {
+                code += ` else { ${generateFormatValidation(format.format, varName, pathExpr)} }`;
             }
             break;
 
