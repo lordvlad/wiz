@@ -14,19 +14,71 @@ import {
     isUnion,
 } from "../utils";
 
-export function irToTypeScript(schema: IRSchema): Map<string, string> {
+export interface TypeScriptGeneratorOptions {
+    /**
+     * Whether to include JSDoc comments
+     */
+    includeJSDoc?: boolean;
+    /**
+     * Custom tags to include in JSDoc
+     */
+    customTags?: Record<string, any>;
+}
+
+export function irToTypeScript(schema: IRSchema, options: TypeScriptGeneratorOptions = {}): Map<string, string> {
     const result = new Map<string, string>();
 
     for (const typeDef of schema.types) {
         let code = "";
-        if (typeDef.metadata?.description) {
-            code += `/**\n * ${typeDef.metadata.description}\n */\n`;
+        
+        // Generate JSDoc if metadata exists
+        const jsdoc = generateJSDoc(typeDef, options);
+        if (jsdoc) {
+            code += jsdoc + "\n";
         }
+        
         code += `export type ${typeDef.name} = ${irTypeToTs(typeDef.type, schema)};\n`;
         result.set(typeDef.name, code);
     }
 
     return result;
+}
+
+/**
+ * Generate JSDoc comment from type metadata
+ */
+function generateJSDoc(typeDef: { name: string; type: IRType; metadata?: any }, options: TypeScriptGeneratorOptions): string {
+    const lines: string[] = [];
+    
+    // Add description if available
+    if (typeDef.metadata?.description) {
+        lines.push(typeDef.metadata.description);
+    }
+    
+    // Add custom tags if requested
+    if (options.includeJSDoc && options.customTags) {
+        for (const [key, value] of Object.entries(options.customTags)) {
+            lines.push(`@${key} ${value}`);
+        }
+    }
+    
+    // Add metadata tags if available
+    if (typeDef.metadata?.tags) {
+        for (const tag of typeDef.metadata.tags) {
+            const tagValue = tag.value ? ` ${tag.value}` : "";
+            lines.push(`@${tag.name}${tagValue}`);
+        }
+    }
+    
+    if (lines.length === 0) {
+        return "";
+    }
+    
+    if (lines.length === 1) {
+        return `/** ${lines[0]} */`;
+    }
+    
+    return "/**\n * " + lines.join("\n * ") + "\n */";
 }
 
 function irTypeToTs(type: IRType, schema: IRSchema): string {
