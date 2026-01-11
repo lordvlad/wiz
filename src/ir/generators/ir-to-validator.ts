@@ -542,6 +542,27 @@ if (!/^([^\\x00-\\x20\\x7f"'%<>\\\\^\\\`{|}]|(\\{[+#.\\/;?&=,!@|]?((\\w|%[0-9A-F
     });
 }`.trim();
 
+        case "byte":
+            return `
+if ("string" && !/^[A-Za-z0-9+/]+={0,2}$/.test(${varName})) {
+    errors.push({
+        path: ${pathExpr},
+        error: "expected value to match byte (base64) format",
+        expected: { type: "string", format: "byte" },
+        actual: { type: typeof ${varName}, value: ${varName} }
+    });
+}`.trim();
+        case "regex":
+            return `
+if ((() => {try {new RegExp(${varName}); return false} catch {return true}})()) {
+    errors.push({
+        path: ${pathExpr},
+        error: "expected value to be a valid regex",
+        expected: { type: "string", format: "regex" },
+        actual: { type: typeof ${varName}, value: ${varName} }
+    });
+}`.trim();
+
         default:
             // Unknown format - no validation
             return "";
