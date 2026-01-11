@@ -14,6 +14,29 @@ type OpenApiSchema =
     | OpenAPIV3_1.SchemaObject
     | OpenAPIV3_1.ReferenceObject;
 
+// More permissive OpenApiSpec type to match openapi.ts
+export type OpenApiSpec = {
+    openapi?: string;
+    info?: OpenAPIV3.InfoObject | OpenAPIV3_1.InfoObject;
+    servers?: OpenAPIV3.ServerObject[] | OpenAPIV3_1.ServerObject[];
+    paths?: OpenAPIV3.PathsObject | OpenAPIV3_1.PathsObject;
+    components?: {
+        schemas?: Record<string, any>;
+        securitySchemes?: Record<string, OpenAPIV3.SecuritySchemeObject | OpenAPIV3_1.SecuritySchemeObject>;
+        [key: string]: any;
+    };
+    security?: OpenAPIV3.SecurityRequirementObject[] | OpenAPIV3_1.SecurityRequirementObject[];
+    tags?: OpenAPIV3.TagObject[] | OpenAPIV3_1.TagObject[];
+    externalDocs?: OpenAPIV3.ExternalDocumentationObject | OpenAPIV3_1.ExternalDocumentationObject;
+    [key: string]: any;
+};
+
+export interface GeneratorOptions {
+    includeTags?: boolean;
+    tags?: Record<string, any>;
+    disableWizTags?: boolean;
+}
+
 /**
  * Generate TypeScript models from OpenAPI schemas using IR layer
  */
@@ -28,4 +51,21 @@ export function generateModelsFromOpenApiViaIr(
 
     // Generate TypeScript from IR
     return irToTypeScript(irSchema);
+}
+
+/**
+ * Generate TypeScript models from OpenAPI specification using IR layer
+ * This is a compatibility wrapper matching the signature of generateModelsFromOpenApi
+ */
+export function generateModelsFromOpenApi(spec: OpenApiSpec, options: GeneratorOptions = {}): Map<string, string> {
+    if (!spec.components?.schemas) {
+        return new Map<string, string>();
+    }
+
+    // Detect OpenAPI version from spec
+    const version = spec.openapi?.startsWith("3.1") ? "3.1" : "3.0";
+
+    return generateModelsFromOpenApiViaIr(spec.components.schemas, {
+        version,
+    });
 }

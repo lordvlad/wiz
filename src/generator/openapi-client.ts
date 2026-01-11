@@ -3,7 +3,7 @@
  */
 import { CodeBlockWriter, Project, SourceFile, VariableDeclarationKind } from "ts-morph";
 
-import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi";
+import { generateModelsFromOpenApi, type OpenApiSpec } from "./openapi-ir";
 
 export interface ClientGeneratorOptions {
     includeTags?: boolean;

@@ -58,11 +58,14 @@ function irTypeToTs(type: IRType, schema: IRSchema): string {
         return `${irTypeToTs(type.items, schema)}[]`;
     }
     if (isObject(type)) {
+        if (type.properties.length === 0) {
+            return "{}";
+        }
         const props = type.properties.map((prop) => {
             const optional = !prop.required ? "?" : "";
-            return `${prop.name}${optional}: ${irTypeToTs(prop.type, schema)}`;
+            return `  ${prop.name}${optional}: ${irTypeToTs(prop.type, schema)};`;
         });
-        return `{ ${props.join("; ")} }`;
+        return `{\n${props.join("\n")}\n}`;
     }
     if (isReference(type)) {
         return type.name;
