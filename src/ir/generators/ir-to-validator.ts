@@ -3,7 +3,7 @@
  *
  * Generates optimized validator functions from IR types.
  */
-import type { IRConstraints, IRFormat, IRType } from "../types";
+import type { IRConstraints, IRFormat, IRPrimitiveType, IRType } from "../types";
 import {
     isArray,
     isEnum,
@@ -266,7 +266,7 @@ function generateValidationCode(type: IRType, varName: string, path: string): st
  * Generate validation for primitive types
  */
 function generatePrimitiveValidation(
-    primitiveType: string,
+    primitiveType: IRPrimitiveType,
     varName: string,
     pathExpr: string,
     constraints?: IRConstraints,
@@ -275,6 +275,19 @@ function generatePrimitiveValidation(
     let code = "";
 
     switch (primitiveType) {
+        case "void":
+        case "never":
+            code = `
+    if (typeof ${varName} !== "undefined") {
+        errors.push({
+            path: ${pathExpr},
+            error: "expected type 'undefined' (undefined), saw " + typeof ${varName} + " " + JSON.stringify(${varName}),
+            expected: { type: "undefined" },
+            actual: { type: typeof ${varName}, value: ${varName} }
+        });
+    }`;
+            break;
+
         case "string":
             code = `
     if (typeof ${varName} !== "string") {
