@@ -204,6 +204,217 @@ function extractFormat(node?: Node): IRFormat | undefined {
 }
 
 /**
+ * Check if type is a Wiz format type
+ */
+function isWizFormatType(type: Type): string | null {
+    const alias = type.getAliasSymbol();
+    if (alias) {
+        const name = alias.getName();
+        if (name === "NumFormat" || name === "StrFormat" || name === "BigIntFormat" || name === "DateFormat") {
+            return name;
+        }
+    }
+
+    const symbol = type.getSymbol();
+    if (symbol) {
+        const name = symbol.getName();
+        if (name === "NumFormat" || name === "StrFormat" || name === "BigIntFormat" || name === "DateFormat") {
+            return name;
+        }
+    }
+
+    const text = type.getText();
+    if (text.includes("NumFormat<")) return "NumFormat";
+    if (text.includes("StrFormat<")) return "StrFormat";
+    if (text.includes("BigIntFormat<")) return "BigIntFormat";
+    if (text.includes("DateFormat<")) return "DateFormat";
+
+    return null;
+}
+
+/**
+ * Extract format literal from type arguments
+ */
+function getFormatLiteral(type: Type): string | undefined {
+    // Try alias type arguments first
+    const aliasArgs = type.getAliasTypeArguments?.();
+    if (aliasArgs && aliasArgs.length > 0) {
+        const firstArg = aliasArgs[0];
+        if (firstArg && firstArg.isStringLiteral()) {
+            return firstArg.getLiteralValue() as string;
+        }
+    }
+
+    // Try regular type arguments
+    const typeArgs = type.getTypeArguments?.();
+    if (typeArgs && typeArgs.length > 0) {
+        const firstArg = typeArgs[0];
+        if (firstArg && firstArg.isStringLiteral()) {
+            return firstArg.getLiteralValue() as string;
+        }
+    }
+
+    // Try parsing from type text
+    const text = type.getText();
+    const match = text.match(/<\s*"([^"]+)"/);
+    if (match && match[1]) {
+        return match[1];
+    }
+
+    return undefined;
+}
+
+/**
+ * Detect Wiz format from intersection type
+ * Handles cases like: string & { __str_format: "email" }
+ */
+function detectWizFormatIntersection(type: Type): { formatType: string; formatValue: string } | null {
+    if (!type.isIntersection()) return null;
+
+    const intersectionTypes = type.getIntersectionTypes();
+    if (intersectionTypes.length !== 2) return null;
+
+    let formatType: string | null = null;
+    let formatValue: string | null = null;
+
+    for (const t of intersectionTypes) {
+        if (t.isObject() && !t.isArray()) {
+            const properties = t.getProperties();
+
+            for (const prop of properties) {
+                const propName = prop.getName();
+                if (propName === "__str_format") {
+                    formatType = "StrFormat";
+                } else if (propName === "__num_format") {
+                    formatType = "NumFormat";
+                } else if (propName === "__bigint_format") {
+                    formatType = "BigIntFormat";
+                } else if (propName === "__date_format") {
+                    formatType = "DateFormat";
+                }
+
+                if (formatType) {
+                    const decl = prop.getValueDeclaration();
+                    if (decl) {
+                        const propType = prop.getTypeAtLocation(decl);
+                        if (propType.isStringLiteral()) {
+                            formatValue = propType.getLiteralValue() as string;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (formatType && formatValue) {
+        return { formatType, formatValue };
+    }
+
+    return null;
+}
+
+/**
+ * Convert Wiz format type to IR with appropriate primitive type and format
+ */
+function convertWizFormatType(
+    formatType: string,
+    formatValue: string,
+    metadata?: IRMetadata,
+    constraints?: IRConstraints,
+): IRType {
+    const extensions: Record<string, unknown> = {
+        "x-wiz-format": `${formatType}<"${formatValue}">`,
+    };
+
+    if (formatType === "NumFormat") {
+        // NumFormat maps to different types based on format value
+        if (formatValue === "string") {
+            return {
+                ...createPrimitive("string", metadata, constraints),
+                metadata: { ...metadata, extensions },
+            };
+        }
+        if (formatValue === "int32" || formatValue === "int64") {
+            return {
+                ...createPrimitive("integer", metadata, constraints),
+                format: { format: formatValue },
+                metadata: { ...metadata, extensions },
+            };
+        }
+        if (formatValue === "float" || formatValue === "double") {
+            return {
+                ...createPrimitive("number", metadata, constraints),
+                format: { format: formatValue },
+                metadata: { ...metadata, extensions },
+            };
+        }
+        return {
+            ...createPrimitive("number", metadata, constraints),
+            metadata: { ...metadata, extensions },
+        };
+    }
+
+    if (formatType === "StrFormat") {
+        // All StrFormat types map to string with format
+        return {
+            ...createPrimitive("string", metadata, constraints),
+            format: { format: formatValue },
+            metadata: { ...metadata, extensions },
+        };
+    }
+
+    if (formatType === "BigIntFormat") {
+        // BigIntFormat maps to different types based on format value
+        if (formatValue === "int64") {
+            return {
+                ...createPrimitive("integer", metadata, constraints),
+                format: { format: "int64" },
+                metadata: { ...metadata, extensions },
+            };
+        }
+        if (formatValue === "string") {
+            return {
+                ...createPrimitive("string", metadata, constraints),
+                metadata: { ...metadata, extensions },
+            };
+        }
+        // Default to integer int64
+        return {
+            ...createPrimitive("integer", metadata, constraints),
+            format: { format: "int64" },
+            metadata: { ...metadata, extensions },
+        };
+    }
+
+    if (formatType === "DateFormat") {
+        // DateFormat maps to different types based on format value
+        if (formatValue === "date-time" || formatValue === "date") {
+            return {
+                ...createPrimitive("string", metadata, constraints),
+                format: { format: formatValue },
+                metadata: { ...metadata, extensions },
+            };
+        }
+        if (formatValue === "unix-s" || formatValue === "unix-ms") {
+            return {
+                ...createPrimitive("integer", metadata, constraints),
+                format: { format: "int64" },
+                metadata: { ...metadata, extensions },
+            };
+        }
+        // Default to string date-time
+        return {
+            ...createPrimitive("string", metadata, constraints),
+            format: { format: "date-time" },
+            metadata: { ...metadata, extensions },
+        };
+    }
+
+    // Fallback to number for unknown format types
+    return createPrimitive("number", metadata, constraints);
+}
+
+/**
  * Check if a property should be filtered out
  */
 function shouldFilterProperty(node?: Node): boolean {
@@ -253,6 +464,21 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     // Handle undefined
     if (type.isUndefined()) {
         return createPrimitive("void", metadata, constraints);
+    }
+
+    // Check for Wiz format types (NumFormat, StrFormat, BigIntFormat, DateFormat)
+    const wizFormatType = isWizFormatType(type);
+    if (wizFormatType) {
+        const formatValue = getFormatLiteral(type);
+        if (formatValue) {
+            return convertWizFormatType(wizFormatType, formatValue, metadata, constraints);
+        }
+    }
+
+    // Check for intersection-based format types (e.g., string & { __str_format: "email" })
+    const intersectionFormat = detectWizFormatIntersection(type);
+    if (intersectionFormat) {
+        return convertWizFormatType(intersectionFormat.formatType, intersectionFormat.formatValue, metadata, constraints);
     }
 
     // Handle boolean
