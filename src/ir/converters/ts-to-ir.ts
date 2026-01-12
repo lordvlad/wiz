@@ -598,7 +598,8 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     // Handle object types
     if (type.isObject()) {
         // Check for reference to named type
-        const symbol = type.getSymbol() || type.getAliasSymbol();
+        // Prioritize alias symbol over regular symbol to properly detect type aliases like Dog, Cat, etc.
+        const symbol = type.getAliasSymbol() || type.getSymbol();
         if (symbol) {
             const typeName = symbol.getName();
             if (typeName && typeName !== "__type" && context.availableTypes.has(typeName)) {
