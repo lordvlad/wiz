@@ -385,9 +385,48 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             const propName = prop.getName();
             const isOptional = prop.isOptional();
 
+            // Convert the property type
+            let irType = convertType(propType, context, propDecl);
+
+            // Important: Optional properties (prop?: T) should not include undefined in their type
+            // The optionality is captured by required: false
+            // This is different from (prop: T | undefined) which is a required property with undefined as a valid value
+            if (isOptional && irType.kind === "union") {
+                const union = irType as any;
+                if (unionContainsNull(union.types)) {
+                    // This is (prop?: T | null) - keep the union but remove undefined if present
+                    const filtered = union.types.filter((t: any) => {
+                        if (t.kind === "primitive") {
+                            return t.primitiveType !== "void";
+                        }
+                        return true;
+                    });
+                    if (filtered.length === 1) {
+                        irType = filtered[0];
+                    } else if (filtered.length > 0) {
+                        irType = createUnion(filtered, union.metadata);
+                    }
+                } else {
+                    // Check if union contains undefined (void in IR)
+                    const filtered = union.types.filter((t: any) => {
+                        if (t.kind === "primitive") {
+                            return t.primitiveType !== "void";
+                        }
+                        return true;
+                    });
+                    if (filtered.length === 1) {
+                        // Union was (T | undefined) - reduce to just T since optionality is captured by required: false
+                        irType = filtered[0];
+                    } else if (filtered.length > 0 && filtered.length < union.types.length) {
+                        // Had undefined plus other types - keep the others
+                        irType = createUnion(filtered, union.metadata);
+                    }
+                }
+            }
+
             irProperties.push({
                 name: propName,
-                type: convertType(propType, context, propDecl),
+                type: irType,
                 required: !isOptional,
                 metadata: extractMetadata(propDecl),
                 constraints: extractConstraints(propDecl),
