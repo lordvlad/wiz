@@ -12,13 +12,13 @@ export { parseProtoFile } from "./protobuf";
 
 /**
  * Generate TypeScript models from Protobuf using IR layer
- * 
+ *
  * This function provides a complete implementation using the IR layer,
  * supporting all features including JSDoc comments, wiz tags, and format hints.
  */
 export function generateModelsFromProtobuf(
     protoFile: import("./protobuf").ProtoFile,
-    options: import("./protobuf").GeneratorOptions = {}
+    options: import("./protobuf").GeneratorOptions = {},
 ): Map<string, string> {
     // Convert Protobuf to IR
     const irSchema = protoToIr(protoFile);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { WizPluginOptions } from "../plugin/index";
-import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput, schemaMatches } from "./util";
 
 // Type definition for test cases
 type TestCase = {
@@ -4171,8 +4171,14 @@ describe("openApiSchema plugin", () => {
                 const expectedDecl = findVariableDeclaration(expectedAst, "expected");
                 const expectedValue = extractValue(expectedDecl.getInitializer());
 
-                // Use toMatchObject for structural comparison
-                expect(actualValue).toMatchObject(expectedValue);
+                // Use custom comparison that treats oneOf/anyOf arrays as unordered
+                const result = schemaMatches(actualValue, expectedValue);
+                if (!result.matches) {
+                    console.log("Schema mismatch at path:", result.path);
+                    console.log("Actual:", JSON.stringify(result.actual, null, 2));
+                    console.log("Expected:", JSON.stringify(result.expected, null, 2));
+                }
+                expect(result.matches).toBe(true);
                 return;
             }
 

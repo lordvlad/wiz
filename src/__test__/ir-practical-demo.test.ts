@@ -205,8 +205,12 @@ describe("IR Layer Practical Demonstrations", () => {
         );
 
         expect(openApiSchemas.Status).toBeDefined();
-        expect(openApiSchemas.Status.oneOf).toBeDefined();
-        expect(openApiSchemas.Status.oneOf).toHaveLength(3);
+        // String literal unions are represented as enum in OpenAPI, not oneOf
+        expect(openApiSchemas.Status.enum).toBeDefined();
+        expect(openApiSchemas.Status.enum).toHaveLength(3);
+        expect(openApiSchemas.Status.enum).toContain("active");
+        expect(openApiSchemas.Status.enum).toContain("inactive");
+        expect(openApiSchemas.Status.enum).toContain("pending");
     });
 
     it("should handle array types", () => {

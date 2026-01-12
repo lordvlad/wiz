@@ -45,7 +45,7 @@ interface ConversionContext extends TsToIrOptions {
 /**
  * Extract JSDoc metadata from a node
  */
-function extractMetadata(node?: Node): IRMetadata | undefined {
+export function extractMetadata(node?: Node): IRMetadata | undefined {
     if (!node) return undefined;
 
     const jsDocs = (node as any).getJsDocs?.() ?? [];
@@ -71,6 +71,10 @@ function extractMetadata(node?: Node): IRMetadata | undefined {
             const commentText = typeof tagComment === "string" ? tagComment.trim() : "";
 
             switch (tagName) {
+                case "description":
+                    // @description tag overrides any comment-based description
+                    metadata.description = commentText || undefined;
+                    break;
                 case "deprecated":
                     metadata.deprecated = commentText || true;
                     break;
@@ -426,14 +430,14 @@ function shouldFilterProperty(node?: Node): boolean {
 /**
  * Convert a ts-morph Type to IR
  */
-export function typeToIr(type: Type, options: TsToIrOptions = {}): IRType {
+export function typeToIr(type: Type, options: TsToIrOptions = {}, node?: Node): IRType {
     const context: ConversionContext = {
         availableTypes: options.availableTypes || new Set(),
         processingStack: options.processingStack || new Set(),
         coerceSymbolsToStrings: options.coerceSymbolsToStrings,
     };
 
-    return convertType(type, context);
+    return convertType(type, context, node);
 }
 
 /**
@@ -454,6 +458,24 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         return createPrimitive("void", metadata, constraints);
     }
 
+    // Check for reference to named type alias early
+    // This handles type aliases like `type Status = "a" | "b"` when used in properties
+    // Only create references when not at root level (processingStack is not empty)
+    if (context.processingStack.size > 0) {
+        const aliasSymbol = type.getAliasSymbol();
+        if (aliasSymbol) {
+            const aliasName = aliasSymbol.getName();
+            if (aliasName && context.availableTypes.has(aliasName)) {
+                // Check for circular reference
+                if (context.processingStack.has(aliasName)) {
+                    return createReference(aliasName, undefined, metadata);
+                }
+                // Use reference for named type aliases when nested
+                return createReference(aliasName, undefined, metadata);
+            }
+        }
+    }
+
     // Check for Wiz format types (NumFormat, StrFormat, BigIntFormat, DateFormat)
     const wizFormatType = isWizFormatType(type);
     if (wizFormatType) {
@@ -466,7 +488,12 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     // Check for intersection-based format types (e.g., string & { __str_format: "email" })
     const intersectionFormat = detectWizFormatIntersection(type);
     if (intersectionFormat) {
-        return convertWizFormatType(intersectionFormat.formatType, intersectionFormat.formatValue, metadata, constraints);
+        return convertWizFormatType(
+            intersectionFormat.formatType,
+            intersectionFormat.formatValue,
+            metadata,
+            constraints,
+        );
     }
 
     // Handle boolean
@@ -509,9 +536,7 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             // This ensures named types in arrays get converted to references
             const arrayContext = {
                 ...context,
-                processingStack: context.processingStack.size === 0 
-                    ? new Set(['__array__']) 
-                    : context.processingStack,
+                processingStack: context.processingStack.size === 0 ? new Set(["__array__"]) : context.processingStack,
             };
             const items = convertType(arrayType, arrayContext);
             const result = createArray(items, metadata, constraints);
@@ -525,125 +550,13 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         // Create a context that indicates we're inside a tuple
         const tupleContext = {
             ...context,
-            processingStack: context.processingStack.size === 0 
-                ? new Set(['__tuple__']) 
-                : context.processingStack,
+            processingStack: context.processingStack.size === 0 ? new Set(["__tuple__"]) : context.processingStack,
         };
         const items = elements.map((el) => convertType(el, tupleContext));
         return createTuple(items, metadata);
     }
 
-    // Handle union
-    if (type.isUnion()) {
-        const types = type.getUnionTypes();
-        
-        // Check if this union contains boolean literals
-        const booleanLiterals = types.filter((t) => t.isBooleanLiteral());
-        const nullTypes = types.filter((t) => t.isNull());
-        const otherTypes = types.filter((t) => !t.isBooleanLiteral() && !t.isNull());
-        
-        // If we have both true and false literals, consolidate to boolean
-        if (booleanLiterals.length === 2) {
-            const booleanPrimitive = createPrimitive("boolean", undefined, undefined);
-            
-            if (nullTypes.length > 0 && otherTypes.length === 0) {
-                // boolean | null -> create union of [boolean, null]
-                // Convert null types to IR primitives
-                const nullIrTypes = nullTypes.map(() => createPrimitive("null", undefined, undefined));
-                const union = createUnion([booleanPrimitive, ...nullIrTypes], metadata);
-                return union;
-            } else if (otherTypes.length === 0 && nullTypes.length === 0) {
-                // Just true | false -> boolean
-                return booleanPrimitive;
-            } else {
-                // true | false | other types -> boolean | other types
-                // Create a context for processing other types
-                const unionContext = {
-                    ...context,
-                    processingStack: context.processingStack.size === 0 
-                        ? new Set(['__union__']) 
-                        : context.processingStack,
-                };
-                
-                // Convert other types and null types to IR
-                const convertedNulls = nullTypes.map(() => createPrimitive("null", undefined, undefined));
-                const convertedOthers = otherTypes.map((t) => convertType(t, unionContext));
-                const allTypes = [booleanPrimitive, ...convertedNulls, ...convertedOthers];
-                const simplified = simplifyUnion(allTypes);
-                
-                if (simplified.length === 1) {
-                    return simplified[0]!;
-                }
-                
-                const discriminator = detectDiscriminator(types, context.availableTypes);
-                const union = createUnion(simplified, metadata);
-                if (discriminator) {
-                    union.discriminator = discriminator;
-                }
-                return union;
-            }
-        }
-        
-        // Create a context that indicates we're inside a union
-        // This ensures named types in the union get converted to references
-        const unionContext = {
-            ...context,
-            processingStack: context.processingStack.size === 0 
-                ? new Set(['__union__']) 
-                : context.processingStack,
-        };
-        
-        const irTypes = types.map((t) => convertType(t, unionContext));
-        const simplified = simplifyUnion(irTypes);
-
-        if (simplified.length === 1) {
-            return simplified[0]!;
-        }
-
-        // Check if all union members are string or number literals (consolidate to enum)
-        const allLiterals = simplified.every((t) => t.kind === "literal");
-        if (allLiterals && simplified.length > 0) {
-            const firstValue = (simplified[0] as any).value;
-            const allSameType = simplified.every((t: any) => typeof t.value === typeof firstValue);
-            
-            if (allSameType && (typeof firstValue === "string" || typeof firstValue === "number")) {
-                // Convert union of literals to enum
-                const members = simplified.map((t: any, index) => ({
-                    name: `value${index}`,
-                    value: t.value,
-                    metadata: t.metadata,
-                }));
-                return createEnum(members, metadata);
-            }
-        }
-
-        // Detect discriminator for unions
-        const discriminator = detectDiscriminator(types, context.availableTypes);
-
-        // Keep full union information including null
-        // OpenAPI generator will handle nullable unions specially
-        const union = createUnion(simplified, metadata);
-        if (discriminator) {
-            union.discriminator = discriminator;
-        }
-        return union;
-    }
-
-    // Handle intersection
-    if (type.isIntersection()) {
-        const types = type.getIntersectionTypes();
-        // Create a context that indicates we're inside an intersection
-        const intersectionContext = {
-            ...context,
-            processingStack: context.processingStack.size === 0 
-                ? new Set(['__intersection__']) 
-                : context.processingStack,
-        };
-        const irTypes = types.map((t) => convertType(t, intersectionContext));
-        return createIntersection(irTypes, metadata);
-    }
-
-    // Handle enum
+    // Handle enum (must be before union, as enum types are also reported as unions)
     if (type.isEnum()) {
         const symbol = type.getSymbol();
         if (symbol) {
@@ -659,7 +572,145 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         }
     }
 
-    // Handle Date type - treat as string with date-time format
+    // Handle union
+    if (type.isUnion()) {
+        const types = type.getUnionTypes();
+
+        // Helper to apply outer metadata/constraints/format to a simplified type
+        // This is needed when a union like T | undefined simplifies to T,
+        // but the JSDoc metadata is on the original union node
+        const applyOuterAnnotations = (irType: IRType): IRType => {
+            // Only apply if the type doesn't already have these annotations
+            if (metadata && !irType.metadata) {
+                irType.metadata = metadata;
+            }
+            if (constraints && !irType.constraints) {
+                irType.constraints = constraints;
+            }
+            if (format && !irType.format) {
+                irType.format = format;
+            }
+            return irType;
+        };
+
+        // Check if this union contains boolean literals
+        const booleanLiterals = types.filter((t) => t.isBooleanLiteral());
+        const nullTypes = types.filter((t) => t.isNull());
+        const otherTypes = types.filter((t) => !t.isBooleanLiteral() && !t.isNull());
+
+        // If we have both true and false literals, consolidate to boolean
+        if (booleanLiterals.length === 2) {
+            const booleanPrimitive = createPrimitive("boolean", undefined, undefined);
+
+            if (nullTypes.length > 0 && otherTypes.length === 0) {
+                // boolean | null -> create union of [boolean, null]
+                // Convert null types to IR primitives
+                const nullIrTypes = nullTypes.map(() => createPrimitive("null", undefined, undefined));
+                const union = createUnion([booleanPrimitive, ...nullIrTypes], metadata);
+                return union;
+            } else if (otherTypes.length === 0 && nullTypes.length === 0) {
+                // Just true | false -> boolean
+                return booleanPrimitive;
+            } else {
+                // true | false | other types -> boolean | other types
+                // Create a context for processing other types
+                const unionContext = {
+                    ...context,
+                    processingStack:
+                        context.processingStack.size === 0 ? new Set(["__union__"]) : context.processingStack,
+                };
+
+                // Convert other types and null types to IR
+                const convertedNulls = nullTypes.map(() => createPrimitive("null", undefined, undefined));
+                const convertedOthers = otherTypes.map((t) => convertType(t, unionContext));
+                const allTypes = [booleanPrimitive, ...convertedNulls, ...convertedOthers];
+                const simplified = simplifyUnion(allTypes);
+
+                if (simplified.length === 1) {
+                    return applyOuterAnnotations(simplified[0]!);
+                }
+
+                const discriminator = detectDiscriminator(types, context.availableTypes);
+                const union = createUnion(simplified, metadata);
+                if (discriminator) {
+                    union.discriminator = discriminator;
+                }
+                return union;
+            }
+        }
+
+        // Create a context that indicates we're inside a union
+        // This ensures named types in the union get converted to references
+        const unionContext = {
+            ...context,
+            processingStack: context.processingStack.size === 0 ? new Set(["__union__"]) : context.processingStack,
+        };
+
+        const irTypes = types.map((t) => convertType(t, unionContext));
+        const simplified = simplifyUnion(irTypes);
+
+        if (simplified.length === 1) {
+            return applyOuterAnnotations(simplified[0]!);
+        }
+
+        // Check if all union members are string or number literals (consolidate to enum)
+        // Support nullable enums: "a" | "b" | null -> enum with nullable
+        const nullIrTypes = simplified.filter((t) => t.kind === "primitive" && (t as any).primitiveType === "null");
+        const nonNullIrTypes = simplified.filter(
+            (t) => !(t.kind === "primitive" && (t as any).primitiveType === "null"),
+        );
+        const allLiterals = nonNullIrTypes.every((t) => t.kind === "literal");
+
+        if (allLiterals && nonNullIrTypes.length > 0) {
+            const firstValue = (nonNullIrTypes[0] as any).value;
+            const allSameType = nonNullIrTypes.every((t: any) => typeof t.value === typeof firstValue);
+
+            if (allSameType && (typeof firstValue === "string" || typeof firstValue === "number")) {
+                // Convert union of literals to enum
+                const members = nonNullIrTypes.map((t: any, index) => ({
+                    name: `value${index}`,
+                    value: t.value,
+                    metadata: t.metadata,
+                }));
+                const enumType = createEnum(members, metadata);
+
+                // If there were null types, wrap in a union with null
+                if (nullIrTypes.length > 0) {
+                    return createUnion([enumType, ...nullIrTypes], metadata);
+                }
+                return enumType;
+            }
+        }
+
+        // Detect discriminator for unions
+        const discriminator = detectDiscriminator(types, context.availableTypes);
+
+        // Keep full union information including null
+        // OpenAPI generator will handle nullable unions specially
+        const union = createUnion(simplified, metadata);
+        if (discriminator) {
+            union.discriminator = discriminator;
+        }
+        // Apply format and constraints from outer node
+        if (format) union.format = format;
+        if (constraints) union.constraints = constraints;
+        return union;
+    }
+
+    // Handle intersection
+    if (type.isIntersection()) {
+        const types = type.getIntersectionTypes();
+        // Create a context that indicates we're inside an intersection
+        const intersectionContext = {
+            ...context,
+            processingStack:
+                context.processingStack.size === 0 ? new Set(["__intersection__"]) : context.processingStack,
+        };
+        const irTypes = types.map((t) => convertType(t, intersectionContext));
+        return createIntersection(irTypes, metadata);
+    }
+
+    // Handle Date type - preserve as IRDate
     if (type.isObject()) {
         const symbol = type.getSymbol();
         if (symbol && symbol.getName() === "Date") {
@@ -671,8 +722,9 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
                 // If it's from lib.*.d.ts, treat it as the built-in Date
                 if (fileName.includes("/lib.") || fileName.includes("\\lib.")) {
                     return {
-                        ...createPrimitive("string", metadata, constraints),
-                        format: { format: "date-time" },
+                        kind: "date" as const,
+                        ...(metadata && Object.keys(metadata).length > 0 ? { metadata } : {}),
+                        ...(constraints && Object.keys(constraints).length > 0 ? { constraints } : {}),
                     };
                 }
             }
@@ -702,20 +754,25 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
 
         // Check for Record<K, V> or index signature
         const indexInfos = type.getStringIndexType();
-        if (indexInfos) {
+        const properties = type.getProperties();
+        const hasExplicitProperties = properties.some((prop) => {
+            const propDecl = prop.getValueDeclaration();
+            return !shouldFilterProperty(propDecl);
+        });
+
+        if (indexInfos && !hasExplicitProperties) {
+            // Pure map type - no explicit properties
             // Create a context that indicates we're inside a map
             // This ensures named types in map values get converted to references
             const mapContext = {
                 ...context,
-                processingStack: context.processingStack.size === 0 
-                    ? new Set(['__map__']) 
-                    : context.processingStack,
+                processingStack: context.processingStack.size === 0 ? new Set(["__map__"]) : context.processingStack,
             };
             const valueType = convertType(indexInfos, mapContext);
             return createMap(createPrimitive("string"), valueType, metadata);
         }
 
-        // Regular object with properties
+        // Regular object with properties (may also have index signature)
         // Add current type to processing stack to prevent infinite recursion for circular references
         const currentTypeName = symbol?.getName();
         const newProcessingStack = new Set(context.processingStack);
@@ -724,7 +781,6 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         }
         const newContext = { ...context, processingStack: newProcessingStack };
 
-        const properties = type.getProperties();
         const irProperties: IRProperty[] = [];
 
         for (const prop of properties) {
@@ -733,9 +789,61 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
                 continue;
             }
 
-            const propType = prop.getTypeAtLocation(propDecl || prop.getDeclarations()[0]!);
+            // Get the property type - prefer declaration for accurate type resolution
+            const propTypeLocation = propDecl || prop.getDeclarations()[0]!;
+            let propType = prop.getTypeAtLocation(propTypeLocation);
             const propName = prop.getName();
             const isOptional = prop.isOptional();
+
+            // DEBUG: Log type resolution
+            const DEBUG_TYPE_RESOLUTION = false;
+            if (DEBUG_TYPE_RESOLUTION) {
+                console.log(`[DEBUG ts-to-ir] Property '${propName}':`);
+                console.log(`  propType.getText(): ${propType.getText()}`);
+                console.log(`  propType.isAny(): ${propType.isAny()}`);
+                console.log(`  propDecl: ${propDecl?.getKindName()}`);
+                if (propDecl && Node.isPropertySignature(propDecl)) {
+                    const typeNode = propDecl.getTypeNode();
+                    console.log(`  typeNode?.getText(): ${typeNode?.getText()}`);
+                    console.log(`  typeNode?.getKind(): ${typeNode?.getKindName()}`);
+                    if (typeNode) {
+                        const declaredType = typeNode.getType();
+                        console.log(`  declaredType.getText(): ${declaredType.getText()}`);
+                        console.log(`  declaredType.isAny(): ${declaredType.isAny()}`);
+                        console.log(`  declaredType.getAliasSymbol(): ${declaredType.getAliasSymbol()?.getName()}`);
+
+                        // Check if it's a TypeReference
+                        if (Node.isTypeReference(typeNode)) {
+                            const typeName = typeNode.getTypeName();
+                            console.log(`  TypeReference typeName: ${typeName.getText()}`);
+                            const typeArgs = typeNode.getTypeArguments();
+                            console.log(`  TypeReference typeArgs: ${typeArgs.map((a) => a.getText()).join(", ")}`);
+                        }
+                    }
+                }
+            }
+
+            // If the type resolved to 'any' for an optional property, try to get the declared type directly
+            // This handles cases where TypeScript resolves optional branded types (like NumFormat<"string">) as 'any'
+            if (propType.isAny() && propDecl && Node.isPropertySignature(propDecl)) {
+                const typeNode = propDecl.getTypeNode();
+                if (typeNode) {
+                    // Try to get the type from the type node - this preserves type aliases
+                    const declaredType = typeNode.getType();
+                    // Even if declaredType.isAny() returns true, check if we can identify the alias
+                    // TypeScript sometimes marks types as 'any' when it can't fully resolve them,
+                    // but still preserves the alias symbol which we can use for Wiz format detection
+                    const aliasSymbol = declaredType.getAliasSymbol();
+                    if (!declaredType.isAny() || aliasSymbol) {
+                        propType = declaredType;
+                        if (DEBUG_TYPE_RESOLUTION) {
+                            console.log(
+                                `  [FIXED] Using declaredType instead (aliasSymbol: ${aliasSymbol?.getName()})`,
+                            );
+                        }
+                    }
+                }
+            }
 
             // Convert the property type using the new context with updated processing stack
             let irType = convertType(propType, newContext, propDecl);
@@ -745,6 +853,11 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             // This is different from (prop: T | undefined) which is a required property with undefined as a valid value
             if (isOptional && irType.kind === "union") {
                 const union = irType as any;
+                // Preserve the union's format/metadata to apply to the unwrapped type
+                const outerFormat = union.format;
+                const outerMetadata = union.metadata;
+                const outerConstraints = union.constraints;
+
                 if (unionContainsNull(union.types)) {
                     // This is (prop?: T | null) - keep the union but remove undefined if present
                     const filtered = union.types.filter((t: any) => {
@@ -755,6 +868,10 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
                     });
                     if (filtered.length === 1) {
                         irType = filtered[0];
+                        // Apply outer annotations from the union
+                        if (outerFormat && !irType.format) irType.format = outerFormat;
+                        if (outerMetadata && !irType.metadata) irType.metadata = outerMetadata;
+                        if (outerConstraints && !irType.constraints) irType.constraints = outerConstraints;
                     } else if (filtered.length > 0) {
                         irType = createUnion(filtered, union.metadata);
                     }
@@ -769,6 +886,10 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
                     if (filtered.length === 1) {
                         // Union was (T | undefined) - reduce to just T since optionality is captured by required: false
                         irType = filtered[0];
+                        // Apply outer annotations from the union
+                        if (outerFormat && !irType.format) irType.format = outerFormat;
+                        if (outerMetadata && !irType.metadata) irType.metadata = outerMetadata;
+                        if (outerConstraints && !irType.constraints) irType.constraints = outerConstraints;
                     } else if (filtered.length > 0 && filtered.length < union.types.length) {
                         // Had undefined plus other types - keep the others
                         irType = createUnion(filtered, union.metadata);
@@ -785,7 +906,41 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             });
         }
 
-        return createObject(irProperties, undefined, metadata);
+        // Determine additionalProperties based on index signature
+        let additionalProperties: IRType | boolean | undefined;
+        if (indexInfos) {
+            // Has index signature along with explicit properties
+            // If the index type is 'any', use true for additionalProperties
+            if (indexInfos.isAny()) {
+                additionalProperties = true;
+            } else {
+                // Convert the index value type
+                const mapContext = {
+                    ...newContext,
+                    processingStack:
+                        newContext.processingStack.size === 0 ? new Set(["__map__"]) : newContext.processingStack,
+                };
+                additionalProperties = convertType(indexInfos, mapContext);
+            }
+        }
+
+        return createObject(irProperties, additionalProperties, metadata);
+    }
+
+    // Handle symbol type
+    const flags = type.getFlags();
+    if (
+        (flags & TypeFlags.ESSymbol) !== 0 ||
+        (flags & TypeFlags.UniqueESSymbol) !== 0 ||
+        ["symbol", "unique symbol"].includes(type.getText())
+    ) {
+        // Symbol type requires coerceSymbolsToStrings option
+        if (context.coerceSymbolsToStrings) {
+            return createPrimitive("string", metadata, constraints);
+        }
+        // For IR, we represent this as a special 'symbol' primitive type
+        // The OpenAPI generator will need to handle this appropriately
+        return createPrimitive("symbol", metadata, constraints);
     }
 
     // Handle any
@@ -813,7 +968,9 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
 export function namedTypeToIrDefinition(name: string, type: Type, options: TsToIrOptions = {}): IRTypeDefinition {
     const context: ConversionContext = {
         availableTypes: options.availableTypes || new Set(),
-        processingStack: new Set([name]),
+        // Start with empty processing stack - root level types should be inlined, not referenced
+        // The type name will be added to the stack when processing nested properties
+        processingStack: new Set<string>(),
         coerceSymbolsToStrings: options.coerceSymbolsToStrings,
     };
 
