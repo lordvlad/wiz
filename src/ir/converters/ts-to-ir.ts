@@ -659,6 +659,26 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         }
     }
 
+    // Handle Date type - treat as string with date-time format
+    if (type.isObject()) {
+        const symbol = type.getSymbol();
+        if (symbol && symbol.getName() === "Date") {
+            // Check if this is the global Date type
+            const declarations = symbol.getDeclarations();
+            if (declarations && declarations.length > 0) {
+                const sourceFile = declarations[0]?.getSourceFile();
+                const fileName = sourceFile?.getFilePath() || "";
+                // If it's from lib.*.d.ts, treat it as the built-in Date
+                if (fileName.includes("/lib.") || fileName.includes("\\lib.")) {
+                    return {
+                        ...createPrimitive("string", metadata, constraints),
+                        format: { format: "date-time" },
+                    };
+                }
+            }
+        }
+    }
+
     // Handle object types
     if (type.isObject()) {
         // Check for reference to named type
