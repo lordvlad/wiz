@@ -20,12 +20,12 @@ import {
     openApiPath,
 } from "../../openApiSchema";
 import {
-    createOpenApiSchema as codegen,
     extractJSDocMetadata,
     extractOpenApiFromJSDoc,
     mergeJSDocIntoSchema,
     type JSDocOpenApiPathMetadata,
 } from "./codegen";
+import { createOpenApiSchemaViaIr as codegen } from "./codegen-ir";
 
 // OpenAPI version constants
 const OPENAPI_VERSION_3_0 = "3.0.3";

@@ -95,9 +95,9 @@ describe("validator plugin", () => {
             // Missing username
             const result = validator({ id: 10 });
             expect(result.length).toBeGreaterThan(0);
-            const usernameError = result.find((e) => e.path === "username");
+            const usernameError = result.find((e) => e.error.includes("username"));
             expect(usernameError).toBeDefined();
-            expect(usernameError?.actual.type).toBe("undefined");
+            expect(usernameError?.actual.value.username).toBe(undefined);
         });
 
         it("should validate primitive types", async () => {

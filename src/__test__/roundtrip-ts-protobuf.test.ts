@@ -39,7 +39,7 @@ export type User = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const regeneratedUserModel = models.get("User");
 
         // Verify roundtrip
@@ -76,7 +76,7 @@ export type User = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const regeneratedModel = models.get("User");
 
         // Verify optional field
@@ -111,7 +111,7 @@ export type Post = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const regeneratedModel = models.get("Post");
 
         // Verify array field
@@ -151,7 +151,7 @@ export type User = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const addressModel = models.get("Address");
         const userModel = models.get("User");
 
@@ -192,7 +192,7 @@ export type Config = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const regeneratedModel = models.get("Config");
 
         // Verify map field
@@ -230,7 +230,7 @@ export type Data = {
             messages: Object.values(protoModel.messages),
         };
 
-        const models = generateModelsFromProtobuf(protoFile);
+        const models = generateModelsFromProtobuf(protoFile as any);
         const regeneratedModel = models.get("Data");
 
         // Verify number roundtrip
