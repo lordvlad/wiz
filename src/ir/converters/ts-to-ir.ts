@@ -537,6 +537,18 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     if (type.isUnion()) {
         const types = type.getUnionTypes();
         
+        // Check if this is a boolean literal union (true | false) -> should become boolean
+        const allBooleanLiterals = types.every((t) => {
+            if (!t.isLiteral()) return false;
+            const value = t.getLiteralValue();
+            return typeof value === "boolean";
+        });
+        
+        if (allBooleanLiterals && types.length === 2) {
+            // Union of true | false -> boolean primitive
+            return createPrimitive("boolean", metadata, constraints);
+        }
+        
         // Create a context that indicates we're inside a union
         // This ensures named types in the union get converted to references
         const unionContext = {
