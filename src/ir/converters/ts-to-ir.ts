@@ -505,7 +505,15 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     if (type.isArray()) {
         const arrayType = type.getArrayElementType();
         if (arrayType) {
-            const items = convertType(arrayType, context);
+            // Create a context that indicates we're inside an array
+            // This ensures named types in arrays get converted to references
+            const arrayContext = {
+                ...context,
+                processingStack: context.processingStack.size === 0 
+                    ? new Set(['__array__']) 
+                    : context.processingStack,
+            };
+            const items = convertType(arrayType, arrayContext);
             const result = createArray(items, metadata, constraints);
             return result;
         }
@@ -514,14 +522,31 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     // Handle tuple
     if (type.isTuple()) {
         const elements = type.getTupleElements();
-        const items = elements.map((el) => convertType(el, context));
+        // Create a context that indicates we're inside a tuple
+        const tupleContext = {
+            ...context,
+            processingStack: context.processingStack.size === 0 
+                ? new Set(['__tuple__']) 
+                : context.processingStack,
+        };
+        const items = elements.map((el) => convertType(el, tupleContext));
         return createTuple(items, metadata);
     }
 
     // Handle union
     if (type.isUnion()) {
         const types = type.getUnionTypes();
-        const irTypes = types.map((t) => convertType(t, context));
+        
+        // Create a context that indicates we're inside a union
+        // This ensures named types in the union get converted to references
+        const unionContext = {
+            ...context,
+            processingStack: context.processingStack.size === 0 
+                ? new Set(['__union__']) 
+                : context.processingStack,
+        };
+        
+        const irTypes = types.map((t) => convertType(t, unionContext));
         const simplified = simplifyUnion(irTypes);
 
         if (simplified.length === 1) {
@@ -543,7 +568,14 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
     // Handle intersection
     if (type.isIntersection()) {
         const types = type.getIntersectionTypes();
-        const irTypes = types.map((t) => convertType(t, context));
+        // Create a context that indicates we're inside an intersection
+        const intersectionContext = {
+            ...context,
+            processingStack: context.processingStack.size === 0 
+                ? new Set(['__intersection__']) 
+                : context.processingStack,
+        };
+        const irTypes = types.map((t) => convertType(t, intersectionContext));
         return createIntersection(irTypes, metadata);
     }
 
