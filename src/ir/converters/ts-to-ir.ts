@@ -322,44 +322,40 @@ function convertWizFormatType(
     metadata?: IRMetadata,
     constraints?: IRConstraints,
 ): IRType {
-    const extensions: Record<string, unknown> = {
-        "x-wiz-format": `${formatType}<"${formatValue}">`,
+    // Merge extensions into metadata
+    const mergedMetadata: IRMetadata = {
+        ...metadata,
+        extensions: {
+            ...metadata?.extensions,
+            "x-wiz-format": `${formatType}<"${formatValue}">`,
+        },
     };
 
     if (formatType === "NumFormat") {
         // NumFormat maps to different types based on format value
         if (formatValue === "string") {
-            return {
-                ...createPrimitive("string", metadata, constraints),
-                metadata: { ...metadata, extensions },
-            };
+            return createPrimitive("string", mergedMetadata, constraints);
         }
         if (formatValue === "int32" || formatValue === "int64") {
             return {
-                ...createPrimitive("integer", metadata, constraints),
+                ...createPrimitive("integer", mergedMetadata, constraints),
                 format: { format: formatValue },
-                metadata: { ...metadata, extensions },
             };
         }
         if (formatValue === "float" || formatValue === "double") {
             return {
-                ...createPrimitive("number", metadata, constraints),
+                ...createPrimitive("number", mergedMetadata, constraints),
                 format: { format: formatValue },
-                metadata: { ...metadata, extensions },
             };
         }
-        return {
-            ...createPrimitive("number", metadata, constraints),
-            metadata: { ...metadata, extensions },
-        };
+        return createPrimitive("number", mergedMetadata, constraints);
     }
 
     if (formatType === "StrFormat") {
         // All StrFormat types map to string with format
         return {
-            ...createPrimitive("string", metadata, constraints),
+            ...createPrimitive("string", mergedMetadata, constraints),
             format: { format: formatValue },
-            metadata: { ...metadata, extensions },
         };
     }
 
@@ -367,22 +363,17 @@ function convertWizFormatType(
         // BigIntFormat maps to different types based on format value
         if (formatValue === "int64") {
             return {
-                ...createPrimitive("integer", metadata, constraints),
+                ...createPrimitive("integer", mergedMetadata, constraints),
                 format: { format: "int64" },
-                metadata: { ...metadata, extensions },
             };
         }
         if (formatValue === "string") {
-            return {
-                ...createPrimitive("string", metadata, constraints),
-                metadata: { ...metadata, extensions },
-            };
+            return createPrimitive("string", mergedMetadata, constraints);
         }
         // Default to integer int64
         return {
-            ...createPrimitive("integer", metadata, constraints),
+            ...createPrimitive("integer", mergedMetadata, constraints),
             format: { format: "int64" },
-            metadata: { ...metadata, extensions },
         };
     }
 
@@ -390,28 +381,25 @@ function convertWizFormatType(
         // DateFormat maps to different types based on format value
         if (formatValue === "date-time" || formatValue === "date") {
             return {
-                ...createPrimitive("string", metadata, constraints),
+                ...createPrimitive("string", mergedMetadata, constraints),
                 format: { format: formatValue },
-                metadata: { ...metadata, extensions },
             };
         }
         if (formatValue === "unix-s" || formatValue === "unix-ms") {
             return {
-                ...createPrimitive("integer", metadata, constraints),
+                ...createPrimitive("integer", mergedMetadata, constraints),
                 format: { format: "int64" },
-                metadata: { ...metadata, extensions },
             };
         }
         // Default to string date-time
         return {
-            ...createPrimitive("string", metadata, constraints),
+            ...createPrimitive("string", mergedMetadata, constraints),
             format: { format: "date-time" },
-            metadata: { ...metadata, extensions },
         };
     }
 
     // Fallback to number for unknown format types
-    return createPrimitive("number", metadata, constraints);
+    return createPrimitive("number", mergedMetadata, constraints);
 }
 
 /**
