@@ -40,7 +40,8 @@ export type IRPrimitiveType =
     | "any"
     | "unknown"
     | "never"
-    | "void";
+    | "void"
+    | "symbol";
 
 /**
  * Format hints for primitive types (e.g., email, date-time, uuid)
@@ -192,6 +193,14 @@ export interface IRMap extends IRTypeBase {
 }
 
 /**
+ * Date type - represents JavaScript Date objects
+ * Kept separate from primitives as it requires special handling
+ */
+export interface IRDate extends IRTypeBase {
+    kind: "date";
+}
+
+/**
  * Enum type
  */
 export interface IREnum extends IRTypeBase {
@@ -230,6 +239,7 @@ export type IRType =
     | IRUnion
     | IRIntersection
     | IRMap
+    | IRDate
     | IREnum
     | IRFunction;
 

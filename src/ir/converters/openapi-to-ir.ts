@@ -153,7 +153,7 @@ export function openApiSchemaToIrType(schema: OpenApiSchema, context: Conversion
     if ("anyOf" in schema && schema.anyOf) {
         const types = schema.anyOf.map((s) => openApiSchemaToIrType(s, context));
         const union = createUnion(types, metadata);
-        
+
         // Handle discriminator (less common in anyOf but still valid)
         if ("discriminator" in schema && schema.discriminator) {
             union.discriminator = {
@@ -161,7 +161,7 @@ export function openApiSchemaToIrType(schema: OpenApiSchema, context: Conversion
                 mapping: schema.discriminator.mapping,
             };
         }
-        
+
         if (constraints && Object.keys(constraints).length > 0) union.constraints = constraints;
         return union;
     }

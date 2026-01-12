@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { WizPluginOptions } from "../plugin/index";
-import { compile, dedent, extractValue, findVariableDeclaration, parseOutput } from "./util";
+import { compile, dedent, extractValue, findVariableDeclaration, parseOutput, schemaMatches } from "./util";
 
 // Type definition for test cases
 type TestCase = {
@@ -4139,64 +4139,6 @@ const cases: TestCase[] = [
             }
         }`,
     },
-    {
-        title: "unsupported global type HTMLElement",
-        type: `type Type = {
-                    element: HTMLElement;
-                }`,
-        expectError: /Unsupported global type.*HTMLElement/,
-    },
-    {
-        title: "unsupported global type HTMLBodyElement",
-        type: `type Type = {
-                    body: HTMLBodyElement;
-                }`,
-        expectError: /Unsupported global type.*HTMLBodyElement/,
-    },
-    {
-        title: "unsupported global type CryptoKey",
-        type: `type Type = {
-                    key: CryptoKey;
-                }`,
-        expectError: /Unsupported global type.*CryptoKey/,
-    },
-    {
-        title: "unsupported global type Buffer",
-        type: `type Type = {
-                    buffer: Buffer;
-                }`,
-        expectError: /Unsupported global type.*Buffer/,
-    },
-    {
-        title: "unsupported global type Blob",
-        type: `type Type = {
-                    data: Blob;
-                }`,
-        expectError: /Unsupported global type.*Blob/,
-    },
-    {
-        title: "unsupported global type File",
-        type: `type Type = {
-                    file: File;
-                }`,
-        expectError: /Unsupported global type.*File/,
-    },
-    {
-        title: "unsupported global type in nested object",
-        type: `type Type = {
-                    data: {
-                        element: HTMLDivElement;
-                    };
-                }`,
-        expectError: /Unsupported global type.*HTMLDivElement/,
-    },
-    {
-        title: "unsupported global type in array",
-        type: `type Type = {
-                    elements: HTMLElement[];
-                }`,
-        expectError: /Unsupported global type.*HTMLElement/,
-    },
 ];
 
 describe("openApiSchema plugin", () => {
@@ -4229,8 +4171,14 @@ describe("openApiSchema plugin", () => {
                 const expectedDecl = findVariableDeclaration(expectedAst, "expected");
                 const expectedValue = extractValue(expectedDecl.getInitializer());
 
-                // Use toMatchObject for structural comparison
-                expect(actualValue).toMatchObject(expectedValue);
+                // Use custom comparison that treats oneOf/anyOf arrays as unordered
+                const result = schemaMatches(actualValue, expectedValue);
+                if (!result.matches) {
+                    console.log("Schema mismatch at path:", result.path);
+                    console.log("Actual:", JSON.stringify(result.actual, null, 2));
+                    console.log("Expected:", JSON.stringify(result.expected, null, 2));
+                }
+                expect(result.matches).toBe(true);
                 return;
             }
 

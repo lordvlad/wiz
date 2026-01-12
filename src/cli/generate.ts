@@ -2,8 +2,8 @@
 import { mkdir, writeFile } from "fs/promises";
 import { resolve, basename } from "path";
 
-import { generateModelsFromOpenApi } from "../generator/openapi";
-import { generateModelsFromProtobuf, parseProtoFile } from "../generator/protobuf";
+import { generateModelsFromOpenApi } from "../generator/openapi-ir";
+import { generateModelsFromProtobuf, parseProtoFile } from "../generator/protobuf-ir";
 import type * as TagTypes from "../tags/index";
 
 interface GenerateOptions {

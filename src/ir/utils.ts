@@ -4,6 +4,7 @@
 import type {
     IRArray,
     IRConstraints,
+    IRDate,
     IREnum,
     IRFunction,
     IRIntersection,
@@ -235,6 +236,13 @@ export function isMap(type: IRType): type is IRMap {
 }
 
 /**
+ * Check if a type is a date
+ */
+export function isDate(type: IRType): type is IRDate {
+    return type.kind === "date";
+}
+
+/**
  * Check if a type is an enum
  */
 export function isEnum(type: IRType): type is IREnum {
@@ -322,8 +330,29 @@ export function unionContainsNull(types: IRType[]): boolean {
 }
 
 /**
+ * Check if a union contains undefined (void)
+ */
+export function unionContainsUndefined(types: IRType[]): boolean {
+    return types.some((t) => isPrimitive(t) && t.primitiveType === "void");
+}
+
+/**
+ * Check if a union contains null or undefined
+ */
+export function unionContainsNullOrUndefined(types: IRType[]): boolean {
+    return types.some((t) => isPrimitive(t) && (t.primitiveType === "null" || t.primitiveType === "void"));
+}
+
+/**
  * Remove null from a union type
  */
 export function removeNullFromUnion(types: IRType[]): IRType[] {
     return types.filter((t) => !(isPrimitive(t) && t.primitiveType === "null"));
+}
+
+/**
+ * Remove null and undefined from a union type
+ */
+export function removeNullAndUndefinedFromUnion(types: IRType[]): IRType[] {
+    return types.filter((t) => !(isPrimitive(t) && (t.primitiveType === "null" || t.primitiveType === "void")));
 }

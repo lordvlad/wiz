@@ -42,7 +42,7 @@ export interface GeneratorOptions {
  */
 export function generateModelsFromOpenApiViaIr(
     schemas: Record<string, OpenApiSchema>,
-    options: { version?: "3.0" | "3.1" } = {},
+    options: { version?: "3.0" | "3.1"; includeJSDoc?: boolean } = {},
 ): Map<string, string> {
     // Convert OpenAPI to IR
     const irSchema = openApiSchemasToIr(schemas, {
@@ -50,7 +50,9 @@ export function generateModelsFromOpenApiViaIr(
     });
 
     // Generate TypeScript from IR
-    return irToTypeScript(irSchema);
+    return irToTypeScript(irSchema, {
+        includeJSDoc: options.includeJSDoc ?? true,
+    });
 }
 
 /**
@@ -67,5 +69,6 @@ export function generateModelsFromOpenApi(spec: OpenApiSpec, options: GeneratorO
 
     return generateModelsFromOpenApiViaIr(spec.components.schemas, {
         version,
+        includeJSDoc: true,
     });
 }

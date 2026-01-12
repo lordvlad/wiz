@@ -6,6 +6,7 @@
 import type { IRSchema, IRType, IRTypeDefinition } from "../types";
 import {
     isArray,
+    isDate,
     isEnum,
     isIntersection,
     isLiteral,
@@ -14,8 +15,8 @@ import {
     isPrimitive,
     isReference,
     isUnion,
-    unionContainsNull,
-    removeNullFromUnion,
+    unionContainsNullOrUndefined,
+    removeNullAndUndefinedFromUnion,
 } from "../utils";
 
 /**
@@ -26,6 +27,8 @@ export interface IrToOpenApiOptions {
     version?: "3.0" | "3.1";
     /** Union style (oneOf or anyOf) */
     unionStyle?: "oneOf" | "anyOf";
+    /** Custom date transformer */
+    transformDate?: () => unknown;
 }
 
 /**
@@ -58,6 +61,7 @@ interface ConversionContext {
     availableTypes: Set<string>;
     title?: string;
     metadata?: any;
+    transformDate?: () => unknown;
 }
 
 /**
@@ -70,6 +74,7 @@ export function irTypeToOpenApiSchema(type: IRType, context: Partial<ConversionC
         availableTypes: context.availableTypes || new Set(),
         title: context.title,
         metadata: context.metadata,
+        transformDate: context.transformDate,
     };
 
     return convertType(type, ctx);
@@ -81,7 +86,20 @@ export function irTypeToOpenApiSchema(type: IRType, context: Partial<ConversionC
 function convertType(type: IRType, context: ConversionContext): any {
     const schema: any = {};
 
-    // Add metadata
+    // Add metadata from context (type definition level)
+    if (context.metadata) {
+        if (context.metadata.description) schema.description = context.metadata.description;
+        if (context.metadata.deprecated) schema.deprecated = true;
+        if (context.metadata.default !== undefined) schema.default = context.metadata.default;
+        if (context.metadata.examples && context.metadata.examples.length > 0) {
+            schema.example = context.metadata.examples[0];
+        }
+        if (context.metadata.extensions) {
+            Object.assign(schema, context.metadata.extensions);
+        }
+    }
+
+    // Add metadata from type (overrides context metadata)
     if (type.metadata) {
         if (type.metadata.description) schema.description = type.metadata.description;
         if (type.metadata.deprecated) schema.deprecated = true;
@@ -152,9 +170,30 @@ function convertType(type: IRType, context: ConversionContext): any {
             case "any":
                 // No type constraint for any
                 break;
+            case "symbol":
+                // Symbol types are not supported in OpenAPI
+                // The ts-to-ir converter should have already converted to string if coerceSymbolsToStrings is enabled
+                throw new Error("Symbol types require 'coerceSymbolsToStrings' to be enabled.");
+            case "unknown":
+            case "never":
+            case "void":
+                // These TypeScript-specific types don't have OpenAPI equivalents
+                // Convert to any (empty schema)
+                break;
             default:
                 schema.type = "object";
         }
+    } else if (isDate(type)) {
+        // Handle Date type - apply custom transformer if provided
+        if (context.transformDate) {
+            const customSchema = context.transformDate();
+            if (customSchema !== undefined) {
+                return { ...schema, ...customSchema };
+            }
+        }
+        // Default: string with date-time format
+        schema.type = "string";
+        schema.format = "date-time";
     } else if (isLiteral(type)) {
         // Literal types become const or enum
         // Special case: null literal should not have enum in OpenAPI 3.0
@@ -226,12 +265,12 @@ function convertType(type: IRType, context: ConversionContext): any {
             ...schema,
         };
     } else if (isUnion(type)) {
-        // Check for nullable union (e.g., string | null)
-        const hasNull = unionContainsNull(type.types);
-        const nonNullTypes = removeNullFromUnion(type.types);
+        // Check for nullable union (e.g., string | null or string | undefined)
+        const hasNullOrUndefined = unionContainsNullOrUndefined(type.types);
+        const nonNullTypes = removeNullAndUndefinedFromUnion(type.types);
 
-        // If union is just T | null, convert to nullable T
-        if (hasNull && nonNullTypes.length === 1) {
+        // If union is just T | null (or T | undefined), convert to nullable T
+        if (hasNullOrUndefined && nonNullTypes.length === 1) {
             const baseType = nonNullTypes[0]!;
             const baseSchema = convertType(baseType, { ...context, title: undefined });
 
@@ -254,8 +293,32 @@ function convertType(type: IRType, context: ConversionContext): any {
                 Object.assign(schema, baseSchema);
                 schema.nullable = true;
             }
+        } else if (hasNullOrUndefined && nonNullTypes.length > 1) {
+            // Nullable union with multiple non-null types (e.g., string | number | null)
+            if (context.version === "3.1") {
+                // OpenAPI 3.1: include null in oneOf
+                const unionKey = context.unionStyle;
+                schema[unionKey] = [...nonNullTypes, { kind: "primitive", primitiveType: "null" } as IRType].map((t) =>
+                    convertType(t, { ...context, title: undefined }),
+                );
+            } else {
+                // OpenAPI 3.0: use nullable: true outside oneOf
+                const unionKey = context.unionStyle;
+                schema[unionKey] = nonNullTypes.map((t) => convertType(t, { ...context, title: undefined }));
+                schema.nullable = true;
+            }
+
+            // Handle discriminator
+            if (type.discriminator) {
+                schema.discriminator = {
+                    propertyName: type.discriminator.propertyName,
+                };
+                if (type.discriminator.mapping) {
+                    schema.discriminator.mapping = type.discriminator.mapping;
+                }
+            }
         } else {
-            // Regular union or complex nullable union
+            // Regular union (no null)
             const unionKey = context.unionStyle;
             schema[unionKey] = type.types.map((t) => convertType(t, { ...context, title: undefined }));
 
@@ -277,6 +340,19 @@ function convertType(type: IRType, context: ConversionContext): any {
     } else if (isEnum(type)) {
         schema.type = typeof type.members[0]?.value === "number" ? "number" : "string";
         schema.enum = type.members.map((m) => m.value);
+
+        // Add x-enumDescriptions if any member has a description
+        const descriptions: Record<string, string> = {};
+        let hasDescriptions = false;
+        for (const member of type.members) {
+            if (member.metadata?.description) {
+                descriptions[String(member.value)] = member.metadata.description;
+                hasDescriptions = true;
+            }
+        }
+        if (hasDescriptions) {
+            schema["x-enumDescriptions"] = descriptions;
+        }
     }
 
     return schema;

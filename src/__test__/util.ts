@@ -119,3 +119,59 @@ export function extractValue(node: any): any {
             return node.getText();
     }
 }
+
+/**
+ * Deep compare two values, treating oneOf/anyOf arrays as unordered sets
+ * Returns { matches: true } or { matches: false, path, actual, expected } for debugging
+ */
+export function schemaMatches(
+    actual: any,
+    expected: any,
+    path: string = "",
+): { matches: true } | { matches: false; path: string; actual: any; expected: any } {
+    if (actual === expected) return { matches: true };
+    if (actual === null || expected === null) {
+        if (actual === expected) return { matches: true };
+        return { matches: false, path, actual, expected };
+    }
+    if (typeof actual !== typeof expected) {
+        return { matches: false, path, actual, expected };
+    }
+
+    if (Array.isArray(expected)) {
+        if (!Array.isArray(actual)) {
+            return { matches: false, path, actual, expected };
+        }
+        if (actual.length !== expected.length) {
+            return { matches: false, path: `${path}.length`, actual: actual.length, expected: expected.length };
+        }
+        // For arrays, check that every expected element has a matching actual element
+        const actualCopy = [...actual];
+        for (let i = 0; i < expected.length; i++) {
+            const exp = expected[i];
+            const idx = actualCopy.findIndex((act) => schemaMatches(act, exp).matches);
+            if (idx === -1) {
+                return { matches: false, path: `${path}[${i}]`, actual: actual, expected: exp };
+            }
+            actualCopy.splice(idx, 1);
+        }
+        return { matches: true };
+    }
+
+    if (typeof expected === "object") {
+        if (typeof actual !== "object") {
+            return { matches: false, path, actual, expected };
+        }
+        // Check all expected keys exist in actual with matching values
+        for (const key of Object.keys(expected)) {
+            if (!(key in actual)) {
+                return { matches: false, path: `${path}.${key}`, actual: undefined, expected: expected[key] };
+            }
+            const result = schemaMatches(actual[key], expected[key], `${path}.${key}`);
+            if (!result.matches) return result;
+        }
+        return { matches: true };
+    }
+
+    return { matches: false, path, actual, expected };
+}

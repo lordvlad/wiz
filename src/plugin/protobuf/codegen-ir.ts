@@ -7,6 +7,7 @@ import type { Type } from "ts-morph";
 
 import { namedTypeToIrDefinition, typeToIr } from "../../ir/converters/ts-to-ir";
 import { irToProtobuf } from "../../ir/generators/ir-to-proto";
+import { irToProtobufSerialize, irToProtobufParse } from "../../ir/generators/ir-to-proto-serialize";
 import type { IRSchema } from "../../ir/types";
 
 /**
@@ -26,4 +27,30 @@ export function createProtobufModelViaIr(
 
     // Generate Protobuf from IR
     return irToProtobuf(irSchema);
+}
+
+/**
+ * Generate Protobuf serializer code from TypeScript type using IR layer
+ */
+export function createProtobufSerializeViaIr(type: Type, options: { availableTypes?: Set<string> } = {}): string {
+    // Convert TS type to IR
+    const irType = typeToIr(type, {
+        availableTypes: options.availableTypes,
+    });
+
+    // Generate Protobuf serializer from IR
+    return irToProtobufSerialize(irType);
+}
+
+/**
+ * Generate Protobuf parser code from TypeScript type using IR layer
+ */
+export function createProtobufParseViaIr(type: Type, options: { availableTypes?: Set<string> } = {}): string {
+    // Convert TS type to IR
+    const irType = typeToIr(type, {
+        availableTypes: options.availableTypes,
+    });
+
+    // Generate Protobuf parser from IR
+    return irToProtobufParse(irType);
 }

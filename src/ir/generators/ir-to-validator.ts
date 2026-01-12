@@ -251,9 +251,11 @@ function generateValidationCode(type: IRType, varName: string, path: string): st
 
     if (isEnum(type)) {
         const enumValues = type.members.map((m) => JSON.stringify(m.value)).join(", ");
+        // Escape the enum values for use in the error message string
+        const enumValuesForMessage = enumValues.replace(/"/g, '\\"');
         return `
     if (![${enumValues}].includes(${varName})) {
-        errors.push({ path: ${pathExpr}, message: "expected one of [${enumValues}], got " + ${varName} });
+        errors.push({ path: ${pathExpr}, message: "expected one of [${enumValuesForMessage}], got " + ${varName} });
     }
         `.trim();
     }

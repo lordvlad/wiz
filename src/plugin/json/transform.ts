@@ -1,8 +1,7 @@
 import { CallExpression, SourceFile, SyntaxKind } from "ts-morph";
 
 import type { WizPluginContext } from "../index";
-import { generateSerializerCode, generateParserCode } from "./codegen";
-import { createJsonStringifyViaIr } from "./codegen-ir";
+import { createJsonStringifyViaIr, createJsonParseViaIr } from "./codegen-ir";
 
 const JSON_FUNCTIONS = ["jsonSerialize", "createJsonSerializer", "jsonParse", "createJsonParser"] as const;
 
@@ -68,20 +67,24 @@ export function transformJson(src: SourceFile, context: WizPluginContext): void 
                 }
 
                 case "createJsonParser": {
-                    // createJsonParser<T>() - return parser function
-                    replacementCode = generateParserCode(type);
+                    // createJsonParser<T>() - return parser function via IR
+                    replacementCode = createJsonParseViaIr(type, {
+                        parseName: "anonymous",
+                    });
                     break;
                 }
 
                 case "jsonParse": {
-                    // jsonParse<T>(src)
+                    // jsonParse<T>(src) via IR
                     const args = callExpr.getArguments();
                     if (args.length === 0) {
                         throw new Error("jsonParse requires one argument (src)");
                     }
 
                     const srcCode = args[0]!.getText();
-                    const parserFunc = generateParserCode(type);
+                    const parserFunc = createJsonParseViaIr(type, {
+                        parseName: "anonymous",
+                    });
                     replacementCode = `${parserFunc}(${srcCode})`;
                     break;
                 }

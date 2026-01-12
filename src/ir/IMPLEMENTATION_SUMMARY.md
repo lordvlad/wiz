@@ -122,13 +122,28 @@ Created backward-compatible wrappers for gradual migration:
 All transformations now go through a single IR:
 
 ```
-TypeScript AST ─┐
-OpenAPI Schema ─┼──> IR ──┬──> OpenAPI Schema
-Protobuf Spec ──┘         ├──> Protobuf Spec
-                          ├──> TypeScript Types
-                          ├──> Validators
-                          └──> JSON Serializers
+                                    ┌──► OpenAPI Schema
+TypeScript AST ─┐                   ├──► Protobuf Spec
+OpenAPI Schema ─┼──► IR ──┬─────────├──► TypeScript Types
+Protobuf Spec ──┘         │         ├──► Validators
+                          │         ├──► JSON Serializers
+                          │         └──► Protobuf Serialize/Parse
+                          │
+                          └──► TypeScript Models ──► OpenAPI Client Generator
+                                                           │
+                                                           ▼
+                                                    API Client Code
+                                                    (fetch methods,
+                                                     React Query hooks)
 ```
+
+The **OpenAPI Client Generator** (`src/generator/openapi-client.ts`) is a consumer of the IR layer:
+
+1. Takes an OpenAPI spec as input
+2. Uses `generateModelsFromOpenApi` (from `openapi-ir.ts`) to generate TypeScript models via IR
+3. Generates the API client code (fetch methods, config, React Query hooks)
+
+The model generation flows through IR, while client method generation is specific to HTTP client code generation.
 
 ### 2. Maintainability
 

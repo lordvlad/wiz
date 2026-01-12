@@ -11,7 +11,7 @@ import {
     rpcCall,
 } from "../../protobuf";
 import { createProtobufModel as codegen, protobufModelToString } from "./codegen";
-import { generateParserCode, generateSerializerCode } from "./serialize-codegen";
+import { createProtobufSerializeViaIr, createProtobufParseViaIr } from "./codegen-ir";
 
 const RPC_METHODS = new Set(["rpc"]);
 
@@ -557,7 +557,7 @@ function transformProtobufSerialize(sourceFile: SourceFile, { log, path }: WizPl
         const valueCode = args[0]!.getText();
         const bufCode = args.length > 1 ? args[1]!.getText() : undefined;
 
-        const serializerFunc = generateSerializerCode(type);
+        const serializerFunc = createProtobufSerializeViaIr(type);
         if (bufCode) {
             call.replaceWithText(`${serializerFunc}(${valueCode}, ${bufCode})`);
         } else {
@@ -580,7 +580,7 @@ function transformProtobufSerialize(sourceFile: SourceFile, { log, path }: WizPl
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
 
-        const serializerFunc = generateSerializerCode(type);
+        const serializerFunc = createProtobufSerializeViaIr(type);
         call.replaceWithText(serializerFunc);
     }
 }
@@ -605,7 +605,7 @@ function transformProtobufParse(sourceFile: SourceFile, { log, path }: WizPlugin
         }
 
         const srcCode = args[0]!.getText();
-        const parserFunc = generateParserCode(type);
+        const parserFunc = createProtobufParseViaIr(type);
         call.replaceWithText(`${parserFunc}(${srcCode})`);
     }
 
@@ -622,7 +622,7 @@ function transformProtobufParse(sourceFile: SourceFile, { log, path }: WizPlugin
         const typeArg = call.getTypeArguments()[0]!;
         const type = typeArg.getType();
 
-        const parserFunc = generateParserCode(type);
+        const parserFunc = createProtobufParseViaIr(type);
         call.replaceWithText(parserFunc);
     }
 }
