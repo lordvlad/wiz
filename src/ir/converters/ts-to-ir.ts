@@ -683,7 +683,15 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         // Check for Record<K, V> or index signature
         const indexInfos = type.getStringIndexType();
         if (indexInfos) {
-            const valueType = convertType(indexInfos, context);
+            // Create a context that indicates we're inside a map
+            // This ensures named types in map values get converted to references
+            const mapContext = {
+                ...context,
+                processingStack: context.processingStack.size === 0 
+                    ? new Set(['__map__']) 
+                    : context.processingStack,
+            };
+            const valueType = convertType(indexInfos, mapContext);
             return createMap(createPrimitive("string"), valueType, metadata);
         }
 
