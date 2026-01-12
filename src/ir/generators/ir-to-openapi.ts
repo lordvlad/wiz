@@ -277,6 +277,19 @@ function convertType(type: IRType, context: ConversionContext): any {
     } else if (isEnum(type)) {
         schema.type = typeof type.members[0]?.value === "number" ? "number" : "string";
         schema.enum = type.members.map((m) => m.value);
+        
+        // Add x-enumDescriptions if any member has a description
+        const descriptions: Record<string, string> = {};
+        let hasDescriptions = false;
+        for (const member of type.members) {
+            if (member.metadata?.description) {
+                descriptions[String(member.value)] = member.metadata.description;
+                hasDescriptions = true;
+            }
+        }
+        if (hasDescriptions) {
+            schema["x-enumDescriptions"] = descriptions;
+        }
     }
 
     return schema;

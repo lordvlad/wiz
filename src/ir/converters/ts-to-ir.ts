@@ -600,6 +600,23 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             return simplified[0]!;
         }
 
+        // Check if all union members are string or number literals (consolidate to enum)
+        const allLiterals = simplified.every((t) => t.kind === "literal");
+        if (allLiterals && simplified.length > 0) {
+            const firstValue = (simplified[0] as any).value;
+            const allSameType = simplified.every((t: any) => typeof t.value === typeof firstValue);
+            
+            if (allSameType && (typeof firstValue === "string" || typeof firstValue === "number")) {
+                // Convert union of literals to enum
+                const members = simplified.map((t: any, index) => ({
+                    name: `value${index}`,
+                    value: t.value,
+                    metadata: t.metadata,
+                }));
+                return createEnum(members, metadata);
+            }
+        }
+
         // Detect discriminator for unions
         const discriminator = detectDiscriminator(types, context.availableTypes);
 
