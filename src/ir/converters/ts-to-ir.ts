@@ -538,18 +538,9 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         const types = type.getUnionTypes();
         
         // Check if this union contains boolean literals
-        const booleanLiterals = types.filter((t) => {
-            if (!t.isLiteral()) return false;
-            const value = t.getLiteralValue();
-            return typeof value === "boolean";
-        });
-        
+        const booleanLiterals = types.filter((t) => t.isBooleanLiteral());
         const nullTypes = types.filter((t) => t.isNull());
-        const otherTypes = types.filter((t) => {
-            if (t.isNull()) return false;
-            if (t.isLiteral() && typeof t.getLiteralValue() === "boolean") return false;
-            return true;
-        });
+        const otherTypes = types.filter((t) => !t.isBooleanLiteral() && !t.isNull());
         
         // If we have both true and false literals, consolidate to boolean
         if (booleanLiterals.length === 2) {
@@ -557,27 +548,28 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             
             if (nullTypes.length > 0 && otherTypes.length === 0) {
                 // boolean | null -> create union of [boolean, null]
-                const nullPrimitive = createPrimitive("null", undefined, undefined);
-                const union = createUnion([booleanPrimitive, nullPrimitive], metadata);
+                // Convert null types to IR primitives
+                const nullIrTypes = nullTypes.map(() => createPrimitive("null", undefined, undefined));
+                const union = createUnion([booleanPrimitive, ...nullIrTypes], metadata);
                 return union;
             } else if (otherTypes.length === 0 && nullTypes.length === 0) {
                 // Just true | false -> boolean
                 return booleanPrimitive;
             } else {
                 // true | false | other types -> boolean | other types
-                // Continue with normal union processing but replace boolean literals with boolean primitive
-                const consolidatedTypes = [booleanPrimitive, ...nullTypes, ...otherTypes];
+                // Create a context for processing other types
                 const unionContext = {
                     ...context,
                     processingStack: context.processingStack.size === 0 
                         ? new Set(['__union__']) 
                         : context.processingStack,
                 };
-                const irTypes = consolidatedTypes.map((t) => {
-                    if (t === booleanPrimitive) return booleanPrimitive;
-                    return convertType(t, unionContext);
-                });
-                const simplified = simplifyUnion(irTypes);
+                
+                // Convert other types and null types to IR
+                const convertedNulls = nullTypes.map(() => createPrimitive("null", undefined, undefined));
+                const convertedOthers = otherTypes.map((t) => convertType(t, unionContext));
+                const allTypes = [booleanPrimitive, ...convertedNulls, ...convertedOthers];
+                const simplified = simplifyUnion(allTypes);
                 
                 if (simplified.length === 1) {
                     return simplified[0]!;
