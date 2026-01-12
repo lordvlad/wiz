@@ -356,11 +356,16 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         if (symbol) {
             const typeName = symbol.getName();
             if (typeName && typeName !== "__type" && context.availableTypes.has(typeName)) {
-                // Check for circular reference
+                // Check for circular reference - always use $ref
                 if (context.processingStack.has(typeName)) {
                     return createReference(typeName, undefined, metadata);
                 }
-                return createReference(typeName, undefined, metadata);
+                // Use $ref for nested types (not at root level)
+                // Root level is indicated by an empty processingStack
+                if (context.processingStack.size > 0) {
+                    return createReference(typeName, undefined, metadata);
+                }
+                // At root level, continue to inline the type definition
             }
         }
 
@@ -372,6 +377,14 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
         }
 
         // Regular object with properties
+        // Add current type to processing stack to prevent infinite recursion for circular references
+        const currentTypeName = symbol?.getName();
+        const newProcessingStack = new Set(context.processingStack);
+        if (currentTypeName && currentTypeName !== "__type" && context.availableTypes.has(currentTypeName)) {
+            newProcessingStack.add(currentTypeName);
+        }
+        const newContext = { ...context, processingStack: newProcessingStack };
+
         const properties = type.getProperties();
         const irProperties: IRProperty[] = [];
 
@@ -385,8 +398,8 @@ function convertType(type: Type, context: ConversionContext, node?: Node): IRTyp
             const propName = prop.getName();
             const isOptional = prop.isOptional();
 
-            // Convert the property type
-            let irType = convertType(propType, context, propDecl);
+            // Convert the property type using the new context with updated processing stack
+            let irType = convertType(propType, newContext, propDecl);
 
             // Important: Optional properties (prop?: T) should not include undefined in their type
             // The optionality is captured by required: false
