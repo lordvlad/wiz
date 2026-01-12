@@ -143,7 +143,9 @@ function convertType(type: IRType, context: ConversionContext): any {
                 if (context.version === "3.1") {
                     schema.type = "null";
                 } else {
-                    schema.type = "string";
+                    // In OpenAPI 3.0, null is not a valid type
+                    // It should only appear in nullable unions
+                    // Standalone null should not happen, but if it does, represent as empty schema
                     schema.nullable = true;
                 }
                 break;
@@ -155,16 +157,26 @@ function convertType(type: IRType, context: ConversionContext): any {
         }
     } else if (isLiteral(type)) {
         // Literal types become const or enum
-        if (context.version === "3.1") {
-            schema.const = type.value;
+        // Special case: null literal should not have enum in OpenAPI 3.0
+        if (type.value === null) {
+            if (context.version === "3.1") {
+                schema.type = "null";
+                schema.const = null;
+            } else {
+                // In OpenAPI 3.0, standalone null should be represented as nullable: true
+                schema.nullable = true;
+            }
         } else {
-            schema.enum = [type.value];
+            if (context.version === "3.1") {
+                schema.const = type.value;
+            } else {
+                schema.enum = [type.value];
+            }
+            // Infer type from value
+            if (typeof type.value === "string") schema.type = "string";
+            else if (typeof type.value === "number") schema.type = "number";
+            else if (typeof type.value === "boolean") schema.type = "boolean";
         }
-        // Infer type from value
-        if (typeof type.value === "string") schema.type = "string";
-        else if (typeof type.value === "number") schema.type = "number";
-        else if (typeof type.value === "boolean") schema.type = "boolean";
-        else if (type.value === null) schema.type = "null";
     } else if (isArray(type)) {
         schema.type = "array";
         schema.items = convertType(type.items, context);
