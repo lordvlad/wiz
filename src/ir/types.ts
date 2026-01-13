@@ -255,6 +255,22 @@ export interface IRTypeDefinition {
 }
 
 /**
+ * Response definition for an operation
+ */
+export interface IRResponse {
+    /** HTTP status code */
+    status: number | string;
+    /** Response body type */
+    type?: IRType;
+    /** Content type (e.g., "application/json") */
+    contentType?: string;
+    /** Response description */
+    description?: string;
+    /** Response headers */
+    headers?: IRType;
+}
+
+/**
  * RPC method definition (for protobuf services, REST endpoints)
  */
 export interface IRMethod {
@@ -273,6 +289,18 @@ export interface IRMethod {
     queryParams?: IRType;
     /** Request headers */
     headers?: IRType;
+    /** Cookie parameters */
+    cookies?: IRType;
+    /** Request body content type */
+    requestContentType?: string;
+    /** Response definitions keyed by status code */
+    responses?: IRResponse[];
+    /** Security requirements (e.g., ["bearerAuth"]) */
+    security?: string[][];
+    /** Tags for grouping operations */
+    tags?: string[];
+    /** Operation ID (unique identifier) */
+    operationId?: string;
     metadata?: IRMetadata;
 }
 

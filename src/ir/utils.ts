@@ -11,11 +11,14 @@ import type {
     IRLiteral,
     IRMap,
     IRMetadata,
+    IRMethod,
     IRObject,
     IRPrimitive,
     IRPrimitiveType,
     IRProperty,
     IRReference,
+    IRResponse,
+    IRService,
     IRTuple,
     IRType,
     IRUnion,
@@ -355,4 +358,77 @@ export function removeNullFromUnion(types: IRType[]): IRType[] {
  */
 export function removeNullAndUndefinedFromUnion(types: IRType[]): IRType[] {
     return types.filter((t) => !(isPrimitive(t) && (t.primitiveType === "null" || t.primitiveType === "void")));
+}
+
+/**
+ * Create an IR response definition
+ */
+export function createResponse(
+    status: number | string,
+    options?: {
+        type?: IRType;
+        contentType?: string;
+        description?: string;
+        headers?: IRType;
+    },
+): IRResponse {
+    return {
+        status,
+        type: options?.type,
+        contentType: options?.contentType,
+        description: options?.description,
+        headers: options?.headers,
+    };
+}
+
+/**
+ * Create an IR method definition
+ */
+export function createMethod(
+    name: string,
+    input: IRType,
+    output: IRType,
+    options?: {
+        httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+        path?: string;
+        pathParams?: IRType;
+        queryParams?: IRType;
+        headers?: IRType;
+        cookies?: IRType;
+        requestContentType?: string;
+        responses?: IRResponse[];
+        security?: string[][];
+        tags?: string[];
+        operationId?: string;
+        metadata?: IRMetadata;
+    },
+): IRMethod {
+    return {
+        name,
+        input,
+        output,
+        httpMethod: options?.httpMethod,
+        path: options?.path,
+        pathParams: options?.pathParams,
+        queryParams: options?.queryParams,
+        headers: options?.headers,
+        cookies: options?.cookies,
+        requestContentType: options?.requestContentType,
+        responses: options?.responses,
+        security: options?.security,
+        tags: options?.tags,
+        operationId: options?.operationId,
+        metadata: options?.metadata,
+    };
+}
+
+/**
+ * Create an IR service definition
+ */
+export function createService(name: string, methods: IRMethod[], metadata?: IRMetadata): IRService {
+    return {
+        name,
+        methods,
+        metadata,
+    };
 }
