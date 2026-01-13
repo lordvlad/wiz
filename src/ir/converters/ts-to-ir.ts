@@ -1120,12 +1120,14 @@ function detectDiscriminator(
 /**
  * Extract HTTP method metadata from JSDoc tags
  */
-export function extractHttpMethodFromJSDoc(node?: Node): {
-    httpMethod?: string;
-    path?: string;
-    operationId?: string;
-    tags?: string[];
-} | undefined {
+export function extractHttpMethodFromJSDoc(node?: Node):
+    | {
+          httpMethod?: string;
+          path?: string;
+          operationId?: string;
+          tags?: string[];
+      }
+    | undefined {
     if (!node) return undefined;
 
     const jsDocableNode = node as any;

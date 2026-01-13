@@ -381,9 +381,10 @@ export function openApiPathsToIr(
             let input: IRType = createPrimitive("void");
             let requestContentType: string | undefined;
             if (operation.requestBody) {
-                const requestBody = "$ref" in operation.requestBody
-                    ? resolveRef(operation.requestBody.$ref, schemas)
-                    : operation.requestBody;
+                const requestBody =
+                    "$ref" in operation.requestBody
+                        ? resolveRef(operation.requestBody.$ref, schemas)
+                        : operation.requestBody;
 
                 if (requestBody?.content) {
                     const contentTypes = Object.keys(requestBody.content);
@@ -421,7 +422,11 @@ export function openApiPathsToIr(
                                 responseType = openApiSchemaToIrType(mediaType.schema, { ...options, availableTypes });
 
                                 // Use the first successful response as the default output type
-                                if (status.startsWith("2") && output.kind === "primitive" && output.primitiveType === "void") {
+                                if (
+                                    status.startsWith("2") &&
+                                    output.kind === "primitive" &&
+                                    output.primitiveType === "void"
+                                ) {
                                     output = responseType;
                                 }
                             }
