@@ -296,3 +296,183 @@ function convertTypeString(
         }
     }
 }
+
+/**
+ * Extract OpenAPI paths to IR methods
+ */
+export function openApiPathsToIr(
+    paths: Record<string, any>,
+    schemas?: Record<string, OpenApiSchema>,
+    options: OpenApiToIrOptions = {},
+): IRSchema {
+    const methods: import("../types").IRMethod[] = [];
+    const availableTypes = schemas ? new Set(Object.keys(schemas)) : new Set<string>();
+
+    for (const [path, pathItem] of Object.entries(paths)) {
+        const httpMethods = ["get", "post", "put", "patch", "delete", "head", "options", "trace"];
+
+        for (const method of httpMethods) {
+            const operation = pathItem[method];
+            if (!operation) continue;
+
+            // Extract metadata
+            const metadata: IRMetadata = {};
+            if (operation.summary) metadata.description = operation.summary;
+            if (operation.description) {
+                metadata.description = metadata.description
+                    ? `${metadata.description}\n\n${operation.description}`
+                    : operation.description;
+            }
+            if (operation.deprecated) metadata.deprecated = true;
+
+            // Extract parameters
+            let pathParams: IRType | undefined;
+            let queryParams: IRType | undefined;
+            let headerParams: IRType | undefined;
+            let cookieParams: IRType | undefined;
+
+            if (operation.parameters) {
+                const pathProps: import("../types").IRProperty[] = [];
+                const queryProps: import("../types").IRProperty[] = [];
+                const headerProps: import("../types").IRProperty[] = [];
+                const cookieProps: import("../types").IRProperty[] = [];
+
+                for (const param of operation.parameters) {
+                    const paramObj = "$ref" in param ? resolveRef(param.$ref, schemas) : param;
+                    if (!paramObj) continue;
+
+                    const paramType = paramObj.schema
+                        ? openApiSchemaToIrType(paramObj.schema, { ...options, availableTypes })
+                        : createPrimitive("string");
+
+                    const paramMetadata: IRMetadata = {};
+                    if (paramObj.description) paramMetadata.description = paramObj.description;
+
+                    const property: import("../types").IRProperty = {
+                        name: paramObj.name,
+                        type: paramType,
+                        required: paramObj.required || paramObj.in === "path",
+                        metadata: paramMetadata,
+                    };
+
+                    switch (paramObj.in) {
+                        case "path":
+                            pathProps.push(property);
+                            break;
+                        case "query":
+                            queryProps.push(property);
+                            break;
+                        case "header":
+                            headerProps.push(property);
+                            break;
+                        case "cookie":
+                            cookieProps.push(property);
+                            break;
+                    }
+                }
+
+                if (pathProps.length > 0) pathParams = createObject(pathProps);
+                if (queryProps.length > 0) queryParams = createObject(queryProps);
+                if (headerProps.length > 0) headerParams = createObject(headerProps);
+                if (cookieProps.length > 0) cookieParams = createObject(cookieProps);
+            }
+
+            // Extract request body
+            let input: IRType = createPrimitive("void");
+            let requestContentType: string | undefined;
+            if (operation.requestBody) {
+                const requestBody = "$ref" in operation.requestBody
+                    ? resolveRef(operation.requestBody.$ref, schemas)
+                    : operation.requestBody;
+
+                if (requestBody?.content) {
+                    const contentTypes = Object.keys(requestBody.content);
+                    requestContentType = contentTypes[0];
+                    if (requestContentType) {
+                        const mediaType = requestBody.content[requestContentType];
+                        if (mediaType?.schema) {
+                            input = openApiSchemaToIrType(mediaType.schema, { ...options, availableTypes });
+                        }
+                    }
+                }
+            }
+
+            // Extract responses
+            const responses: import("../types").IRResponse[] = [];
+            let output: IRType = createPrimitive("void");
+
+            if (operation.responses) {
+                for (const [status, responseObj] of Object.entries(operation.responses)) {
+                    const response =
+                        responseObj && typeof responseObj === "object" && "$ref" in responseObj
+                            ? resolveRef(responseObj.$ref as string, schemas)
+                            : responseObj;
+                    if (!response) continue;
+
+                    let responseType: IRType | undefined;
+                    let responseContentType: string | undefined;
+
+                    if (response.content) {
+                        const contentTypes = Object.keys(response.content);
+                        responseContentType = contentTypes[0];
+                        if (responseContentType) {
+                            const mediaType = response.content[responseContentType];
+                            if (mediaType?.schema) {
+                                responseType = openApiSchemaToIrType(mediaType.schema, { ...options, availableTypes });
+
+                                // Use the first successful response as the default output type
+                                if (status.startsWith("2") && output.kind === "primitive" && output.primitiveType === "void") {
+                                    output = responseType;
+                                }
+                            }
+                        }
+                    }
+
+                    responses.push({
+                        status,
+                        type: responseType,
+                        contentType: responseContentType,
+                        description: response.description,
+                    });
+                }
+            }
+
+            // Create method
+            const methodName = operation.operationId || `${method}${path.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            methods.push({
+                name: methodName,
+                input,
+                output,
+                httpMethod: method.toUpperCase() as any,
+                path,
+                pathParams,
+                queryParams,
+                headers: headerParams,
+                cookies: cookieParams,
+                requestContentType,
+                responses,
+                tags: operation.tags,
+                operationId: operation.operationId,
+                metadata,
+            });
+        }
+    }
+
+    return {
+        types: [],
+        services: methods.length > 0 ? [{ name: "API", methods, metadata: undefined }] : undefined,
+        version: options.version,
+    };
+}
+
+/**
+ * Helper to resolve $ref
+ */
+function resolveRef(ref: string, schemas?: Record<string, OpenApiSchema>): any {
+    if (!schemas) return undefined;
+    const match = ref.match(/#\/components\/schemas\/(.+)/);
+    if (match && schemas[match[1]!]) {
+        return schemas[match[1]!];
+    }
+    return undefined;
+}

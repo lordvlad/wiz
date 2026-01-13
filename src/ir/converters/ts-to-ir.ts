@@ -1116,3 +1116,79 @@ function detectDiscriminator(
 
     return undefined;
 }
+
+/**
+ * Extract HTTP method metadata from JSDoc tags
+ */
+export function extractHttpMethodFromJSDoc(node?: Node): {
+    httpMethod?: string;
+    path?: string;
+    operationId?: string;
+    tags?: string[];
+} | undefined {
+    if (!node) return undefined;
+
+    const jsDocableNode = node as any;
+    if (typeof jsDocableNode.getJsDocs !== "function") {
+        return undefined;
+    }
+
+    const jsDocs = jsDocableNode.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return undefined;
+
+    let hasOpenApiTag = false;
+    let httpMethod: string | undefined;
+    let path: string | undefined;
+    let operationId: string | undefined;
+    const tags: string[] = [];
+
+    for (const jsDoc of jsDocs) {
+        const docTags = jsDoc.getTags?.() || [];
+        for (const tag of docTags) {
+            const tagName = tag.getTagName();
+            const comment = tag.getComment?.();
+            const commentText = typeof comment === "string" ? comment.trim() : "";
+
+            switch (tagName) {
+                case "openApi":
+                    hasOpenApiTag = true;
+                    break;
+                case "method":
+                    if (commentText) {
+                        httpMethod = commentText.toUpperCase();
+                    }
+                    break;
+                case "route":
+                case "path":
+                    if (commentText) {
+                        const pathMatch = commentText.match(/^(\S+)/);
+                        if (pathMatch) {
+                            path = pathMatch[1];
+                        }
+                    }
+                    break;
+                case "operationId":
+                    if (commentText) {
+                        operationId = commentText;
+                    }
+                    break;
+                case "tag":
+                    if (commentText) {
+                        tags.push(commentText);
+                    }
+                    break;
+            }
+        }
+    }
+
+    if (!hasOpenApiTag || !httpMethod || !path) {
+        return undefined;
+    }
+
+    return {
+        httpMethod,
+        path,
+        operationId,
+        tags: tags.length > 0 ? tags : undefined,
+    };
+}

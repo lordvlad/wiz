@@ -357,3 +357,164 @@ function convertType(type: IRType, context: ConversionContext): any {
 
     return schema;
 }
+
+/**
+ * Generate OpenAPI paths from IR methods
+ */
+export function irToOpenApiPaths(
+    schema: import("../types").IRSchema,
+    options: IrToOpenApiOptions = {},
+): Record<string, Record<string, any>> {
+    const paths: Record<string, Record<string, any>> = {};
+
+    if (!schema.services) return paths;
+
+    for (const service of schema.services) {
+        for (const method of service.methods) {
+            if (!method.path || !method.httpMethod) continue;
+
+            const pathKey = method.path;
+            const httpMethod = method.httpMethod.toLowerCase();
+
+            if (!paths[pathKey]) {
+                paths[pathKey] = {};
+            }
+
+            const operation: Record<string, any> = {};
+
+            // Add metadata
+            if (method.metadata?.description) {
+                const lines = method.metadata.description.split("\n\n");
+                if (lines.length > 1) {
+                    operation.summary = lines[0];
+                    operation.description = lines.slice(1).join("\n\n");
+                } else {
+                    operation.summary = method.metadata.description;
+                }
+            }
+            if (method.operationId) {
+                operation.operationId = method.operationId;
+            }
+            if (method.tags && method.tags.length > 0) {
+                operation.tags = method.tags;
+            }
+            if (method.metadata?.deprecated) {
+                operation.deprecated = true;
+            }
+
+            // Build parameters
+            const parameters: any[] = [];
+
+            // Add path parameters
+            if (method.pathParams && isObject(method.pathParams)) {
+                for (const prop of method.pathParams.properties) {
+                    parameters.push({
+                        name: prop.name,
+                        in: "path",
+                        required: true,
+                        schema: irTypeToOpenApiSchema(prop.type, options),
+                        ...(prop.metadata?.description ? { description: prop.metadata.description } : {}),
+                    });
+                }
+            }
+
+            // Add query parameters
+            if (method.queryParams && isObject(method.queryParams)) {
+                for (const prop of method.queryParams.properties) {
+                    parameters.push({
+                        name: prop.name,
+                        in: "query",
+                        required: prop.required,
+                        schema: irTypeToOpenApiSchema(prop.type, options),
+                        ...(prop.metadata?.description ? { description: prop.metadata.description } : {}),
+                    });
+                }
+            }
+
+            // Add header parameters
+            if (method.headers && isObject(method.headers)) {
+                for (const prop of method.headers.properties) {
+                    parameters.push({
+                        name: prop.name,
+                        in: "header",
+                        required: prop.required,
+                        schema: irTypeToOpenApiSchema(prop.type, options),
+                        ...(prop.metadata?.description ? { description: prop.metadata.description } : {}),
+                    });
+                }
+            }
+
+            // Add cookie parameters
+            if (method.cookies && isObject(method.cookies)) {
+                for (const prop of method.cookies.properties) {
+                    parameters.push({
+                        name: prop.name,
+                        in: "cookie",
+                        required: prop.required,
+                        schema: irTypeToOpenApiSchema(prop.type, options),
+                        ...(prop.metadata?.description ? { description: prop.metadata.description } : {}),
+                    });
+                }
+            }
+
+            if (parameters.length > 0) {
+                operation.parameters = parameters;
+            }
+
+            // Add request body
+            if (method.input.kind !== "primitive" || method.input.primitiveType !== "void") {
+                const contentType = method.requestContentType || "application/json";
+                operation.requestBody = {
+                    required: true,
+                    content: {
+                        [contentType]: {
+                            schema: irTypeToOpenApiSchema(method.input, options),
+                        },
+                    },
+                };
+            }
+
+            // Add responses
+            const responses: Record<string, any> = {};
+            if (method.responses && method.responses.length > 0) {
+                for (const response of method.responses) {
+                    const responseObj: Record<string, any> = {
+                        description: response.description || "Response",
+                    };
+
+                    if (response.type) {
+                        const contentType = response.contentType || "application/json";
+                        responseObj.content = {
+                            [contentType]: {
+                                schema: irTypeToOpenApiSchema(response.type, options),
+                            },
+                        };
+                    }
+
+                    responses[String(response.status)] = responseObj;
+                }
+            } else if (method.output.kind !== "primitive" || method.output.primitiveType !== "void") {
+                // Default response from output type
+                responses["200"] = {
+                    description: "Successful response",
+                    content: {
+                        "application/json": {
+                            schema: irTypeToOpenApiSchema(method.output, options),
+                        },
+                    },
+                };
+            } else {
+                // Default empty response
+                responses["200"] = {
+                    description: "Successful response",
+                };
+            }
+
+            operation.responses = responses;
+
+            paths[pathKey][httpMethod] = operation;
+        }
+    }
+
+    return paths;
+}
