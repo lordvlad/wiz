@@ -8,7 +8,7 @@ import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
-import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
+import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger, scanFilesWithContent } from "./utils";
 
 type Format = "json" | "yaml";
 
@@ -48,10 +48,11 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
         process.exit(1);
     }
 
-    // First pass: Look for createOpenApi calls
+    // First pass: Look for createOpenApi calls using concurrent file scanning
     debug.group("Searching for createOpenApi calls");
-    for (const file of files) {
-        const hasCreateOpenApi = await checkForCreateOpenApi(file);
+    for await (const { path: file, content } of scanFilesWithContent(paths)) {
+        const fileContent = await content;
+        const hasCreateOpenApi = fileContent.includes("createOpenApi");
         debug.log(`File: ${file}`, { hasCreateOpenApi });
 
         if (hasCreateOpenApi) {
@@ -106,14 +107,6 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
         console.error("Error: No createOpenApi calls found, no JSDoc tags, and no exported types to generate from");
         process.exit(1);
     }
-}
-
-/**
- * Check if a file contains a createOpenApi call.
- */
-async function checkForCreateOpenApi(filePath: string): Promise<boolean> {
-    const content = await Bun.file(filePath).text();
-    return content.includes("createOpenApi");
 }
 
 /**

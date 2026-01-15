@@ -8,7 +8,7 @@ import { irToProtobuf } from "../ir/generators/ir-to-proto";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { protobufModelToString } from "../plugin/protobuf/codegen";
-import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
+import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger, scanFilesWithContent } from "./utils";
 
 type Format = "json" | "proto";
 
@@ -48,10 +48,12 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
         process.exit(1);
     }
 
-    // First pass: Look for createProtobufSpec calls
+    // First pass: Look for createProtobufSpec calls using concurrent file scanning
     debug.group("Searching for createProtobufSpec/createProtobufModel calls");
-    for (const file of files) {
-        const hasCreateProtobuf = await checkForCreateProtobuf(file);
+    for await (const { path: file, content } of scanFilesWithContent(paths)) {
+        const fileContent = await content;
+        const hasCreateProtobuf =
+            fileContent.includes("createProtobufSpec") || fileContent.includes("createProtobufModel");
         debug.log(`File: ${file}`, { hasCreateProtobuf });
 
         if (hasCreateProtobuf) {
@@ -94,14 +96,6 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
         console.error("Error: No createProtobufSpec calls found and no exported types to generate from");
         process.exit(1);
     }
-}
-
-/**
- * Check if a file contains a createProtobufSpec call.
- */
-async function checkForCreateProtobuf(filePath: string): Promise<boolean> {
-    const content = await Bun.file(filePath).text();
-    return content.includes("createProtobufSpec") || content.includes("createProtobufModel");
 }
 
 /**
