@@ -278,6 +278,81 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
         return null;
     }
 
+    // Collect type names referenced in JSDoc tags
+    const referencedTypeNames = new Set<string>();
+    for (const operation of pathOperations) {
+        const metadata = operation.metadata;
+
+        // Collect from request body
+        if (metadata.requestBody?.type) {
+            referencedTypeNames.add(metadata.requestBody.type);
+        }
+
+        // Collect from responses
+        if (metadata.responses) {
+            for (const response of metadata.responses) {
+                if (response.type) {
+                    referencedTypeNames.add(response.type);
+                }
+            }
+        }
+    }
+
+    debug.log(`Referenced type names from JSDoc: ${Array.from(referencedTypeNames).join(", ")}`);
+
+    // Find non-exported types that are referenced in JSDoc tags
+    const allTypes = [...exportedTypes];
+    const existingTypeNames = new Set(exportedTypes.map((t) => t.name));
+
+    for (const typeName of referencedTypeNames) {
+        // Skip if already collected (exported)
+        if (existingTypeNames.has(typeName)) {
+            continue;
+        }
+
+        // Skip primitive types
+        if (
+            ["string", "number", "boolean", "object", "array", "integer", "int", "bool"].includes(
+                typeName.toLowerCase(),
+            )
+        ) {
+            continue;
+        }
+
+        // Search for this type in all source files
+        for (const sourceFile of sourceFiles) {
+            const filePath = sourceFile.getFilePath();
+
+            // Look for type alias
+            const typeAlias = sourceFile.getTypeAlias(typeName);
+            if (typeAlias) {
+                allTypes.push({
+                    name: typeName,
+                    type: typeAlias.getType(),
+                    file: filePath,
+                });
+                existingTypeNames.add(typeName);
+                debug.log(`Found non-exported type referenced in JSDoc: ${typeName}`, { file: filePath });
+                break;
+            }
+
+            // Look for interface
+            const iface = sourceFile.getInterface(typeName);
+            if (iface) {
+                allTypes.push({
+                    name: typeName,
+                    type: iface.getType(),
+                    file: filePath,
+                });
+                existingTypeNames.add(typeName);
+                debug.log(`Found non-exported interface referenced in JSDoc: ${typeName}`, { file: filePath });
+                break;
+            }
+        }
+    }
+
+    debug.log(`Total types (exported + JSDoc-referenced): ${allTypes.length}`);
+
     // Find nearest package.json for metadata
     let packageJson: any = {};
     const firstFile = files[0];
@@ -293,9 +368,9 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
     }
 
     // Convert types to IR schema
-    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const availableTypes = new Set(allTypes.map((t) => t.name));
     const irSchema: IRSchema = {
-        types: exportedTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
+        types: allTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
     };
 
     // Generate OpenAPI schemas from IR

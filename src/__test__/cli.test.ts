@@ -310,6 +310,163 @@ export type User = {
                 console.log = originalLog;
             }
         });
+
+        it("should include non-exported types referenced in JSDoc @response tag", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+// Note: User is NOT exported
+type User = {
+    id: string;
+    email: string;
+}
+
+/**
+ * Get User By ID
+ * @openApi
+ * @path /users/:id
+ * @method GET
+ * @response 200 User - User found
+ */
+function getUserById() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain('"/users/:id"');
+                expect(output).toContain('"get"');
+                // Check that User is in components/schemas
+                expect(output).toContain('"User"');
+                expect(output).toContain('"id"');
+                expect(output).toContain('"email"');
+                // Check that response uses $ref to User
+                expect(output).toContain('"$ref": "#/components/schemas/User"');
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should include non-exported types referenced in JSDoc @body tag", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+// Note: CreateUserRequest is NOT exported
+type CreateUserRequest = {
+    name: string;
+    email: string;
+}
+
+// User is exported for comparison
+export type User = {
+    id: string;
+    name: string;
+    email: string;
+}
+
+/**
+ * Create User
+ * @openApi
+ * @path /users
+ * @method POST
+ * @body CreateUserRequest
+ * @response 201 User - User created
+ */
+function createUser() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain('"/users"');
+                expect(output).toContain('"post"');
+                // Check that both types are in components/schemas
+                expect(output).toContain('"CreateUserRequest"');
+                expect(output).toContain('"User"');
+                // Check that request body uses $ref to CreateUserRequest
+                expect(output).toContain('"$ref": "#/components/schemas/CreateUserRequest"');
+                // Check that response uses $ref to User
+                expect(output).toContain('"$ref": "#/components/schemas/User"');
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should include multiple non-exported types referenced in JSDoc tags", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+// None of these are exported
+type ErrorResponse = {
+    code: string;
+    message: string;
+}
+
+type UserResponse = {
+    id: string;
+    name: string;
+}
+
+type UpdateUserRequest = {
+    name: string;
+}
+
+/**
+ * Update User
+ * @openApi
+ * @path /users/:id
+ * @method PUT
+ * @body UpdateUserRequest
+ * @response 200 UserResponse - User updated
+ * @response 404 ErrorResponse - User not found
+ */
+function updateUser() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain('"/users/:id"');
+                expect(output).toContain('"put"');
+                // Check that all three types are in components/schemas
+                expect(output).toContain('"UpdateUserRequest"');
+                expect(output).toContain('"UserResponse"');
+                expect(output).toContain('"ErrorResponse"');
+                // Check that they're referenced correctly
+                expect(output).toContain('"$ref": "#/components/schemas/UpdateUserRequest"');
+                expect(output).toContain('"$ref": "#/components/schemas/UserResponse"');
+                expect(output).toContain('"$ref": "#/components/schemas/ErrorResponse"');
+            } finally {
+                console.log = originalLog;
+            }
+        });
     });
 
     describe("generateProtobuf", () => {
