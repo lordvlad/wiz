@@ -44,12 +44,19 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
         }
     }
 
-    // Second pass: Generate from exported types
+    // Second pass: Try to generate from JSDoc tags
+    const jsdocSpec = await generateFromJSDocTags(files);
+    if (jsdocSpec) {
+        outputSpec(jsdocSpec, format);
+        return;
+    }
+
+    // Third pass: Generate from exported types (schema-only)
     const spec = await generateFromTypes(files);
     if (spec) {
         outputSpec(spec, format);
     } else {
-        console.error("Error: No createOpenApi calls found and no exported types to generate from");
+        console.error("Error: No createOpenApi calls found, no JSDoc tags, and no exported types to generate from");
         process.exit(1);
     }
 }
@@ -122,6 +129,165 @@ async function compileAndExecuteOpenApi(filePath: string): Promise<any> {
         }
 
         return null;
+    } finally {
+        // Clean up tmp directory
+        await Bun.$`rm -rf ${tmpDir}`.quiet();
+    }
+}
+
+/**
+ * Generate OpenAPI spec from JSDoc tags on functions.
+ */
+async function generateFromJSDocTags(files: string[]): Promise<any> {
+    const project = new Project({
+        skipAddingFilesFromTsConfig: true,
+    });
+
+    // Add all files to the project
+    const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
+
+    // Collect all exported types and functions with JSDoc tags
+    const exportedTypes: { name: string; file: string; content: string }[] = [];
+    const jsDocFunctions: string[] = [];
+
+    for (const sourceFile of sourceFiles) {
+        const filePath = sourceFile.getFilePath();
+        const fileContent = sourceFile.getFullText();
+
+        // Get exported type aliases
+        sourceFile.getTypeAliases().forEach((typeAlias: any) => {
+            if (typeAlias.isExported()) {
+                exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+            }
+        });
+
+        // Get exported interfaces
+        sourceFile.getInterfaces().forEach((iface: any) => {
+            if (iface.isExported()) {
+                exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+            }
+        });
+
+        // Look for functions with @openApi JSDoc tag
+        const functions = [
+            ...sourceFile.getFunctions(),
+            ...sourceFile.getVariableDeclarations().filter((v: any) => {
+                const init = v.getInitializer();
+                return init && (init.getKind() === 218 || init.getKind() === 217); // ArrowFunction or FunctionExpression
+            }),
+        ];
+
+        for (const func of functions) {
+            const jsDocs = (func as any).getJsDocs?.() || [];
+            for (const jsDoc of jsDocs) {
+                const tags = jsDoc.getTags?.() || [];
+                const hasOpenApiTag = tags.some((tag: any) => tag.getTagName() === "openApi");
+                if (hasOpenApiTag) {
+                    // Found a function with @openApi tag - include the file
+                    if (!jsDocFunctions.includes(fileContent)) {
+                        jsDocFunctions.push(fileContent);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // If no JSDoc tags found, return null
+    if (jsDocFunctions.length === 0) {
+        return null;
+    }
+
+    // Find nearest package.json for metadata
+    let packageJson: any = {};
+    const firstFile = files[0];
+    if (firstFile) {
+        const packageJsonPath = await findNearestPackageJson(firstFile);
+        if (packageJsonPath) {
+            try {
+                packageJson = await readPackageJson(packageJsonPath);
+            } catch {
+                // Ignore errors reading package.json
+            }
+        }
+    }
+
+    // Create a temporary file with all types and JSDoc functions
+    const tmpDir = resolve(process.cwd(), ".tmp", "cli-openapi-jsdoc-" + Date.now());
+    await mkdir(tmpDir, { recursive: true });
+
+    try {
+        const tmpFile = resolve(tmpDir, "source.ts");
+
+        // Collect all unique file contents
+        const uniqueFiles = new Map<string, string>();
+        exportedTypes.forEach((t) => {
+            if (!uniqueFiles.has(t.file)) {
+                uniqueFiles.set(t.file, t.content);
+            }
+        });
+
+        // Add JSDoc function files
+        jsDocFunctions.forEach((content) => {
+            const key = `jsdoc-${content.substring(0, 100)}`;
+            if (!uniqueFiles.has(key)) {
+                uniqueFiles.set(key, content);
+            }
+        });
+
+        // Inline all types and functions from all files
+        const allContent = Array.from(uniqueFiles.values()).join("\n\n");
+        const typeList = exportedTypes.map((t) => t.name).join(", ");
+
+        // Calculate relative path from tmpFile to openApiSchema
+        const openApiSchemaPath = resolve(import.meta.dir, "../openApiSchema/index.ts");
+        const relativeWizPath = relative(dirname(tmpFile), openApiSchemaPath).replace(/\\/g, "/");
+        const wizImport = relativeWizPath.startsWith(".") ? relativeWizPath : `./${relativeWizPath}`;
+
+        const source = `
+${allContent}
+
+import { createOpenApi } from "${wizImport}";
+
+export const spec = createOpenApi<[${typeList || "never"}], "3.0">({
+    info: {
+        title: "${packageJson.name || "API"}",
+        version: "${packageJson.version || "1.0.0"}",
+        ${packageJson.description ? `description: "${packageJson.description}",` : ""}
+    }
+});
+        `;
+
+        await writeFile(tmpFile, source);
+
+        // Build with wiz plugin
+        const outDir = resolve(tmpDir, "out");
+        const build = await Bun.build({
+            entrypoints: [tmpFile],
+            outdir: outDir,
+            throw: false,
+            minify: false,
+            format: "esm",
+            root: tmpDir,
+            packages: "external",
+            sourcemap: "none",
+            plugins: [wizPlugin({ log: false })],
+        });
+
+        if (!build.success) {
+            console.error("Build logs:", build.logs);
+            return null;
+        }
+
+        // Import the generated spec
+        const outFile = resolve(outDir, "source.js");
+        const module = await import(outFile);
+
+        if (!module.spec || !module.spec.openapi) {
+            return null;
+        }
+
+        return module.spec;
     } finally {
         // Clean up tmp directory
         await Bun.$`rm -rf ${tmpDir}`.quiet();
