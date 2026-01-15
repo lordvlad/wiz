@@ -24,6 +24,64 @@ bun install
 
 Wiz provides a command-line interface for generating OpenAPI specifications, Protobuf specifications, TypeScript models from specs, and inlining validators.
 
+### Debug Logging
+
+All CLI commands support a `--debug` flag that outputs detailed execution information to stderr. This is useful for troubleshooting and understanding what Wiz is doing under the hood.
+
+```bash
+# Enable debug logging for any command
+wiz openapi src/ --debug
+wiz protobuf src/ --format json --debug
+wiz model spec.yaml --outdir src/models --debug
+wiz client spec.yaml --outdir src/client --debug
+wiz inline src/ --outdir dist/ --debug
+```
+
+Debug output includes:
+
+- Command-line arguments received
+- Files discovered during scanning
+- Types and interfaces found in source files
+- JSDoc tags detected (for OpenAPI generation)
+- Spec metadata (version, paths, schemas, messages)
+- Generation results (number of files/types generated)
+
+**Example debug output:**
+
+```
+[wiz:debug] === Command Arguments ===
+[wiz:debug] Command: openapi
+[wiz:debug] Input paths: ["src/"]
+[wiz:debug] Format: "yaml"
+
+[wiz:debug] === Found Files ===
+[wiz:debug] Total files found: 12
+[wiz:debug] Files: ["src/types.ts", "src/models.ts", ...]
+
+[wiz:debug] === Generating from exported types ===
+[wiz:debug] Found exported type: User
+[wiz:debug] Found exported interface: Product
+[wiz:debug] Total exported types: 15
+[wiz:debug] Type names: ["User", "Product", ...]
+
+[wiz:debug] === OpenAPI Spec Generated from Types ===
+[wiz:debug] Spec version: "3.0.3"
+[wiz:debug] Number of schemas: 15
+```
+
+Since debug output goes to stderr, you can redirect it separately from the main output:
+
+```bash
+# Save spec to file, debug logs to console
+wiz openapi src/ --debug > spec.yaml
+
+# Save both to different files
+wiz openapi src/ --debug 2> debug.log > spec.yaml
+
+# Show debug logs only (suppress main output)
+wiz openapi src/ --debug 2>&1 > /dev/null
+```
+
 ### Generate TypeScript Models
 
 Generate TypeScript data models from OpenAPI or Protobuf specifications. This tool focuses on data models only—it ignores all RPC and REST endpoint definitions.
