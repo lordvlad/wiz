@@ -12,6 +12,7 @@
 import { Project, SyntaxKind, type SourceFile } from "ts-morph";
 
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
+import { semaphore } from "./semaphore";
 import type { DebugLogger } from "./utils";
 
 /**
@@ -73,6 +74,10 @@ export interface ScanOptions {
 
 /**
  * Scan files once and collect all necessary information
+ *
+ * Performance: Uses concurrent file loading with limited concurrency (max 8) to optimize
+ * performance when scanning large codebases. This prevents blocking the main thread and
+ * allows ts-morph to load files more efficiently.
  */
 export async function scanFiles(files: string[], options: ScanOptions = {}): Promise<ScanResult> {
     const { functionNames = [], extractJSDoc = false, debug } = options;
@@ -86,8 +91,19 @@ export async function scanFiles(files: string[], options: ScanOptions = {}): Pro
     debug?.log(`Looking for function calls: ${functionNames.join(", ") || "none"}`);
     debug?.log(`Extract JSDoc endpoints: ${extractJSDoc}`);
 
-    // Add all files to the project
-    const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
+    // Add all files to the project with limited concurrency
+    // Semaphore limits concurrent file operations to prevent disk thrashing
+    const sem = semaphore(8);
+    const sourceFiles = await Promise.all(
+        files.map(async (f) => {
+            const release = await sem();
+            try {
+                return project.addSourceFileAtPath(f);
+            } finally {
+                release();
+            }
+        }),
+    );
 
     const types: ScannedType[] = [];
     const functionCalls = new Map<string, string[]>();
