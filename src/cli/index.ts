@@ -20,6 +20,9 @@ Commands:
   client <spec-file>     Generate TypeScript client from OpenAPI specification
   inline [files...]      Transform validator calls to inline validators
 
+Global Options:
+  --debug                Enable detailed debug logging to stderr
+
 OpenAPI Options:
   --format <format>      Output format: json or yaml (default: yaml)
 
@@ -117,6 +120,10 @@ async function main() {
                     type: "string",
                     default: "yaml",
                 },
+                debug: {
+                    type: "boolean",
+                    default: false,
+                },
             },
             allowPositionals: true,
         });
@@ -129,11 +136,11 @@ async function main() {
 
         if (positionals.length === 0) {
             console.error("Error: No files or directories specified");
-            console.error("Usage: wiz openapi [files|dirs|globs...] [--format json|yaml]");
+            console.error("Usage: wiz openapi [files|dirs|globs...] [--format json|yaml] [--debug]");
             process.exit(1);
         }
 
-        await generateOpenApi(positionals, { format });
+        await generateOpenApi(positionals, { format, debug: values.debug });
     } else if (command === "protobuf") {
         const { values, positionals } = parseArgs({
             args: rawArgs.slice(1),
@@ -141,6 +148,10 @@ async function main() {
                 format: {
                     type: "string",
                     default: "proto",
+                },
+                debug: {
+                    type: "boolean",
+                    default: false,
                 },
             },
             allowPositionals: true,
@@ -154,11 +165,11 @@ async function main() {
 
         if (positionals.length === 0) {
             console.error("Error: No files or directories specified");
-            console.error("Usage: wiz protobuf [files|dirs|globs...] [--format json|proto]");
+            console.error("Usage: wiz protobuf [files|dirs|globs...] [--format json|proto] [--debug]");
             process.exit(1);
         }
 
-        await generateProtobuf(positionals, { format });
+        await generateProtobuf(positionals, { format, debug: values.debug });
     } else if (command === "inline") {
         const { values, positionals } = parseArgs({
             args: rawArgs.slice(1),
@@ -168,6 +179,10 @@ async function main() {
                 },
                 "in-place": {
                     type: "boolean",
+                },
+                debug: {
+                    type: "boolean",
+                    default: false,
                 },
             },
             allowPositionals: true,
@@ -179,23 +194,23 @@ async function main() {
         // Validate mutually exclusive options
         if (outdir && inPlace) {
             console.error("Error: --outdir and --in-place are mutually exclusive");
-            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place) [--debug]");
             process.exit(1);
         }
 
         if (!outdir && !inPlace) {
             console.error("Error: Either --outdir or --in-place is required");
-            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place) [--debug]");
             process.exit(1);
         }
 
         if (positionals.length === 0) {
             console.error("Error: No files or directories specified");
-            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place)");
+            console.error("Usage: wiz inline [files|dirs|globs...] (--outdir <directory> | --in-place) [--debug]");
             process.exit(1);
         }
 
-        await inlineValidators(positionals, { outdir, inPlace });
+        await inlineValidators(positionals, { outdir, inPlace, debug: values.debug });
     } else if (command === "model") {
         // Handle model command
         const { values, positionals } = parseArgs({
@@ -210,13 +225,17 @@ async function main() {
                 "no-wiz-tags": {
                     type: "boolean",
                 },
+                debug: {
+                    type: "boolean",
+                    default: false,
+                },
             },
             allowPositionals: true,
         });
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz model <spec-file> [--outdir <dir>] [--tags] [--no-wiz-tags]");
+            console.error("Usage: wiz model <spec-file> [--outdir <dir>] [--tags] [--no-wiz-tags] [--debug]");
             process.exit(1);
         }
 
@@ -225,7 +244,7 @@ async function main() {
         const tags = values.tags || false;
         const disableWizTags = values["no-wiz-tags"] || false;
 
-        await generateModels(specFile, { outdir, tags, disableWizTags });
+        await generateModels(specFile, { outdir, tags, disableWizTags, debug: values.debug });
     } else if (command === "client") {
         // Handle client command
         const { values, positionals } = parseArgs({
@@ -240,13 +259,17 @@ async function main() {
                 "react-query": {
                     type: "boolean",
                 },
+                debug: {
+                    type: "boolean",
+                    default: false,
+                },
             },
             allowPositionals: true,
         });
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator] [--react-query]");
+            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator] [--react-query] [--debug]");
             process.exit(1);
         }
 
@@ -255,7 +278,7 @@ async function main() {
         const wizValidator = values["wiz-validator"] || false;
         const reactQuery = values["react-query"] || false;
 
-        await generateClient(specFile, { outdir, wizValidator, reactQuery });
+        await generateClient(specFile, { outdir, wizValidator, reactQuery, debug: values.debug });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

@@ -3,17 +3,29 @@ import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 import { generateClientFromOpenApi } from "../generator/openapi-client";
+import { DebugLogger } from "./utils";
 
 interface ClientOptions {
     outdir?: string;
     wizValidator?: boolean;
     reactQuery?: boolean;
+    debug?: boolean;
 }
 
 /**
  * Generate TypeScript client from OpenAPI specification
  */
 export async function generateClient(specPath: string, options: ClientOptions = {}): Promise<void> {
+    const debug = new DebugLogger(options.debug || false);
+
+    debug.group("Command Arguments");
+    debug.log("Command: client");
+    debug.log("Spec file:", specPath);
+    debug.log("Output directory:", options.outdir || "stdout");
+    debug.log("Wiz validator:", options.wizValidator || false);
+    debug.log("React Query:", options.reactQuery || false);
+    debug.log("Debug enabled:", options.debug || false);
+
     // Read the spec file
     const file = Bun.file(specPath);
     let spec: any;
@@ -27,11 +39,31 @@ export async function generateClient(specPath: string, options: ClientOptions = 
         throw new Error("Unsupported file format. Use .json or .yaml/.yml files.");
     }
 
+    debug.group("OpenAPI Spec Info");
+    debug.log("OpenAPI version:", spec.openapi);
+    debug.log("Title:", spec.info?.title);
+    debug.log("Version:", spec.info?.version);
+    if (spec.paths) {
+        debug.log("Number of paths:", Object.keys(spec.paths).length);
+        debug.log("Paths:", Object.keys(spec.paths));
+    }
+    if (spec.components?.schemas) {
+        debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+    }
+
     // Generate client
+    debug.group("Generating Client");
     const result = generateClientFromOpenApi(spec, {
         wizValidator: options.wizValidator,
         reactQuery: options.reactQuery,
     });
+
+    debug.log("Generated models:", result.models ? "yes" : "no");
+    debug.log("Generated API:", result.api ? "yes" : "no");
+    if (options.reactQuery) {
+        debug.log("Generated queries:", result.queries ? "yes" : "no");
+        debug.log("Generated mutations:", result.mutations ? "yes" : "no");
+    }
 
     // Output client
     if (options.outdir) {
