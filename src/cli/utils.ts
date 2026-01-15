@@ -75,3 +75,23 @@ export async function findNearestPackageJson(startPath: string): Promise<string 
 export async function readPackageJson(path: string): Promise<any> {
     return await Bun.file(path).json();
 }
+
+/**
+ * Debug logger that outputs to stderr when enabled.
+ */
+export class DebugLogger {
+    constructor(private enabled: boolean) {}
+
+    log(message: string, data?: any): void {
+        if (!this.enabled) return;
+        console.error(`[wiz:debug] ${message}`);
+        if (data !== undefined) {
+            console.error(JSON.stringify(data, null, 2));
+        }
+    }
+
+    group(title: string): void {
+        if (!this.enabled) return;
+        console.error(`\n[wiz:debug] === ${title} ===`);
+    }
+}

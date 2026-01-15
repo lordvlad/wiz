@@ -4,12 +4,13 @@ import { dirname, relative, resolve } from "path";
 import { Project } from "ts-morph";
 
 import wizPlugin from "../plugin/index";
-import { expandFilePaths, findNearestPackageJson, readPackageJson } from "./utils";
+import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
 
 interface OpenApiOptions {
     format?: Format;
+    debug?: boolean;
 }
 
 /**
@@ -17,6 +18,13 @@ interface OpenApiOptions {
  */
 export async function generateOpenApi(paths: string[], options: OpenApiOptions = {}): Promise<void> {
     const format = options.format || "yaml";
+    const debug = new DebugLogger(options.debug || false);
+
+    debug.group("Command Arguments");
+    debug.log("Command: openapi");
+    debug.log("Input paths:", paths);
+    debug.log("Format:", format);
+    debug.log("Debug enabled:", options.debug || false);
 
     if (paths.length === 0) {
         console.error("Error: No files or directories specified");
@@ -25,19 +33,37 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
 
     const files = await expandFilePaths(paths);
 
+    debug.group("Found Files");
+    debug.log(`Total files found: ${files.length}`);
+    if (files.length > 0) {
+        debug.log("Files:", files);
+    }
+
     if (files.length === 0) {
         console.error("Error: No TypeScript files found");
         process.exit(1);
     }
 
     // First pass: Look for createOpenApi calls
+    debug.group("Searching for createOpenApi calls");
     for (const file of files) {
         const hasCreateOpenApi = await checkForCreateOpenApi(file);
+        debug.log(`File: ${file}`, { hasCreateOpenApi });
 
         if (hasCreateOpenApi) {
             // Found createOpenApi, compile and execute
-            const spec = await compileAndExecuteOpenApi(file);
+            debug.log("Found createOpenApi call, compiling and executing...");
+            const spec = await compileAndExecuteOpenApi(file, debug);
             if (spec) {
+                debug.group("OpenAPI Spec Generated");
+                debug.log("Spec version:", spec.openapi);
+                debug.log("Spec info:", spec.info);
+                if (spec.paths) {
+                    debug.log("Number of paths:", Object.keys(spec.paths).length);
+                }
+                if (spec.components?.schemas) {
+                    debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+                }
                 outputSpec(spec, format);
                 return; // Exit after first match
             }
@@ -45,15 +71,32 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
     }
 
     // Second pass: Try to generate from JSDoc tags
-    const jsdocSpec = await generateFromJSDocTags(files);
+    debug.group("Searching for JSDoc tags");
+    const jsdocSpec = await generateFromJSDocTags(files, debug);
     if (jsdocSpec) {
+        debug.group("OpenAPI Spec Generated from JSDoc");
+        debug.log("Spec version:", jsdocSpec.openapi);
+        debug.log("Spec info:", jsdocSpec.info);
+        if (jsdocSpec.paths) {
+            debug.log("Number of paths:", Object.keys(jsdocSpec.paths).length);
+        }
+        if (jsdocSpec.components?.schemas) {
+            debug.log("Number of schemas:", Object.keys(jsdocSpec.components.schemas).length);
+        }
         outputSpec(jsdocSpec, format);
         return;
     }
 
     // Third pass: Generate from exported types (schema-only)
-    const spec = await generateFromTypes(files);
+    debug.group("Generating from exported types");
+    const spec = await generateFromTypes(files, debug);
     if (spec) {
+        debug.group("OpenAPI Spec Generated from Types");
+        debug.log("Spec version:", spec.openapi);
+        debug.log("Spec info:", spec.info);
+        if (spec.components?.schemas) {
+            debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+        }
         outputSpec(spec, format);
     } else {
         console.error("Error: No createOpenApi calls found, no JSDoc tags, and no exported types to generate from");
@@ -72,7 +115,7 @@ async function checkForCreateOpenApi(filePath: string): Promise<boolean> {
 /**
  * Compile and execute a file containing createOpenApi.
  */
-async function compileAndExecuteOpenApi(filePath: string): Promise<any> {
+async function compileAndExecuteOpenApi(filePath: string, debug: DebugLogger): Promise<any> {
     // Create temporary directory
     const tmpDir = resolve(process.cwd(), ".tmp", "cli-openapi-" + Date.now());
     await mkdir(tmpDir, { recursive: true });
@@ -138,7 +181,7 @@ async function compileAndExecuteOpenApi(filePath: string): Promise<any> {
 /**
  * Generate OpenAPI spec from JSDoc tags on functions.
  */
-async function generateFromJSDocTags(files: string[]): Promise<any> {
+async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
         skipAddingFilesFromTsConfig: true,
     });
@@ -158,6 +201,7 @@ async function generateFromJSDocTags(files: string[]): Promise<any> {
         sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
                 exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
             }
         });
 
@@ -165,6 +209,7 @@ async function generateFromJSDocTags(files: string[]): Promise<any> {
         sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
                 exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
             }
         });
 
@@ -183,6 +228,7 @@ async function generateFromJSDocTags(files: string[]): Promise<any> {
                 const tags = jsDoc.getTags?.() || [];
                 const hasOpenApiTag = tags.some((tag: any) => tag.getTagName() === "openApi");
                 if (hasOpenApiTag) {
+                    debug.log(`Found @openApi JSDoc tag in file`, { file: filePath });
                     // Found a function with @openApi tag - include the file
                     if (!jsDocFunctions.includes(fileContent)) {
                         jsDocFunctions.push(fileContent);
@@ -192,6 +238,9 @@ async function generateFromJSDocTags(files: string[]): Promise<any> {
             }
         }
     }
+
+    debug.log(`Total exported types: ${exportedTypes.length}`);
+    debug.log(`Total files with @openApi tags: ${jsDocFunctions.length}`);
 
     // If no JSDoc tags found, return null
     if (jsDocFunctions.length === 0) {
@@ -297,7 +346,7 @@ export const spec = createOpenApi<[${typeList || "never"}], "3.0">({
 /**
  * Generate OpenAPI spec from exported types.
  */
-async function generateFromTypes(files: string[]): Promise<any> {
+async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
         skipAddingFilesFromTsConfig: true,
     });
@@ -316,6 +365,7 @@ async function generateFromTypes(files: string[]): Promise<any> {
         sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
                 exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
             }
         });
 
@@ -323,8 +373,17 @@ async function generateFromTypes(files: string[]): Promise<any> {
         sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
                 exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
             }
         });
+    }
+
+    debug.log(`Total exported types: ${exportedTypes.length}`);
+    if (exportedTypes.length > 0) {
+        debug.log(
+            "Type names:",
+            exportedTypes.map((t) => t.name),
+        );
     }
 
     if (exportedTypes.length === 0) {

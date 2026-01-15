@@ -3,17 +3,27 @@ import { mkdir, writeFile } from "fs/promises";
 import { dirname, resolve, relative } from "path";
 
 import wizPlugin from "../plugin/index";
-import { expandFilePaths } from "./utils";
+import { expandFilePaths, DebugLogger } from "./utils";
 
 interface InlineOptions {
     outdir?: string;
     inPlace?: boolean;
+    debug?: boolean;
 }
 
 /**
  * Transform validator calls to inline validators.
  */
 export async function inlineValidators(paths: string[], options: InlineOptions = {}): Promise<void> {
+    const debug = new DebugLogger(options.debug || false);
+
+    debug.group("Command Arguments");
+    debug.log("Command: inline");
+    debug.log("Input paths:", paths);
+    debug.log("Output directory:", options.outdir || "in-place");
+    debug.log("In-place:", options.inPlace || false);
+    debug.log("Debug enabled:", options.debug || false);
+
     if (paths.length === 0) {
         console.error("Error: No files or directories specified");
         process.exit(1);
@@ -36,6 +46,12 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
 
     const files = await expandFilePaths(paths);
 
+    debug.group("Found Files");
+    debug.log(`Total files found: ${files.length}`);
+    if (files.length > 0) {
+        debug.log("Files:", files);
+    }
+
     if (files.length === 0) {
         console.error("Error: No TypeScript files found");
         process.exit(1);
@@ -43,9 +59,12 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
 
     console.log(`Processing ${files.length} file(s)...`);
 
+    debug.group("Transforming Files");
+
     // Transform files in parallel
     const results = await Promise.allSettled(
         files.map(async (file) => {
+            debug.log(`Processing: ${file}`);
             await transformFile(file, resolvedOutdir, inPlace);
             return { file, success: true };
         }),
@@ -53,6 +72,8 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
 
     let processed = 0;
     let errors = 0;
+
+    debug.group("Transformation Results");
 
     results.forEach((result, index) => {
         const file = files[index];
@@ -78,6 +99,8 @@ export async function inlineValidators(paths: string[], options: InlineOptions =
     });
 
     console.log(`\nProcessed: ${processed} file(s)`);
+    debug.log(`Successfully processed: ${processed}`);
+    debug.log(`Errors: ${errors}`);
     if (errors > 0) {
         console.log(`Errors: ${errors} file(s)`);
         process.exit(1);

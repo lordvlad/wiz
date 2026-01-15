@@ -5,12 +5,13 @@ import { Project } from "ts-morph";
 
 import wizPlugin from "../plugin/index";
 import { protobufModelToString } from "../plugin/protobuf/codegen";
-import { expandFilePaths, findNearestPackageJson, readPackageJson } from "./utils";
+import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "proto";
 
 interface ProtobufOptions {
     format?: Format;
+    debug?: boolean;
 }
 
 /**
@@ -18,6 +19,13 @@ interface ProtobufOptions {
  */
 export async function generateProtobuf(paths: string[], options: ProtobufOptions = {}): Promise<void> {
     const format = options.format || "proto";
+    const debug = new DebugLogger(options.debug || false);
+
+    debug.group("Command Arguments");
+    debug.log("Command: protobuf");
+    debug.log("Input paths:", paths);
+    debug.log("Format:", format);
+    debug.log("Debug enabled:", options.debug || false);
 
     if (paths.length === 0) {
         console.error("Error: No files or directories specified");
@@ -26,19 +34,38 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
 
     const files = await expandFilePaths(paths);
 
+    debug.group("Found Files");
+    debug.log(`Total files found: ${files.length}`);
+    if (files.length > 0) {
+        debug.log("Files:", files);
+    }
+
     if (files.length === 0) {
         console.error("Error: No TypeScript files found");
         process.exit(1);
     }
 
     // First pass: Look for createProtobufSpec calls
+    debug.group("Searching for createProtobufSpec/createProtobufModel calls");
     for (const file of files) {
         const hasCreateProtobuf = await checkForCreateProtobuf(file);
+        debug.log(`File: ${file}`, { hasCreateProtobuf });
 
         if (hasCreateProtobuf) {
             // Found createProtobufSpec, compile and execute
-            const spec = await compileAndExecuteProtobuf(file);
+            debug.log("Found createProtobuf call, compiling and executing...");
+            const spec = await compileAndExecuteProtobuf(file, debug);
             if (spec) {
+                debug.group("Protobuf Spec Generated");
+                debug.log("Syntax:", spec.syntax);
+                debug.log("Package:", spec.package);
+                if (spec.messages) {
+                    debug.log("Number of messages:", Object.keys(spec.messages).length);
+                    debug.log("Message names:", Object.keys(spec.messages));
+                }
+                if (spec.enums) {
+                    debug.log("Number of enums:", Object.keys(spec.enums).length);
+                }
                 outputSpec(spec, format);
                 return; // Exit after first match
             }
@@ -46,8 +73,19 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
     }
 
     // Second pass: Generate from exported types
-    const spec = await generateFromTypes(files);
+    debug.group("Generating from exported types");
+    const spec = await generateFromTypes(files, debug);
     if (spec) {
+        debug.group("Protobuf Spec Generated from Types");
+        debug.log("Syntax:", spec.syntax);
+        debug.log("Package:", spec.package);
+        if (spec.messages) {
+            debug.log("Number of messages:", Object.keys(spec.messages).length);
+            debug.log("Message names:", Object.keys(spec.messages));
+        }
+        if (spec.enums) {
+            debug.log("Number of enums:", Object.keys(spec.enums).length);
+        }
         outputSpec(spec, format);
     } else {
         console.error("Error: No createProtobufSpec calls found and no exported types to generate from");
@@ -66,7 +104,7 @@ async function checkForCreateProtobuf(filePath: string): Promise<boolean> {
 /**
  * Compile and execute a file containing createProtobufSpec.
  */
-async function compileAndExecuteProtobuf(filePath: string): Promise<any> {
+async function compileAndExecuteProtobuf(filePath: string, debug: DebugLogger): Promise<any> {
     // Create temporary directory
     const tmpDir = resolve(process.cwd(), ".tmp", "cli-protobuf-" + Date.now());
     await mkdir(tmpDir, { recursive: true });
@@ -132,7 +170,7 @@ async function compileAndExecuteProtobuf(filePath: string): Promise<any> {
 /**
  * Generate Protobuf spec from exported types.
  */
-async function generateFromTypes(files: string[]): Promise<any> {
+async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
         skipAddingFilesFromTsConfig: true,
     });
@@ -151,6 +189,7 @@ async function generateFromTypes(files: string[]): Promise<any> {
         sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
                 exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
             }
         });
 
@@ -158,8 +197,17 @@ async function generateFromTypes(files: string[]): Promise<any> {
         sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
                 exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
             }
         });
+    }
+
+    debug.log(`Total exported types: ${exportedTypes.length}`);
+    if (exportedTypes.length > 0) {
+        debug.log(
+            "Type names:",
+            exportedTypes.map((t) => t.name),
+        );
     }
 
     if (exportedTypes.length === 0) {
