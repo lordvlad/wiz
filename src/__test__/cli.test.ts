@@ -4,6 +4,7 @@ import { resolve } from "path";
 
 import { inlineValidators } from "../cli/inline";
 import { generateOpenApi } from "../cli/openapi";
+import { generateProtobuf } from "../cli/protobuf";
 
 const tmpDir = resolve(import.meta.dir, ".tmp-cli-test");
 
@@ -229,6 +230,70 @@ function getProducts() {}
                 console.log = originalLog;
             }
         });
+
+        it("should handle Windows-style paths with backslashes", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+export type User = {
+    id: number;
+    name: string;
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            // Simulate Windows-style path with backslashes
+            const windowsStylePath = testFile.replace(/\//g, "\\");
+
+            try {
+                await generateOpenApi([windowsStylePath], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain("User");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+    });
+
+    describe("generateProtobuf", () => {
+        it("should handle Windows-style paths with backslashes", async () => {
+            const testFile = resolve(tmpDir, "types.ts");
+            await writeFile(
+                testFile,
+                `
+export type User = {
+    id: number;
+    name: string;
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            // Simulate Windows-style path with backslashes
+            const windowsStylePath = testFile.replace(/\//g, "\\");
+
+            try {
+                await generateProtobuf([windowsStylePath], { format: "json" });
+                expect(output).toContain('"syntax": "proto3"');
+                expect(output).toContain("User");
+            } finally {
+                console.log = originalLog;
+            }
+        });
     });
 
     describe("inlineValidators", () => {
@@ -275,6 +340,54 @@ export const validateUser = createValidator<User>();
                     const content = await Bun.file(outFile).text();
                     expect(content).toContain("validateUser");
                     expect(content).toContain("function");
+                } finally {
+                    process.chdir(originalCwd);
+                }
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should handle Windows-style paths with backslashes", async () => {
+            const srcDir = resolve(tmpDir, "src");
+            await mkdir(srcDir, { recursive: true });
+
+            const testFile = resolve(srcDir, "validators.ts");
+            const outDir = resolve(tmpDir, "out");
+
+            await writeFile(
+                testFile,
+                `
+import { createValidator } from "${resolve(import.meta.dir, "../validator/index.ts")}";
+
+type User = {
+    id: number;
+    name: string;
+}
+
+export const validateUser = createValidator<User>();
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            // Simulate Windows-style path with backslashes
+            const windowsStylePath = testFile.replace(/\//g, "\\");
+
+            try {
+                // Change to the tmpDir so relative paths work correctly
+                const originalCwd = process.cwd();
+                process.chdir(tmpDir);
+
+                try {
+                    await inlineValidators([windowsStylePath], { outdir: outDir });
+                    expect(output).toContain("✓");
+                    expect(output).toContain("Processed: 1 file(s)");
                 } finally {
                     process.chdir(originalCwd);
                 }
