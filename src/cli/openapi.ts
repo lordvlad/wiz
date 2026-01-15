@@ -8,6 +8,7 @@ import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
+import { scanFiles, getExportedTypes, getFilesWithFunctionCall, getTypesByNames } from "./file-scanner";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
@@ -48,72 +49,81 @@ export async function generateOpenApi(paths: string[], options: OpenApiOptions =
         process.exit(1);
     }
 
-    // First pass: Look for createOpenApi calls
-    debug.group("Searching for createOpenApi calls");
-    for (const file of files) {
-        const hasCreateOpenApi = await checkForCreateOpenApi(file);
-        debug.log(`File: ${file}`, { hasCreateOpenApi });
+    // Single pass: Scan all files once and collect all information
+    debug.group("Scanning files (unified pass)");
+    const scanResult = await scanFiles(files, {
+        functionNames: ["createOpenApi"],
+        extractJSDoc: true,
+        debug,
+    });
 
-        if (hasCreateOpenApi) {
-            // Found createOpenApi, compile and execute
-            debug.log("Found createOpenApi call, compiling and executing...");
-            const spec = await compileAndExecuteOpenApi(file, debug);
-            if (spec) {
-                debug.group("OpenAPI Spec Generated");
-                debug.log("Spec version:", spec.openapi);
-                debug.log("Spec info:", spec.info);
-                if (spec.paths) {
-                    debug.log("Number of paths:", Object.keys(spec.paths).length);
-                }
-                if (spec.components?.schemas) {
-                    debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
-                }
-                outputSpec(spec, format);
-                return; // Exit after first match
+    debug.log(`Scan complete: ${scanResult.types.length} types, ${scanResult.jsdocEndpoints.length} JSDoc endpoints`);
+
+    // Strategy 1: Look for createOpenApi calls
+    const createOpenApiFiles = getFilesWithFunctionCall(scanResult, "createOpenApi");
+    if (createOpenApiFiles.length > 0) {
+        debug.group("Found createOpenApi calls, compiling and executing");
+        const file = createOpenApiFiles[0];
+        if (!file) {
+            console.error("Error: Could not find file with createOpenApi call");
+            process.exit(1);
+        }
+        debug.log(`Using file: ${file}`);
+
+        const spec = await compileAndExecuteOpenApi(file, debug);
+        if (spec) {
+            debug.group("OpenAPI Spec Generated");
+            debug.log("Spec version:", spec.openapi);
+            debug.log("Spec info:", spec.info);
+            if (spec.paths) {
+                debug.log("Number of paths:", Object.keys(spec.paths).length);
             }
+            if (spec.components?.schemas) {
+                debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+            }
+            outputSpec(spec, format);
+            return;
         }
     }
 
-    // Second pass: Try to generate from JSDoc tags
-    debug.group("Searching for JSDoc tags");
-    const jsdocSpec = await generateFromJSDocTags(files, debug);
-    if (jsdocSpec) {
-        debug.group("OpenAPI Spec Generated from JSDoc");
-        debug.log("Spec version:", jsdocSpec.openapi);
-        debug.log("Spec info:", jsdocSpec.info);
-        if (jsdocSpec.paths) {
-            debug.log("Number of paths:", Object.keys(jsdocSpec.paths).length);
+    // Strategy 2: Try to generate from JSDoc tags
+    if (scanResult.jsdocEndpoints.length > 0) {
+        debug.group("Generating from JSDoc tags");
+        const jsdocSpec = await generateFromJSDocTags(scanResult, files, debug);
+        if (jsdocSpec) {
+            debug.group("OpenAPI Spec Generated from JSDoc");
+            debug.log("Spec version:", jsdocSpec.openapi);
+            debug.log("Spec info:", jsdocSpec.info);
+            if (jsdocSpec.paths) {
+                debug.log("Number of paths:", Object.keys(jsdocSpec.paths).length);
+            }
+            if (jsdocSpec.components?.schemas) {
+                debug.log("Number of schemas:", Object.keys(jsdocSpec.components.schemas).length);
+            }
+            outputSpec(jsdocSpec, format);
+            return;
         }
-        if (jsdocSpec.components?.schemas) {
-            debug.log("Number of schemas:", Object.keys(jsdocSpec.components.schemas).length);
-        }
-        outputSpec(jsdocSpec, format);
-        return;
     }
 
-    // Third pass: Generate from exported types (schema-only)
-    debug.group("Generating from exported types");
-    const spec = await generateFromTypes(files, debug);
-    if (spec) {
-        debug.group("OpenAPI Spec Generated from Types");
-        debug.log("Spec version:", spec.openapi);
-        debug.log("Spec info:", spec.info);
-        if (spec.components?.schemas) {
-            debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+    // Strategy 3: Generate from exported types (schema-only)
+    const exportedTypes = getExportedTypes(scanResult);
+    if (exportedTypes.length > 0) {
+        debug.group("Generating from exported types");
+        const spec = await generateFromTypes(scanResult, files, debug);
+        if (spec) {
+            debug.group("OpenAPI Spec Generated from Types");
+            debug.log("Spec version:", spec.openapi);
+            debug.log("Spec info:", spec.info);
+            if (spec.components?.schemas) {
+                debug.log("Number of schemas:", Object.keys(spec.components.schemas).length);
+            }
+            outputSpec(spec, format);
+            return;
         }
-        outputSpec(spec, format);
-    } else {
-        console.error("Error: No createOpenApi calls found, no JSDoc tags, and no exported types to generate from");
-        process.exit(1);
     }
-}
 
-/**
- * Check if a file contains a createOpenApi call.
- */
-async function checkForCreateOpenApi(filePath: string): Promise<boolean> {
-    const content = await Bun.file(filePath).text();
-    return content.includes("createOpenApi");
+    console.error("Error: No createOpenApi calls found, no JSDoc tags, and no exported types to generate from");
+    process.exit(1);
 }
 
 /**
@@ -180,97 +190,15 @@ async function compileAndExecuteOpenApi(filePath: string, debug: DebugLogger): P
 }
 
 /**
- * Generate OpenAPI spec from JSDoc tags on functions using direct extraction.
- * This approach extracts path operations directly from source files without requiring a build step.
+ * Generate OpenAPI spec from JSDoc tags using pre-scanned data.
+ * This approach uses data already collected during the unified scan.
  */
-async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promise<any> {
-    const project = new Project({
-        skipAddingFilesFromTsConfig: true,
-    });
+async function generateFromJSDocTags(scanResult: any, files: string[], debug: DebugLogger): Promise<any> {
+    // Use the already collected types and JSDoc endpoints from the scan
+    const allTypes = scanResult.types;
+    const pathOperations = scanResult.jsdocEndpoints;
 
-    // Add all files to the project
-    const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
-
-    // Collect all exported types with their ts-morph types
-    const exportedTypes: { name: string; type: any; file: string }[] = [];
-    const pathOperations: Array<{
-        method: string;
-        path: string;
-        metadata: any;
-    }> = [];
-
-    const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "trace"]);
-
-    for (const sourceFile of sourceFiles) {
-        const filePath = sourceFile.getFilePath();
-
-        // Get exported type aliases
-        sourceFile.getTypeAliases().forEach((typeAlias: any) => {
-            if (typeAlias.isExported()) {
-                exportedTypes.push({
-                    name: typeAlias.getName(),
-                    type: typeAlias.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
-            }
-        });
-
-        // Get exported interfaces
-        sourceFile.getInterfaces().forEach((iface: any) => {
-            if (iface.isExported()) {
-                exportedTypes.push({
-                    name: iface.getName(),
-                    type: iface.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
-            }
-        });
-
-        // Extract path operations from functions with @openApi JSDoc tags
-        const functionDeclarations = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
-        const functionExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionExpression);
-        const variableStatements = sourceFile.getDescendantsOfKind(SyntaxKind.VariableStatement);
-
-        const allFunctions = [...functionDeclarations, ...functionExpressions, ...variableStatements];
-
-        for (const func of allFunctions) {
-            const metadata = extractOpenApiFromJSDoc(func);
-
-            if (!metadata.hasOpenApiTag) {
-                continue;
-            }
-
-            // @path is required
-            if (!metadata.path) {
-                debug.log(
-                    `Warning: Function with @openApi tag at ${filePath}:${func.getStartLineNumber()} is missing @path tag`,
-                );
-                continue;
-            }
-
-            // Default method to GET if not specified
-            const method = metadata.method || "get";
-
-            // Validate method
-            if (!HTTP_METHODS.has(method)) {
-                debug.log(
-                    `Warning: Invalid HTTP method '${method}' at ${filePath}:${func.getStartLineNumber()}. Using GET instead.`,
-                );
-            }
-
-            pathOperations.push({
-                method: HTTP_METHODS.has(method) ? method : "get",
-                path: metadata.path,
-                metadata,
-            });
-
-            debug.log(`Found @openApi path operation: ${method.toUpperCase()} ${metadata.path}`, { file: filePath });
-        }
-    }
-
-    debug.log(`Total exported types: ${exportedTypes.length}`);
+    debug.log(`Total types: ${allTypes.length}`);
     debug.log(`Total path operations: ${pathOperations.length}`);
 
     // If no JSDoc tags found, return null
@@ -300,58 +228,10 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
 
     debug.log(`Referenced type names from JSDoc: ${Array.from(referencedTypeNames).join(", ")}`);
 
-    // Find non-exported types that are referenced in JSDoc tags
-    const allTypes = [...exportedTypes];
-    const existingTypeNames = new Set(exportedTypes.map((t) => t.name));
+    // Filter types to include exported types + types referenced in JSDoc
+    const relevantTypes = allTypes.filter((t: any) => t.isExported || referencedTypeNames.has(t.name));
 
-    for (const typeName of referencedTypeNames) {
-        // Skip if already collected (exported)
-        if (existingTypeNames.has(typeName)) {
-            continue;
-        }
-
-        // Skip primitive types
-        if (
-            ["string", "number", "boolean", "object", "array", "integer", "int", "bool"].includes(
-                typeName.toLowerCase(),
-            )
-        ) {
-            continue;
-        }
-
-        // Search for this type in all source files
-        for (const sourceFile of sourceFiles) {
-            const filePath = sourceFile.getFilePath();
-
-            // Look for type alias
-            const typeAlias = sourceFile.getTypeAlias(typeName);
-            if (typeAlias) {
-                allTypes.push({
-                    name: typeName,
-                    type: typeAlias.getType(),
-                    file: filePath,
-                });
-                existingTypeNames.add(typeName);
-                debug.log(`Found non-exported type referenced in JSDoc: ${typeName}`, { file: filePath });
-                break;
-            }
-
-            // Look for interface
-            const iface = sourceFile.getInterface(typeName);
-            if (iface) {
-                allTypes.push({
-                    name: typeName,
-                    type: iface.getType(),
-                    file: filePath,
-                });
-                existingTypeNames.add(typeName);
-                debug.log(`Found non-exported interface referenced in JSDoc: ${typeName}`, { file: filePath });
-                break;
-            }
-        }
-    }
-
-    debug.log(`Total types (exported + JSDoc-referenced): ${allTypes.length}`);
+    debug.log(`Total relevant types (exported + JSDoc-referenced): ${relevantTypes.length}`);
 
     // Find nearest package.json for metadata
     let packageJson: any = {};
@@ -368,9 +248,9 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
     }
 
     // Convert types to IR schema
-    const availableTypes = new Set(allTypes.map((t) => t.name));
+    const availableTypes = new Set<string>(relevantTypes.map((t: any) => t.name));
     const irSchema: IRSchema = {
-        types: allTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
+        types: relevantTypes.map(({ name, type }: any) => namedTypeToIrDefinition(name, type, { availableTypes })),
     };
 
     // Generate OpenAPI schemas from IR
@@ -565,47 +445,12 @@ function buildSchemaFromType(typeStr: string): Record<string, unknown> {
 }
 
 /**
- * Generate OpenAPI spec from exported types using direct IR conversion.
- * This approach avoids the temporary file + build step, preventing import issues.
+ * Generate OpenAPI spec from exported types using pre-scanned data.
+ * This approach uses data already collected during the unified scan.
  */
-async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
-    const project = new Project({
-        skipAddingFilesFromTsConfig: true,
-    });
-
-    // Add all files to the project
-    const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
-
-    // Collect all exported type aliases and interfaces with their ts-morph types
-    const exportedTypes: { name: string; type: any; file: string }[] = [];
-
-    for (const sourceFile of sourceFiles) {
-        const filePath = sourceFile.getFilePath();
-
-        // Get exported type aliases
-        sourceFile.getTypeAliases().forEach((typeAlias: any) => {
-            if (typeAlias.isExported()) {
-                exportedTypes.push({
-                    name: typeAlias.getName(),
-                    type: typeAlias.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
-            }
-        });
-
-        // Get exported interfaces
-        sourceFile.getInterfaces().forEach((iface: any) => {
-            if (iface.isExported()) {
-                exportedTypes.push({
-                    name: iface.getName(),
-                    type: iface.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
-            }
-        });
-    }
+async function generateFromTypes(scanResult: any, files: string[], debug: DebugLogger): Promise<any> {
+    // Use only exported types from the scan result
+    const exportedTypes = getExportedTypes(scanResult);
 
     debug.log(`Total exported types: ${exportedTypes.length}`);
     if (exportedTypes.length > 0) {
@@ -634,7 +479,7 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
     }
 
     // Convert types to IR schema
-    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const availableTypes = new Set<string>(exportedTypes.map((t) => t.name));
     const irSchema: IRSchema = {
         types: exportedTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
     };
