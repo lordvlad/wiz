@@ -231,6 +231,55 @@ function getProducts() {}
             }
         });
 
+        it("should handle types with imports from other files", async () => {
+            // Create a base types file
+            const baseFile = resolve(tmpDir, "base.ts");
+            await writeFile(
+                baseFile,
+                `
+export type BaseEntity = {
+    id: number;
+    createdAt: string;
+}
+            `,
+            );
+
+            // Create a file that imports from base
+            const userFile = resolve(tmpDir, "user.ts");
+            await writeFile(
+                userFile,
+                `
+import { BaseEntity } from "./base";
+
+export type User = BaseEntity & {
+    name: string;
+    email: string;
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                // This should work without errors - the old approach would fail here
+                // because concatenating files would break the import
+                await generateOpenApi([userFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain("User");
+                expect(output).toContain("name");
+                expect(output).toContain("email");
+                // Should also include properties from BaseEntity
+                expect(output).toContain("createdAt");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
         it("should handle Windows-style paths with backslashes", async () => {
             const testFile = resolve(tmpDir, "api.ts");
             await writeFile(

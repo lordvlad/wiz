@@ -4,6 +4,9 @@ import { dirname, relative, resolve } from "path";
 import { Project } from "ts-morph";
 
 import wizPlugin from "../plugin/index";
+import { namedTypeToIrDefinition } from "../ir/converters/ts-to-ir";
+import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
+import type { IRSchema } from "../ir/types";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
@@ -344,7 +347,8 @@ export const spec = createOpenApi<[${typeList || "never"}], "3.0">({
 }
 
 /**
- * Generate OpenAPI spec from exported types.
+ * Generate OpenAPI spec from exported types using direct IR conversion.
+ * This approach avoids the temporary file + build step, preventing import issues.
  */
 async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
@@ -354,17 +358,20 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
     // Add all files to the project
     const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
 
-    // Collect all exported type aliases and interfaces
-    const exportedTypes: { name: string; file: string; content: string }[] = [];
+    // Collect all exported type aliases and interfaces with their ts-morph types
+    const exportedTypes: { name: string; type: any; file: string }[] = [];
 
     for (const sourceFile of sourceFiles) {
         const filePath = sourceFile.getFilePath();
-        const fileContent = sourceFile.getFullText();
 
         // Get exported type aliases
         sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
-                exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+                exportedTypes.push({ 
+                    name: typeAlias.getName(), 
+                    type: typeAlias.getType(),
+                    file: filePath 
+                });
                 debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
             }
         });
@@ -372,7 +379,11 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
         // Get exported interfaces
         sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
-                exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+                exportedTypes.push({ 
+                    name: iface.getName(), 
+                    type: iface.getType(),
+                    file: filePath 
+                });
                 debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
             }
         });
@@ -404,87 +415,38 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
         }
     }
 
-    // Create a temporary file with all types inline
-    const tmpDir = resolve(process.cwd(), ".tmp", "cli-openapi-types-" + Date.now());
-    await mkdir(tmpDir, { recursive: true });
+    // Convert types to IR schema
+    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const irSchema: IRSchema = {
+        types: exportedTypes.map(({ name, type }) =>
+            namedTypeToIrDefinition(name, type, { availableTypes })
+        ),
+    };
 
-    try {
-        const tmpFile = resolve(tmpDir, "source.ts");
+    // Generate OpenAPI schemas from IR
+    const schemas = irToOpenApiSchemas(irSchema, {
+        version: "3.0",
+        unionStyle: "oneOf",
+    });
 
-        // Collect all unique file contents
-        const uniqueFiles = new Map<string, string>();
-        exportedTypes.forEach((t) => {
-            if (!uniqueFiles.has(t.file)) {
-                uniqueFiles.set(t.file, t.content);
-            }
-        });
+    // Create full OpenAPI spec
+    const spec: any = {
+        openapi: "3.0.3",
+        info: {
+            title: packageJson.name || "API",
+            version: packageJson.version || "1.0.0",
+        },
+        paths: {},
+        components: {
+            schemas,
+        },
+    };
 
-        // Inline all types from all files
-        const typeDefinitions = Array.from(uniqueFiles.values()).join("\n\n");
-        const typeList = exportedTypes.map((t) => t.name).join(", ");
-
-        // Calculate relative path from tmpFile to openApiSchema
-        const openApiSchemaPath = resolve(import.meta.dir, "../openApiSchema/index.ts");
-        const relativeWizPath = relative(dirname(tmpFile), openApiSchemaPath).replace(/\\/g, "/");
-        const wizImport = relativeWizPath.startsWith(".") ? relativeWizPath : `./${relativeWizPath}`;
-
-        const source = `
-${typeDefinitions}
-
-import { createOpenApiSchema } from "${wizImport}";
-
-export const schema = createOpenApiSchema<[${typeList}], "3.0">();
-        `;
-
-        await writeFile(tmpFile, source);
-
-        // Build with wiz plugin
-        const outDir = resolve(tmpDir, "out");
-        const build = await Bun.build({
-            entrypoints: [tmpFile],
-            outdir: outDir,
-            throw: false,
-            minify: false,
-            format: "esm",
-            root: tmpDir,
-            packages: "external",
-            sourcemap: "none",
-            plugins: [wizPlugin({ log: false })],
-        });
-
-        if (!build.success) {
-            console.error("Build logs:", build.logs);
-            return null;
-        }
-
-        // Import the generated schema
-        const outFile = resolve(outDir, "source.js");
-        const module = await import(outFile);
-
-        if (!module.schema || !module.schema.components) {
-            return null;
-        }
-
-        // Create full OpenAPI spec
-        const spec: any = {
-            openapi: "3.0.3",
-            info: {
-                title: packageJson.name || "API",
-                version: packageJson.version || "1.0.0",
-            },
-            paths: {},
-            ...module.schema,
-        };
-
-        if (packageJson.description) {
-            spec.info.description = packageJson.description;
-        }
-
-        return spec;
-    } finally {
-        // Clean up tmp directory
-        await Bun.$`rm -rf ${tmpDir}`.quiet();
+    if (packageJson.description) {
+        spec.info.description = packageJson.description;
     }
+
+    return spec;
 }
 
 /**
