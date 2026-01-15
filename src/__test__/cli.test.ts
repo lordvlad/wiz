@@ -114,6 +114,40 @@ export type Item = {
             }
         });
 
+        it("should generate YAML with proper 4-space indentation", async () => {
+            const testFile = resolve(tmpDir, "types.ts");
+            await writeFile(
+                testFile,
+                `
+export type Product = {
+    id: number;
+    name: string;
+    nested: {
+        value: string;
+    };
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "yaml" });
+                // Check for proper indentation with 4 spaces
+                expect(output).toContain("openapi: 3.0.3");
+                expect(output).toContain("    title:"); // 4 spaces
+                expect(output).toContain("        type: object"); // 8 spaces
+                expect(output).toContain("            id:"); // 12 spaces
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
         it("should generate OpenAPI spec from JSDoc tags", async () => {
             const testFile = resolve(tmpDir, "api.ts");
             await writeFile(

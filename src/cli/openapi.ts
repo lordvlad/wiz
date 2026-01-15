@@ -597,6 +597,6 @@ function outputSpec(spec: any, format: Format): void {
     if (format === "json") {
         console.log(JSON.stringify(spec, null, 2));
     } else {
-        console.log(Bun.YAML.stringify(spec));
+        console.log(Bun.YAML.stringify(spec, null, 4));
     }
 }
