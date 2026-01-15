@@ -2,88 +2,70 @@
 
 ## Executive Summary
 
-After implementing concurrent file scanning with semaphore-based concurrency control and running comprehensive benchmarks, **the results show that the concurrent implementation degrades performance** for the current codebase architecture.
+After implementing concurrent file scanning with semaphore-based concurrency control and running comprehensive benchmarks with three different approaches, **the results show that the sequential implementation remains optimal** for the current codebase architecture.
 
 ## What Was Tested
 
 ### Test 1: Path Expansion (`benchmark.ts`)
+
 Tests `expandFilePaths()` - collecting file paths from glob patterns.
 
 **Result:** Concurrent implementation is ~28% slower on average
+
 - Small overhead for simple Set operations
 - No actual I/O to benefit from concurrency
 
-### Test 2: File Loading with ts-morph (`benchmark-scanfiles.ts`)  
-Tests `scanFiles()` - the actual bottleneck with ts-morph parsing TypeScript files.
+### Test 2: File Loading Approaches (`benchmark-scanfiles.ts`)
 
-**Result:** Concurrent implementation is dramatically slower (90x-250x slower!)
+Tests three approaches to loading and parsing TypeScript files:
 
-| Files | Sequential | Concurrent | Performance |
-|-------|-----------|------------|-------------|
-| 10    | 2.29ms    | 587.95ms   | -25,573% |
-| 50    | 8.82ms    | 514.63ms   | -5,738%  |
-| 100   | 15.24ms   | 525.38ms   | -3,347%  |
-| 200   | 31.59ms   | 520.97ms   | -1,549%  |
+1. **Sequential (Baseline)**: `addSourceFileAtPath()` one by one
+2. **Concurrent (Wrong)**: Wrapping sync `addSourceFileAtPath()` in async/Promise.all
+3. **Concurrent Read (Proposed)**: `Bun.file().text()` concurrently + in-memory ts-morph parsing
 
-## Root Cause Analysis
+#### Results:
 
-### Why Concurrency Doesn't Help
+| Files | Sequential | Concurrent (wrong) | Concurrent Read |
+| ----- | ---------- | ------------------ | --------------- |
+| 10    | 1.65ms     | 519.01ms           | 5.65ms          |
+| 50    | 8.45ms     | 493.12ms           | 15.20ms         |
+| 100   | 13.80ms    | 484.00ms           | 20.26ms         |
+| 200   | 25.90ms    | 488.45ms           | 41.44ms         |
 
-1. **ts-morph's `addSourceFileAtPath()` is synchronous**
-   - It's a CPU-bound operation (parsing TypeScript AST)
-   - Wrapping sync operations in async/Promise.all adds overhead without benefits
-   - No actual concurrent I/O happening
+**Performance vs Sequential:**
 
-2. **ts-morph has internal optimizations**
-   - Likely caches file system operations
-   - May batch or optimize file reads internally
-   - Our concurrent wrapper interferes with these optimizations
+- Concurrent (wrong): -10,561% (adds massive overhead)
+- Concurrent Read: -107% (2x slower on average)
 
-3. **The bottleneck is CPU, not I/O**
-   - Parsing TypeScript is computationally expensive
-   - Even if we read files concurrently, parsing must happen serially on single thread
-   - JavaScript's single-threaded nature limits concurrency benefits
+## Key Insights
 
-## Alternative Approaches Considered
+### The Original Issue Pattern
 
-### Option 1: Worker Threads (Not Implemented)
-Could use Bun's worker threads to truly parallelize parsing across CPU cores.
-- **Pros:** True parallel processing
-- **Cons:** Complex implementation, serialization overhead, ts-morph Project state management
+The issue description mentioned:
 
-### Option 2: Streaming with Async File Reads (Theoretical)
-If the pattern was:
 ```ts
 for await (const path of glob.scan(...)) {
-  const content = await Bun.file(path).text();  // Async I/O
-  // Parse in memory
+    const content = await Bun.file(path).content();
+    // Parse TS
+    // Collect data points
 }
 ```
-Then concurrent reads would help. But ts-morph handles file I/O internally and synchronously.
 
-## Recommendation
+This pattern **would benefit from concurrency** because `Bun.file().content()` is async I/O.
 
-**Revert concurrent file loading changes to `scanFiles()`**. Keep the semaphore utility for potential future use cases where true async I/O is the bottleneck.
+### Current Codebase Reality
 
-### What to Keep:
-✅ **Semaphore utility** (`src/cli/semaphore.ts`) - well-tested, documented, useful primitive
-✅ **Test coverage** - validates semaphore behavior
-✅ **Benchmark tools** - useful for future optimizations
+The current codebase uses ts-morph's `addSourceFileAtPath()` which handles file I/O internally and synchronously with optimizations.
 
-### What to Revert:
-❌ **Concurrent file loading in `scanFiles()`** - proven to hurt performance
-❌ **Related documentation claiming performance benefits**
+### Why Concurrent Read Still Loses
 
-## Performance Characteristics
+Even though `Bun.file().text()` provides true concurrent I/O, it's still ~2x slower because:
 
-The benchmarks reveal that:
-- File scanning performance scales linearly with file count (good!)
-- Sequential: ~0.15ms per file average
-- The current implementation is already quite efficient
-- Real-world bottleneck is TypeScript parsing, not file I/O
+1. **File reading is fast** - Modern SSDs and OS caching
+2. **Parsing is slower** - TypeScript AST parsing is CPU-intensive
+3. **Overhead adds up** - Promise coordination, in-memory file system, losing ts-morph optimizations
+4. **Single-threaded execution** - Can't truly parallelize CPU-bound parsing
 
 ## Conclusion
 
-The original issue description mentioned a pattern with `Bun.file(path).content()` followed by parsing. That pattern would benefit from concurrency. However, the current codebase uses ts-morph which handles file I/O internally and synchronously. Attempting to add concurrency around synchronous operations causes significant performance degradation.
-
-**The semaphore implementation is solid and well-tested**, but applying it to `scanFiles()` was the wrong optimization target. The codebase would need architectural changes (like explicit async file reading before ts-morph processing) for concurrency to provide benefits.
+**Sequential processing is optimal** for ts-morph file loading. The semaphore implementation remains valuable for future async I/O scenarios, but it's not applicable here.

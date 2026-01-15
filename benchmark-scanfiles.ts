@@ -5,9 +5,10 @@
  */
 import { mkdir, rm, writeFile } from "fs/promises";
 import { resolve } from "path";
+import { Project } from "ts-morph";
 
 import { scanFiles } from "./src/cli/file-scanner";
-import { Project } from "ts-morph";
+import { semaphore } from "./src/cli/semaphore";
 
 const tmpDir = resolve(process.cwd(), ".tmp-benchmark-scanfiles");
 
@@ -74,23 +75,63 @@ async function scanFilesSequential(files: string[]): Promise<void> {
     }
 }
 
+/**
+ * Concurrent file reading with Bun.file().text() + in-memory ts-morph parsing
+ * This is the proposed optimization: read files concurrently, then parse in memory
+ */
+async function scanFilesConcurrentRead(files: string[]): Promise<void> {
+    const project = new Project({
+        skipAddingFilesFromTsConfig: true,
+        useInMemoryFileSystem: true,
+    });
+
+    // Read all files concurrently with semaphore
+    const sem = semaphore(8);
+    const fileContents = await Promise.all(
+        files.map(async (filePath) => {
+            const release = await sem();
+            try {
+                const content = await Bun.file(filePath).text();
+                return { filePath, content };
+            } finally {
+                release();
+            }
+        }),
+    );
+
+    // Add files to ts-morph from memory
+    for (const { filePath, content } of fileContents) {
+        project.createSourceFile(filePath, content);
+    }
+
+    // Process files (similar to what scanFiles does)
+    const sourceFiles = project.getSourceFiles();
+    let typeCount = 0;
+    for (const sourceFile of sourceFiles) {
+        typeCount += sourceFile.getTypeAliases().length;
+        typeCount += sourceFile.getInterfaces().length;
+    }
+}
+
 async function benchmark(
     fileCount: number,
     iterations: number = 5,
-): Promise<{ concurrent: number[]; sequential: number[] }> {
+): Promise<{ concurrent: number[]; sequential: number[]; concurrentRead: number[] }> {
     console.log(`\nBenchmarking with ${fileCount} files (${iterations} iterations)...`);
 
     const files = await createTestFiles(fileCount);
 
     const concurrentTimes: number[] = [];
     const sequentialTimes: number[] = [];
+    const concurrentReadTimes: number[] = [];
 
-    // Warm up both implementations
+    // Warm up all implementations
     await scanFiles(files);
     await scanFilesSequential(files);
+    await scanFilesConcurrentRead(files);
 
-    // Benchmark concurrent implementation (new)
-    console.log("  Concurrent (with semaphore):");
+    // Benchmark concurrent implementation (wrapping sync operations)
+    console.log("  Concurrent (wrapping sync addSourceFileAtPath):");
     for (let i = 0; i < iterations; i++) {
         const start = performance.now();
         await scanFiles(files);
@@ -99,8 +140,8 @@ async function benchmark(
         console.log(`    Iteration ${i + 1}: ${duration.toFixed(2)}ms`);
     }
 
-    // Benchmark sequential implementation (old)
-    console.log("  Sequential:");
+    // Benchmark sequential implementation (baseline)
+    console.log("  Sequential (baseline):");
     for (let i = 0; i < iterations; i++) {
         const start = performance.now();
         await scanFilesSequential(files);
@@ -109,9 +150,19 @@ async function benchmark(
         console.log(`    Iteration ${i + 1}: ${duration.toFixed(2)}ms`);
     }
 
+    // Benchmark concurrent read + in-memory parse (proposed optimization)
+    console.log("  Concurrent Read + In-Memory Parse:");
+    for (let i = 0; i < iterations; i++) {
+        const start = performance.now();
+        await scanFilesConcurrentRead(files);
+        const duration = performance.now() - start;
+        concurrentReadTimes.push(duration);
+        console.log(`    Iteration ${i + 1}: ${duration.toFixed(2)}ms`);
+    }
+
     await rm(tmpDir, { recursive: true, force: true });
 
-    return { concurrent: concurrentTimes, sequential: sequentialTimes };
+    return { concurrent: concurrentTimes, sequential: sequentialTimes, concurrentRead: concurrentReadTimes };
 }
 
 function stats(times: number[]): { avg: number; min: number; max: number; median: number } {
@@ -125,12 +176,14 @@ function stats(times: number[]): { avg: number; min: number; max: number; median
 }
 
 async function main() {
-    console.log("=".repeat(70));
+    console.log("=".repeat(80));
     console.log("File Loading (ts-morph) Performance Benchmark");
-    console.log("=".repeat(70));
-    console.log("\nComparing Sequential vs Concurrent File Loading");
-    console.log("This tests the actual bottleneck: ts-morph addSourceFileAtPath()");
-    console.log("-".repeat(70));
+    console.log("=".repeat(80));
+    console.log("\nComparing Three Approaches:");
+    console.log("1. Sequential: addSourceFileAtPath() one by one (baseline)");
+    console.log("2. Concurrent (wrong): wrapping sync addSourceFileAtPath() in async");
+    console.log("3. Concurrent Read: Bun.file().text() concurrently + in-memory parse");
+    console.log("-".repeat(80));
 
     const testCases = [
         { files: 10, iterations: 5 },
@@ -143,34 +196,33 @@ async function main() {
         files: number;
         concurrent: ReturnType<typeof stats>;
         sequential: ReturnType<typeof stats>;
-        improvement: number;
+        concurrentRead: ReturnType<typeof stats>;
+        improvementConcurrent: number;
+        improvementConcurrentRead: number;
     }> = [];
 
     for (const { files, iterations } of testCases) {
-        const { concurrent, sequential } = await benchmark(files, iterations);
+        const { concurrent, sequential, concurrentRead } = await benchmark(files, iterations);
         const cStats = stats(concurrent);
         const sStats = stats(sequential);
-        const improvement = ((sStats.avg - cStats.avg) / sStats.avg) * 100;
-        results.push({ files, concurrent: cStats, sequential: sStats, improvement });
+        const crStats = stats(concurrentRead);
+        const improvementConcurrent = ((sStats.avg - cStats.avg) / sStats.avg) * 100;
+        const improvementConcurrentRead = ((sStats.avg - crStats.avg) / sStats.avg) * 100;
+        results.push({
+            files,
+            concurrent: cStats,
+            sequential: sStats,
+            concurrentRead: crStats,
+            improvementConcurrent,
+            improvementConcurrentRead,
+        });
     }
 
-    console.log("\n" + "=".repeat(70));
-    console.log("Summary - Concurrent Implementation (with semaphore, max 8)");
-    console.log("=".repeat(70));
+    console.log("\n" + "=".repeat(80));
+    console.log("Summary - Sequential (Baseline)");
+    console.log("=".repeat(80));
     console.log("\nFiles | Avg (ms) | Min (ms) | Max (ms) | Median (ms)");
-    console.log("-".repeat(70));
-
-    for (const { files, concurrent: s } of results) {
-        console.log(
-            `${String(files).padStart(5)} | ${s.avg.toFixed(2).padStart(8)} | ${s.min.toFixed(2).padStart(8)} | ${s.max.toFixed(2).padStart(8)} | ${s.median.toFixed(2).padStart(11)}`,
-        );
-    }
-
-    console.log("\n" + "=".repeat(70));
-    console.log("Summary - Sequential Implementation (old)");
-    console.log("=".repeat(70));
-    console.log("\nFiles | Avg (ms) | Min (ms) | Max (ms) | Median (ms)");
-    console.log("-".repeat(70));
+    console.log("-".repeat(80));
 
     for (const { files, sequential: s } of results) {
         console.log(
@@ -178,34 +230,78 @@ async function main() {
         );
     }
 
-    console.log("\n" + "=".repeat(70));
-    console.log("Performance Improvement");
-    console.log("=".repeat(70));
-    console.log("\nFiles | Sequential (ms) | Concurrent (ms) | Improvement");
-    console.log("-".repeat(70));
+    console.log("\n" + "=".repeat(80));
+    console.log("Summary - Concurrent (wrapping sync operations) - WRONG APPROACH");
+    console.log("=".repeat(80));
+    console.log("\nFiles | Avg (ms) | Min (ms) | Max (ms) | Median (ms)");
+    console.log("-".repeat(80));
 
-    for (const { files, concurrent, sequential, improvement } of results) {
-        const sign = improvement > 0 ? "+" : "";
+    for (const { files, concurrent: s } of results) {
         console.log(
-            `${String(files).padStart(5)} | ${sequential.avg.toFixed(2).padStart(15)} | ${concurrent.avg.toFixed(2).padStart(15)} | ${sign}${improvement.toFixed(1)}%`,
+            `${String(files).padStart(5)} | ${s.avg.toFixed(2).padStart(8)} | ${s.min.toFixed(2).padStart(8)} | ${s.max.toFixed(2).padStart(8)} | ${s.median.toFixed(2).padStart(11)}`,
         );
     }
 
-    const avgImprovement = results.reduce((sum, r) => sum + r.improvement, 0) / results.length;
+    console.log("\n" + "=".repeat(80));
+    console.log("Summary - Concurrent Read + In-Memory Parse - PROPOSED OPTIMIZATION");
+    console.log("=".repeat(80));
+    console.log("\nFiles | Avg (ms) | Min (ms) | Max (ms) | Median (ms)");
+    console.log("-".repeat(80));
 
-    console.log("\n" + "=".repeat(70));
-    console.log("Key Findings:");
-    console.log(`- Average performance change: ${avgImprovement > 0 ? "+" : ""}${avgImprovement.toFixed(1)}%`);
-    console.log("- This benchmark tests ts-morph's addSourceFileAtPath() with real files");
-    console.log("- Concurrent implementation uses semaphore with max 8 operations");
-    console.log("- Files include realistic TypeScript with types, interfaces, generics");
-    if (avgImprovement > 0) {
-        console.log("✅ Concurrent loading provides measurable performance improvement");
-    } else {
-        console.log("⚠️  For this workload, concurrent overhead exceeds benefits");
-        console.log("   (ts-morph may have internal optimizations or I/O isn't the bottleneck)");
+    for (const { files, concurrentRead: s } of results) {
+        console.log(
+            `${String(files).padStart(5)} | ${s.avg.toFixed(2).padStart(8)} | ${s.min.toFixed(2).padStart(8)} | ${s.max.toFixed(2).padStart(8)} | ${s.median.toFixed(2).padStart(11)}`,
+        );
     }
-    console.log("=".repeat(70));
+
+    console.log("\n" + "=".repeat(80));
+    console.log("Performance Comparison");
+    console.log("=".repeat(80));
+    console.log("\nFiles | Sequential | Concurrent (wrong) | Change | Concurrent Read | Change");
+    console.log("-".repeat(80));
+
+    for (const {
+        files,
+        sequential,
+        concurrent,
+        concurrentRead,
+        improvementConcurrent,
+        improvementConcurrentRead,
+    } of results) {
+        const sign1 = improvementConcurrent > 0 ? "+" : "";
+        const sign2 = improvementConcurrentRead > 0 ? "+" : "";
+        console.log(
+            `${String(files).padStart(5)} | ${sequential.avg.toFixed(2).padStart(10)} | ${concurrent.avg.toFixed(2).padStart(18)} | ${sign1}${improvementConcurrent.toFixed(1).padStart(5)}% | ${concurrentRead.avg.toFixed(2).padStart(15)} | ${sign2}${improvementConcurrentRead.toFixed(1).padStart(5)}%`,
+        );
+    }
+
+    const avgImprovementConcurrent = results.reduce((sum, r) => sum + r.improvementConcurrent, 0) / results.length;
+    const avgImprovementConcurrentRead =
+        results.reduce((sum, r) => sum + r.improvementConcurrentRead, 0) / results.length;
+
+    console.log("\n" + "=".repeat(80));
+    console.log("Key Findings:");
+    console.log(
+        `- Wrapping sync operations: ${avgImprovementConcurrent > 0 ? "+" : ""}${avgImprovementConcurrent.toFixed(1)}% (adds overhead, no benefit)`,
+    );
+    console.log(
+        `- Concurrent read + in-memory: ${avgImprovementConcurrentRead > 0 ? "+" : ""}${avgImprovementConcurrentRead.toFixed(1)}%`,
+    );
+    console.log("\nApproach Analysis:");
+    console.log("1. Sequential: Simple, efficient for ts-morph's internal optimizations");
+    console.log("2. Concurrent (wrong): Massive overhead from wrapping sync operations");
+    console.log("3. Concurrent Read: Actually does concurrent I/O with Bun.file().text()");
+    if (avgImprovementConcurrentRead > 5) {
+        console.log("\n✅ Concurrent read + in-memory parse provides measurable improvement!");
+        console.log("   This is the correct approach for concurrent file loading.");
+    } else if (avgImprovementConcurrentRead > -5) {
+        console.log("\n⚖️  Concurrent read + in-memory parse is comparable to sequential");
+        console.log("   Benefits depend on I/O vs CPU bottleneck characteristics.");
+    } else {
+        console.log("\n⚠️  Concurrent read adds overhead that exceeds I/O benefits");
+        console.log("   Sequential approach remains optimal for this workload.");
+    }
+    console.log("=".repeat(80));
 }
 
 main().catch(console.error);
