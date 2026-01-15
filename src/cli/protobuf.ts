@@ -3,6 +3,9 @@ import { mkdir, writeFile } from "fs/promises";
 import { dirname, relative, resolve } from "path";
 import { Project } from "ts-morph";
 
+import { namedTypeToIrDefinition } from "../ir/converters/ts-to-ir";
+import { irToProtobuf } from "../ir/generators/ir-to-proto";
+import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { protobufModelToString } from "../plugin/protobuf/codegen";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
@@ -168,7 +171,8 @@ async function compileAndExecuteProtobuf(filePath: string, debug: DebugLogger): 
 }
 
 /**
- * Generate Protobuf spec from exported types.
+ * Generate Protobuf spec from exported types using direct IR conversion.
+ * This approach avoids the temporary file + build step, preventing import issues.
  */
 async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
@@ -178,17 +182,20 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
     // Add all files to the project
     const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
 
-    // Collect all exported type aliases and interfaces
-    const exportedTypes: { name: string; file: string; content: string }[] = [];
+    // Collect all exported type aliases and interfaces with their ts-morph types
+    const exportedTypes: { name: string; type: any; file: string }[] = [];
 
     for (const sourceFile of sourceFiles) {
         const filePath = sourceFile.getFilePath();
-        const fileContent = sourceFile.getFullText();
 
         // Get exported type aliases
         sourceFile.getTypeAliases().forEach((typeAlias: any) => {
             if (typeAlias.isExported()) {
-                exportedTypes.push({ name: typeAlias.getName(), file: filePath, content: fileContent });
+                exportedTypes.push({
+                    name: typeAlias.getName(),
+                    type: typeAlias.getType(),
+                    file: filePath,
+                });
                 debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
             }
         });
@@ -196,7 +203,11 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
         // Get exported interfaces
         sourceFile.getInterfaces().forEach((iface: any) => {
             if (iface.isExported()) {
-                exportedTypes.push({ name: iface.getName(), file: filePath, content: fileContent });
+                exportedTypes.push({
+                    name: iface.getName(),
+                    type: iface.getType(),
+                    file: filePath,
+                });
                 debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
             }
         });
@@ -228,79 +239,17 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
         }
     }
 
-    // Create a temporary file with all types inline
-    const tmpDir = resolve(process.cwd(), ".tmp", "cli-protobuf-types-" + Date.now());
-    await mkdir(tmpDir, { recursive: true });
+    // Convert types to IR schema
+    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const irSchema: IRSchema = {
+        types: exportedTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
+        package: packageJson.name || "api",
+    };
 
-    try {
-        const tmpFile = resolve(tmpDir, "source.ts");
+    // Generate Protobuf model from IR
+    const model = irToProtobuf(irSchema);
 
-        // Collect all unique file contents
-        const uniqueFiles = new Map<string, string>();
-        exportedTypes.forEach((t: any) => {
-            if (!uniqueFiles.has(t.file)) {
-                uniqueFiles.set(t.file, t.content);
-            }
-        });
-
-        // Inline all types from all files
-        const typeDefinitions = Array.from(uniqueFiles.values()).join("\n\n");
-        const typeList = exportedTypes.map((t) => t.name).join(", ");
-
-        // Calculate relative path from tmpFile to protobuf
-        const protobufPath = resolve(import.meta.dir, "../protobuf/index.ts");
-        const relativeWizPath = relative(dirname(tmpFile), protobufPath).replace(/\\/g, "/");
-        const wizImport = relativeWizPath.startsWith(".") ? relativeWizPath : `./${relativeWizPath}`;
-
-        const packageName = packageJson.name || "api";
-
-        const source = `
-${typeDefinitions}
-
-import { createProtobufModel } from "${wizImport}";
-
-export const model = createProtobufModel<[${typeList}]>();
-        `;
-
-        await writeFile(tmpFile, source);
-
-        // Build with wiz plugin
-        const outDir = resolve(tmpDir, "out");
-        const build = await Bun.build({
-            entrypoints: [tmpFile],
-            outdir: outDir,
-            throw: false,
-            minify: false,
-            format: "esm",
-            root: tmpDir,
-            packages: "external",
-            sourcemap: "none",
-            plugins: [wizPlugin({ log: false })],
-        });
-
-        if (!build.success) {
-            console.error("Build logs:", build.logs);
-            return null;
-        }
-
-        // Import the generated model
-        const outFile = resolve(outDir, "source.js");
-        const module = await import(outFile);
-
-        if (!module.model || !module.model.messages) {
-            return null;
-        }
-
-        // Add package name from package.json if not set
-        if (!module.model.package) {
-            module.model.package = packageName;
-        }
-
-        return module.model;
-    } finally {
-        // Clean up tmp directory
-        await Bun.$`rm -rf ${tmpDir}`.quiet();
-    }
+    return model;
 }
 
 /**
