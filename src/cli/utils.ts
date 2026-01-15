@@ -28,10 +28,10 @@ export async function expandFilePaths(paths: string[]): Promise<string[]> {
             }
         } catch {
             // If stat fails, treat as a glob pattern
-            // Extract the directory part and pattern part
-            const lastSlash = path.lastIndexOf("/");
-            const dirPart = lastSlash > 0 ? path.substring(0, lastSlash) : ".";
-            const patternPart = lastSlash > 0 ? path.substring(lastSlash + 1) : path;
+            // Normalize backslashes to forward slashes for cross-platform compatibility
+            const normalizedPath = path.replace(/\\/g, "/");
+            const dirPart = dirname(normalizedPath);
+            const patternPart = normalizedPath.split("/").pop() || normalizedPath;
 
             const glob = new Bun.Glob(patternPart);
             for await (const file of glob.scan({ cwd: dirPart, absolute: true })) {

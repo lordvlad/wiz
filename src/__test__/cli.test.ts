@@ -229,6 +229,37 @@ function getProducts() {}
                 console.log = originalLog;
             }
         });
+
+        it("should handle Windows-style paths with backslashes", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+export type User = {
+    id: number;
+    name: string;
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            // Simulate Windows-style path with backslashes
+            const windowsStylePath = testFile.replace(/\//g, "\\");
+
+            try {
+                await generateOpenApi([windowsStylePath], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain("User");
+            } finally {
+                console.log = originalLog;
+            }
+        });
     });
 
     describe("inlineValidators", () => {
