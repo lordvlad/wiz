@@ -142,8 +142,33 @@ interface ProtobufConfigResult {
     rpcMethods: ParsedRpcMethod[];
 }
 
+// Helper: Check if type is special and should be rejected for Protobuf
+function validateNotSpecialType(element: Type): void {
+    if (element.isAny()) {
+        throw new Error(
+            `Special TypeScript type 'any' cannot be used in Protobuf schemas. Use a concrete type instead.`,
+        );
+    }
+    if (element.isNever()) {
+        throw new Error(`Special TypeScript type 'never' cannot be used in Protobuf schemas.`);
+    }
+    if (element.isUnknown()) {
+        throw new Error(
+            `Special TypeScript type 'unknown' cannot be used in Protobuf schemas. Use a concrete type instead.`,
+        );
+    }
+    const flags = element.getFlags();
+    if ((flags & (1 << 14)) !== 0) {
+        // TypeFlags.Void
+        throw new Error(`Special TypeScript type 'void' cannot be used in Protobuf schemas.`);
+    }
+}
+
 // Helper: Extract type name from type
 function extractTypeName(element: Type): string {
+    // Validate that this is not a special type
+    validateNotSpecialType(element);
+
     const aliasSymbol = element.getAliasSymbol();
     let typeName: string | undefined = aliasSymbol?.getName();
 
