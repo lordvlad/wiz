@@ -1923,6 +1923,7 @@ const cases: TestCase[] = [
                     id: number;
                     data: any;
                 }`,
+        arrayTypes: ["User"],
         schema: `{
             components: {
                 schemas: {
@@ -2031,6 +2032,7 @@ const cases: TestCase[] = [
                     id: number;
                     data: unknown;
                 }`,
+        arrayTypes: ["User"],
         schema: `{
             components: {
                 schemas: {
