@@ -8,6 +8,7 @@ import { irToProtobuf } from "../ir/generators/ir-to-proto";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { protobufModelToString } from "../plugin/protobuf/codegen";
+import { scanFiles, getExportedTypes, getFilesWithFunctionCall } from "./file-scanner";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "proto";
@@ -48,60 +49,71 @@ export async function generateProtobuf(paths: string[], options: ProtobufOptions
         process.exit(1);
     }
 
-    // First pass: Look for createProtobufSpec calls
-    debug.group("Searching for createProtobufSpec/createProtobufModel calls");
-    for (const file of files) {
-        const hasCreateProtobuf = await checkForCreateProtobuf(file);
-        debug.log(`File: ${file}`, { hasCreateProtobuf });
+    // Single pass: Scan all files once and collect all information
+    debug.group("Scanning files (unified pass)");
+    const scanResult = await scanFiles(files, {
+        functionNames: ["createProtobufSpec", "createProtobufModel"],
+        extractJSDoc: false,
+        debug,
+    });
 
-        if (hasCreateProtobuf) {
-            // Found createProtobufSpec, compile and execute
-            debug.log("Found createProtobuf call, compiling and executing...");
-            const spec = await compileAndExecuteProtobuf(file, debug);
-            if (spec) {
-                debug.group("Protobuf Spec Generated");
-                debug.log("Syntax:", spec.syntax);
-                debug.log("Package:", spec.package);
-                if (spec.messages) {
-                    debug.log("Number of messages:", Object.keys(spec.messages).length);
-                    debug.log("Message names:", Object.keys(spec.messages));
-                }
-                if (spec.enums) {
-                    debug.log("Number of enums:", Object.keys(spec.enums).length);
-                }
-                outputSpec(spec, format);
-                return; // Exit after first match
+    debug.log(`Scan complete: ${scanResult.types.length} types`);
+
+    // Strategy 1: Look for createProtobufSpec/createProtobufModel calls
+    const createProtobufFiles = [
+        ...getFilesWithFunctionCall(scanResult, "createProtobufSpec"),
+        ...getFilesWithFunctionCall(scanResult, "createProtobufModel"),
+    ];
+
+    if (createProtobufFiles.length > 0) {
+        debug.group("Found createProtobuf calls, compiling and executing");
+        const file = createProtobufFiles[0];
+        if (!file) {
+            console.error("Error: Could not find file with createProtobuf call");
+            process.exit(1);
+        }
+        debug.log(`Using file: ${file}`);
+
+        const spec = await compileAndExecuteProtobuf(file, debug);
+        if (spec) {
+            debug.group("Protobuf Spec Generated");
+            debug.log("Syntax:", spec.syntax);
+            debug.log("Package:", spec.package);
+            if (spec.messages) {
+                debug.log("Number of messages:", Object.keys(spec.messages).length);
+                debug.log("Message names:", Object.keys(spec.messages));
             }
+            if (spec.enums) {
+                debug.log("Number of enums:", Object.keys(spec.enums).length);
+            }
+            outputSpec(spec, format);
+            return;
         }
     }
 
-    // Second pass: Generate from exported types
-    debug.group("Generating from exported types");
-    const spec = await generateFromTypes(files, debug);
-    if (spec) {
-        debug.group("Protobuf Spec Generated from Types");
-        debug.log("Syntax:", spec.syntax);
-        debug.log("Package:", spec.package);
-        if (spec.messages) {
-            debug.log("Number of messages:", Object.keys(spec.messages).length);
-            debug.log("Message names:", Object.keys(spec.messages));
+    // Strategy 2: Generate from exported types
+    const exportedTypes = getExportedTypes(scanResult);
+    if (exportedTypes.length > 0) {
+        debug.group("Generating from exported types");
+        const spec = await generateFromTypes(scanResult, files, debug);
+        if (spec) {
+            debug.group("Protobuf Spec Generated from Types");
+            debug.log("Syntax:", spec.syntax);
+            debug.log("Package:", spec.package);
+            if (spec.messages) {
+                debug.log("Number of messages:", Object.keys(spec.messages).length);
+                debug.log("Message names:", Object.keys(spec.messages));
+            }
+            if (spec.enums) {
+                debug.log("Number of enums:", Object.keys(spec.enums).length);
+            }
+            outputSpec(spec, format);
+            return;
         }
-        if (spec.enums) {
-            debug.log("Number of enums:", Object.keys(spec.enums).length);
-        }
-        outputSpec(spec, format);
-    } else {
-        console.error("Error: No createProtobufSpec calls found and no exported types to generate from");
-        process.exit(1);
     }
-}
 
-/**
- * Check if a file contains a createProtobufSpec call.
- */
-async function checkForCreateProtobuf(filePath: string): Promise<boolean> {
-    const content = await Bun.file(filePath).text();
-    return content.includes("createProtobufSpec") || content.includes("createProtobufModel");
+    console.error("Error: No createProtobufSpec calls found and no exported types to generate from");
+    process.exit(1);
 }
 
 /**
@@ -171,47 +183,12 @@ async function compileAndExecuteProtobuf(filePath: string, debug: DebugLogger): 
 }
 
 /**
- * Generate Protobuf spec from exported types using direct IR conversion.
- * This approach avoids the temporary file + build step, preventing import issues.
+ * Generate Protobuf spec from exported types using pre-scanned data.
+ * This approach uses data already collected during the unified scan.
  */
-async function generateFromTypes(files: string[], debug: DebugLogger): Promise<any> {
-    const project = new Project({
-        skipAddingFilesFromTsConfig: true,
-    });
-
-    // Add all files to the project
-    const sourceFiles = files.map((f) => project.addSourceFileAtPath(f));
-
-    // Collect all exported type aliases and interfaces with their ts-morph types
-    const exportedTypes: { name: string; type: any; file: string }[] = [];
-
-    for (const sourceFile of sourceFiles) {
-        const filePath = sourceFile.getFilePath();
-
-        // Get exported type aliases
-        sourceFile.getTypeAliases().forEach((typeAlias: any) => {
-            if (typeAlias.isExported()) {
-                exportedTypes.push({
-                    name: typeAlias.getName(),
-                    type: typeAlias.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported type: ${typeAlias.getName()}`, { file: filePath });
-            }
-        });
-
-        // Get exported interfaces
-        sourceFile.getInterfaces().forEach((iface: any) => {
-            if (iface.isExported()) {
-                exportedTypes.push({
-                    name: iface.getName(),
-                    type: iface.getType(),
-                    file: filePath,
-                });
-                debug.log(`Found exported interface: ${iface.getName()}`, { file: filePath });
-            }
-        });
-    }
+async function generateFromTypes(scanResult: any, files: string[], debug: DebugLogger): Promise<any> {
+    // Use only exported types from the scan result
+    const exportedTypes = getExportedTypes(scanResult);
 
     debug.log(`Total exported types: ${exportedTypes.length}`);
     if (exportedTypes.length > 0) {
@@ -240,7 +217,7 @@ async function generateFromTypes(files: string[], debug: DebugLogger): Promise<a
     }
 
     // Convert types to IR schema
-    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const availableTypes = new Set<string>(exportedTypes.map((t) => t.name));
     const irSchema: IRSchema = {
         types: exportedTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
         package: packageJson.name || "api",
