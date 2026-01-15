@@ -30,8 +30,12 @@ export async function expandFilePaths(paths: string[]): Promise<string[]> {
             // If stat fails, treat as a glob pattern
             // Normalize backslashes to forward slashes for cross-platform compatibility
             const normalizedPath = path.replace(/\\/g, "/");
-            const dirPart = normalizedPath.includes("/") ? normalizedPath.substring(0, normalizedPath.lastIndexOf("/")) : ".";
-            const patternPart = normalizedPath.includes("/") ? normalizedPath.substring(normalizedPath.lastIndexOf("/") + 1) : normalizedPath;
+            const dirPart = normalizedPath.includes("/")
+                ? normalizedPath.substring(0, normalizedPath.lastIndexOf("/"))
+                : ".";
+            const patternPart = normalizedPath.includes("/")
+                ? normalizedPath.substring(normalizedPath.lastIndexOf("/") + 1)
+                : normalizedPath;
 
             const glob = new Bun.Glob(patternPart);
             for await (const file of glob.scan({ cwd: dirPart, absolute: true })) {
