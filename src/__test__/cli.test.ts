@@ -112,6 +112,123 @@ export type Item = {
                 console.log = originalLog;
             }
         });
+
+        it("should generate OpenAPI spec from JSDoc tags", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+export type User = {
+    id: number;
+    name: string;
+}
+
+/**
+ * Get user by ID
+ * @openApi
+ * @path /users/:id
+ * @response 200 User - User found
+ */
+function getUserById() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain('"/users/:id"');
+                expect(output).toContain('"get"');
+                expect(output).toContain("User");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate OpenAPI spec from JSDoc tags with multiple methods", async () => {
+            const testFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                testFile,
+                `
+export type User = {
+    id: number;
+    name: string;
+}
+
+/**
+ * Get all users
+ * @openApi
+ * @path /users
+ */
+function getUsers() {}
+
+/**
+ * Create a user
+ * @openApi
+ * @method POST
+ * @path /users
+ * @body User
+ */
+function createUser() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain('"/users"');
+                expect(output).toContain('"get"');
+                expect(output).toContain('"post"');
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should fallback to schema-only when no JSDoc tags present", async () => {
+            const testFile = resolve(tmpDir, "types.ts");
+            await writeFile(
+                testFile,
+                `
+export type Product = {
+    id: number;
+    name: string;
+    price: number;
+}
+
+// Function without @openApi tag should be ignored
+function getProducts() {}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([testFile], { format: "json" });
+                expect(output).toContain('"openapi": "3.0.3"');
+                expect(output).toContain("Product");
+                expect(output).toContain('"paths": {}'); // Empty paths since no JSDoc tags
+            } finally {
+                console.log = originalLog;
+            }
+        });
     });
 
     describe("inlineValidators", () => {
