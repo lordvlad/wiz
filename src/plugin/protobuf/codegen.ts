@@ -57,8 +57,14 @@ const UNSUPPORTED_GLOBAL_TYPES = new Set([
 /**
  * Validates that a type is supported for Protobuf schema generation.
  * Throws an error if the type is a known unsupported global type or special TypeScript type.
+ * Skips validation for wiz format types (StrFormat, NumFormat, etc.) as they are handled separately.
  */
 function validateTypeSupported(type: Type): void {
+    // Skip validation for wiz format types - they are intersection types that are handled specially
+    if (isStrFormat(type) || isNumFormat(type) || isBigIntFormat(type) || isDateFormat(type)) {
+        return;
+    }
+
     // Check for special TypeScript types first
     if (type.isAny()) {
         throw new Error(
@@ -357,6 +363,22 @@ function formatProtobufComment(comment: JSDocComment | undefined, indent: string
 
 // Map TypeScript types to protobuf types
 function mapToProtobufType(type: Type): string {
+    // Check for wiz format types BEFORE validation
+    // Format types are intersection types (e.g., string & { __str_format: "email" })
+    // They should be treated as their base type (string, number, etc.)
+    if (isStrFormat(type)) {
+        return "string";
+    }
+    if (isNumFormat(type)) {
+        return "int32"; // Default, can be enhanced
+    }
+    if (isBigIntFormat(type)) {
+        return "int64";
+    }
+    if (isDateFormat(type)) {
+        return "int64"; // Unix timestamp
+    }
+
     // Validate the type before processing
     validateTypeSupported(type);
 
@@ -399,15 +421,18 @@ function mapToProtobufType(type: Type): string {
                 const declaration = declarations[0];
                 if (declaration && "getType" in declaration && typeof declaration.getType === "function") {
                     const propType = (declaration as any).getType();
-                    // Recursively validate nested types
-                    validateTypeSupported(propType);
                     // For arrays and nested objects, recurse into mapToProtobufType
+                    // mapToProtobufType will handle validation internally
                     if (propType.isArray()) {
                         const elementType = propType.getArrayElementType();
                         if (elementType) {
                             mapToProtobufType(elementType);
                         }
                     } else if (propType.isObject()) {
+                        mapToProtobufType(propType);
+                    } else {
+                        // For non-object, non-array types, also call mapToProtobufType
+                        // to ensure format types and special types are handled
                         mapToProtobufType(propType);
                     }
                 }
