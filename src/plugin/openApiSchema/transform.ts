@@ -83,6 +83,22 @@ function extractOpenApiVersion(call: CallExpression, path: string): "3.0" | "3.1
     return openApiVersion;
 }
 
+// Helper: Check if a type is a special TypeScript type that should be filtered
+function isSpecialType(element: Type): boolean {
+    // Check for any, never, void, unknown types
+    if (element.isAny() || element.isNever() || element.isUnknown()) {
+        return true;
+    }
+    
+    // Check for void using TypeFlags
+    const flags = element.getFlags();
+    if ((flags & (1 << 14)) !== 0) { // TypeFlags.Void = 1 << 14
+        return true;
+    }
+    
+    return false;
+}
+
 // Helper: Extract type name from tuple element
 function extractTypeName(element: Type): string {
     const aliasSymbol = element.getAliasSymbol();
@@ -110,6 +126,11 @@ function collectTypeNames(tupleElements: Type[]): Map<Type, string> {
     const usedNames = new Set<string>();
 
     for (const element of tupleElements) {
+        // Skip special types (any, never, void, unknown)
+        if (isSpecialType(element)) {
+            continue;
+        }
+        
         const typeName = extractTypeName(element);
 
         if (usedNames.has(typeName)) {

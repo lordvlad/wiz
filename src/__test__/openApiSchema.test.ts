@@ -1918,6 +1918,141 @@ const cases: TestCase[] = [
         expectError: "Duplicate type name 'User' detected in tuple",
     },
     {
+        title: "any type should emit empty schema",
+        type: `type User = {
+                    id: number;
+                    data: any;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            data: {}
+                        },
+                        required: [
+                            "id",
+                            "data"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "tuple with any type should be filtered out",
+        type: `type User = {
+                    name: string;
+                }
+                type AnyType = any;`,
+        isArrayTest: true,
+        arrayTypes: ["User", "AnyType"],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "never type should be filtered from tuple",
+        type: `type User = {
+                    name: string;
+                }
+                type NeverType = never;`,
+        isArrayTest: true,
+        arrayTypes: ["User", "NeverType"],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "void type should be filtered from tuple",
+        type: `type User = {
+                    name: string;
+                }
+                type VoidType = void;`,
+        isArrayTest: true,
+        arrayTypes: ["User", "VoidType"],
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            name: {
+                                type: "string"
+                            }
+                        },
+                        required: [
+                            "name"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`,
+    },
+    {
+        title: "unknown type should emit empty schema",
+        type: `type User = {
+                    id: number;
+                    data: unknown;
+                }`,
+        schema: `{
+            components: {
+                schemas: {
+                    User: {
+                        type: "object",
+                        properties: {
+                            id: {
+                                type: "number"
+                            },
+                            data: {}
+                        },
+                        required: [
+                            "id",
+                            "data"
+                        ],
+                        title: "User"
+                    }
+                }
+            }
+        }`,
+    },
+    {
         title: "$ref for type reference in property",
         type: `type User = {
                     id: number;

@@ -329,4 +329,79 @@ describe("createProtobufModel function", () => {
 
         await expect(compile(code)).rejects.toThrow(/Unsupported global type.*HTMLElement/);
     });
+
+    it("must reject any type in tuple", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type User = {
+                name: string;
+            }
+            type AnyType = any;
+            
+            export const model = createProtobufModel<[User, AnyType]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Special TypeScript type 'any' cannot be used in Protobuf/);
+    });
+
+    it("must reject any type in field", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type User = {
+                name: string;
+                data: any;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Special TypeScript type 'any' cannot be used in Protobuf/);
+    });
+
+    it("must reject never type in tuple", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type User = {
+                name: string;
+            }
+            type NeverType = never;
+            
+            export const model = createProtobufModel<[User, NeverType]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Special TypeScript type 'never' cannot be used in Protobuf/);
+    });
+
+    it("must reject void type in tuple", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type User = {
+                name: string;
+            }
+            type VoidType = void;
+            
+            export const model = createProtobufModel<[User, VoidType]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Special TypeScript type 'void' cannot be used in Protobuf/);
+    });
+
+    it("must reject unknown type in field", async () => {
+        const code = `
+            import { createProtobufModel } from "../../protobuf/index";
+            
+            type User = {
+                name: string;
+                data: unknown;
+            }
+            
+            export const model = createProtobufModel<[User]>();
+        `;
+
+        await expect(compile(code)).rejects.toThrow(/Special TypeScript type 'unknown' cannot be used in Protobuf/);
+    });
 });

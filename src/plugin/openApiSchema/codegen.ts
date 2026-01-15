@@ -164,6 +164,30 @@ export function createOpenApiSchema(type: Type, context: SchemaContext = {}): un
     const availableTypes = context.availableTypes ?? new Set<string>();
     const processingStack = context.processingStack ?? new Set<string>();
 
+    // Handle special TypeScript types early
+    // any and unknown types should emit an empty schema {}
+    if (type.isAny()) {
+        return {};
+    }
+    if (type.isUnknown()) {
+        return {};
+    }
+    
+    // never, void should not appear in schemas - they're typically filtered at tuple level
+    // but if they do appear (e.g., in a property), we should handle them gracefully
+    if (type.isNever()) {
+        // never type means no value is possible - emit an impossible schema
+        return { not: {} };
+    }
+    
+    // void is typically used for function returns, shouldn't be in schemas
+    // but if it appears, treat it similarly to undefined/null
+    const flags = type.getFlags();
+    if ((flags & TypeFlags.Void) !== 0) {
+        // Emit null schema for void
+        return { type: "null" };
+    }
+
     // Validate that the type is supported before processing
     validateTypeSupported(type);
 
