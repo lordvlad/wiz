@@ -89,13 +89,14 @@ function isSpecialType(element: Type): boolean {
     if (element.isAny() || element.isNever() || element.isUnknown()) {
         return true;
     }
-    
+
     // Check for void using TypeFlags
     const flags = element.getFlags();
-    if ((flags & (1 << 14)) !== 0) { // TypeFlags.Void = 1 << 14
+    if ((flags & (1 << 14)) !== 0) {
+        // TypeFlags.Void = 1 << 14
         return true;
     }
-    
+
     return false;
 }
 
@@ -130,7 +131,7 @@ function collectTypeNames(tupleElements: Type[]): Map<Type, string> {
         if (isSpecialType(element)) {
             continue;
         }
-        
+
         const typeName = extractTypeName(element);
 
         if (usedNames.has(typeName)) {

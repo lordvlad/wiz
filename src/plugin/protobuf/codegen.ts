@@ -56,9 +56,29 @@ const UNSUPPORTED_GLOBAL_TYPES = new Set([
 
 /**
  * Validates that a type is supported for Protobuf schema generation.
- * Throws an error if the type is a known unsupported global type.
+ * Throws an error if the type is a known unsupported global type or special TypeScript type.
  */
 function validateTypeSupported(type: Type): void {
+    // Check for special TypeScript types first
+    if (type.isAny()) {
+        throw new Error(
+            `Special TypeScript type 'any' cannot be used in Protobuf schemas. Use a concrete type instead.`,
+        );
+    }
+    if (type.isNever()) {
+        throw new Error(`Special TypeScript type 'never' cannot be used in Protobuf schemas.`);
+    }
+    if (type.isUnknown()) {
+        throw new Error(
+            `Special TypeScript type 'unknown' cannot be used in Protobuf schemas. Use a concrete type instead.`,
+        );
+    }
+    const flags = type.getFlags();
+    if ((flags & (1 << 14)) !== 0) {
+        // TypeFlags.Void
+        throw new Error(`Special TypeScript type 'void' cannot be used in Protobuf schemas.`);
+    }
+
     // First, check the type text for unsupported types
     const typeText = type.getText();
     for (const unsupportedType of UNSUPPORTED_GLOBAL_TYPES) {
