@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, relative, resolve } from "path";
-import { Project } from "ts-morph";
+import { Project, SyntaxKind } from "ts-morph";
 
 import { namedTypeToIrDefinition } from "../ir/converters/ts-to-ir";
 import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
+import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
@@ -179,8 +180,8 @@ async function compileAndExecuteOpenApi(filePath: string, debug: DebugLogger): P
 }
 
 /**
- * Generate OpenAPI spec from JSDoc tags on functions using direct IR conversion.
- * This approach avoids the temporary file + build step, preventing import issues.
+ * Generate OpenAPI spec from JSDoc tags on functions using direct extraction.
+ * This approach extracts path operations directly from source files without requiring a build step.
  */
 async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promise<any> {
     const project = new Project({
@@ -192,7 +193,13 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
 
     // Collect all exported types with their ts-morph types
     const exportedTypes: { name: string; type: any; file: string }[] = [];
-    let hasJSDocTags = false;
+    const pathOperations: Array<{
+        method: string;
+        path: string;
+        metadata: any;
+    }> = [];
+
+    const HTTP_METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "trace"]);
 
     for (const sourceFile of sourceFiles) {
         const filePath = sourceFile.getFilePath();
@@ -221,34 +228,53 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
             }
         });
 
-        // Look for functions with @openApi JSDoc tag
-        const functions = [
-            ...sourceFile.getFunctions(),
-            ...sourceFile.getVariableDeclarations().filter((v: any) => {
-                const init = v.getInitializer();
-                return init && (init.getKind() === 218 || init.getKind() === 217); // ArrowFunction or FunctionExpression
-            }),
-        ];
+        // Extract path operations from functions with @openApi JSDoc tags
+        const functionDeclarations = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
+        const functionExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.FunctionExpression);
+        const variableStatements = sourceFile.getDescendantsOfKind(SyntaxKind.VariableStatement);
 
-        for (const func of functions) {
-            const jsDocs = (func as any).getJsDocs?.() || [];
-            for (const jsDoc of jsDocs) {
-                const tags = jsDoc.getTags?.() || [];
-                const hasOpenApiTag = tags.some((tag: any) => tag.getTagName() === "openApi");
-                if (hasOpenApiTag) {
-                    debug.log(`Found @openApi JSDoc tag in file`, { file: filePath });
-                    hasJSDocTags = true;
-                    break;
-                }
+        const allFunctions = [...functionDeclarations, ...functionExpressions, ...variableStatements];
+
+        for (const func of allFunctions) {
+            const metadata = extractOpenApiFromJSDoc(func);
+
+            if (!metadata.hasOpenApiTag) {
+                continue;
             }
+
+            // @path is required
+            if (!metadata.path) {
+                debug.log(
+                    `Warning: Function with @openApi tag at ${filePath}:${func.getStartLineNumber()} is missing @path tag`,
+                );
+                continue;
+            }
+
+            // Default method to GET if not specified
+            const method = metadata.method || "get";
+
+            // Validate method
+            if (!HTTP_METHODS.has(method)) {
+                debug.log(
+                    `Warning: Invalid HTTP method '${method}' at ${filePath}:${func.getStartLineNumber()}. Using GET instead.`,
+                );
+            }
+
+            pathOperations.push({
+                method: HTTP_METHODS.has(method) ? method : "get",
+                path: metadata.path,
+                metadata,
+            });
+
+            debug.log(`Found @openApi path operation: ${method.toUpperCase()} ${metadata.path}`, { file: filePath });
         }
     }
 
     debug.log(`Total exported types: ${exportedTypes.length}`);
-    debug.log(`Has @openApi tags: ${hasJSDocTags}`);
+    debug.log(`Total path operations: ${pathOperations.length}`);
 
     // If no JSDoc tags found, return null
-    if (!hasJSDocTags) {
+    if (pathOperations.length === 0) {
         return null;
     }
 
@@ -266,75 +292,200 @@ async function generateFromJSDocTags(files: string[], debug: DebugLogger): Promi
         }
     }
 
-    // For JSDoc-based generation, we still need to use the build approach
-    // because the path operations need to be extracted by the transform
-    // This is acceptable because we have validated JSDoc tags exist
-    // TODO: Extract path operation logic from transform to make this fully build-free
+    // Convert types to IR schema
+    const availableTypes = new Set(exportedTypes.map((t) => t.name));
+    const irSchema: IRSchema = {
+        types: exportedTypes.map(({ name, type }) => namedTypeToIrDefinition(name, type, { availableTypes })),
+    };
 
-    // Create a temporary file with all types inline
-    const tmpDir = resolve(process.cwd(), ".tmp", "cli-openapi-jsdoc-" + Date.now());
-    await mkdir(tmpDir, { recursive: true });
+    // Generate OpenAPI schemas from IR
+    const schemas = irToOpenApiSchemas(irSchema, {
+        version: "3.0",
+        unionStyle: "oneOf",
+    });
 
-    try {
-        const tmpFile = resolve(tmpDir, "source.ts");
+    // Build paths from operations
+    const paths: Record<string, Record<string, unknown>> = {};
+    const availableSchemas = new Set(Object.keys(schemas));
 
-        // Get source file contents
-        const sourceContents = sourceFiles.map((sf) => sf.getFullText());
-        const allContent = sourceContents.join("\n\n");
-        const typeList = exportedTypes.map((t) => t.name).join(", ");
+    for (const operation of pathOperations) {
+        const pathKey = operation.path;
+        const method = operation.method.toLowerCase();
 
-        // Calculate relative path from tmpFile to openApiSchema
-        const openApiSchemaPath = resolve(import.meta.dir, "../openApiSchema/index.ts");
-        const relativeWizPath = relative(dirname(tmpFile), openApiSchemaPath).replace(/\\/g, "/");
-        const wizImport = relativeWizPath.startsWith(".") ? relativeWizPath : `./${relativeWizPath}`;
+        if (!paths[pathKey]) {
+            paths[pathKey] = {};
+        }
 
-        const source = `
-${allContent}
+        const operationObj: Record<string, unknown> = {};
+        const metadata = operation.metadata;
 
-import { createOpenApi } from "${wizImport}";
+        // Add summary and description
+        if (metadata.summary) {
+            operationObj.summary = metadata.summary;
+        }
+        if (metadata.description) {
+            operationObj.description = metadata.description;
+        }
 
-export const spec = createOpenApi<[${typeList || "never"}], "3.0">({
-    info: {
-        title: "${packageJson.name || "API"}",
-        version: "${packageJson.version || "1.0.0"}",
-        ${packageJson.description ? `description: "${packageJson.description}",` : ""}
+        // Add operationId
+        if (metadata.operationId) {
+            operationObj.operationId = metadata.operationId;
+        }
+
+        // Add tags
+        if (metadata.tags && metadata.tags.length > 0) {
+            operationObj.tags = metadata.tags;
+        }
+
+        // Add deprecated flag
+        if (metadata.deprecated) {
+            operationObj.deprecated = true;
+        }
+
+        // Build parameters from JSDoc
+        const parameters: unknown[] = [];
+
+        // Add path parameters
+        if (metadata.pathParams) {
+            for (const [name, param] of Object.entries(metadata.pathParams)) {
+                parameters.push({
+                    name,
+                    in: "path",
+                    required: true,
+                    schema: buildSchemaFromType((param as any).type),
+                    ...((param as any).description ? { description: (param as any).description } : {}),
+                });
+            }
+        }
+
+        // Add query parameters
+        if (metadata.queryParams) {
+            for (const [name, param] of Object.entries(metadata.queryParams)) {
+                parameters.push({
+                    name,
+                    in: "query",
+                    required: (param as any).required !== false,
+                    schema: buildSchemaFromType((param as any).type),
+                    ...((param as any).description ? { description: (param as any).description } : {}),
+                });
+            }
+        }
+
+        // Add header parameters
+        if (metadata.headers) {
+            for (const [name, param] of Object.entries(metadata.headers)) {
+                parameters.push({
+                    name,
+                    in: "header",
+                    required: (param as any).required !== false,
+                    schema: buildSchemaFromType((param as any).type),
+                    ...((param as any).description ? { description: (param as any).description } : {}),
+                });
+            }
+        }
+
+        if (parameters.length > 0) {
+            operationObj.parameters = parameters;
+        }
+
+        // Add request body
+        if (metadata.requestBody) {
+            const contentType = metadata.requestBody.contentType || "application/json";
+            const schema = availableSchemas.has(metadata.requestBody.type)
+                ? { $ref: `#/components/schemas/${metadata.requestBody.type}` }
+                : buildSchemaFromType(metadata.requestBody.type);
+
+            operationObj.requestBody = {
+                required: true,
+                content: {
+                    [contentType]: {
+                        schema,
+                    },
+                },
+                ...(metadata.requestBody.description ? { description: metadata.requestBody.description } : {}),
+            };
+        }
+
+        // Add responses
+        if (metadata.responses && metadata.responses.length > 0) {
+            const responses: Record<string, unknown> = {};
+            for (const response of metadata.responses) {
+                const responseObj: Record<string, unknown> = {
+                    description: response.description || "Response",
+                };
+
+                if (response.type) {
+                    const contentType = response.contentType || "application/json";
+                    const schema = availableSchemas.has(response.type)
+                        ? { $ref: `#/components/schemas/${response.type}` }
+                        : buildSchemaFromType(response.type);
+
+                    responseObj.content = {
+                        [contentType]: {
+                            schema,
+                        },
+                    };
+                }
+
+                responses[String(response.status)] = responseObj;
+            }
+            operationObj.responses = responses;
+        } else {
+            // Default response
+            operationObj.responses = {
+                "200": {
+                    description: "Successful response",
+                },
+            };
+        }
+
+        paths[pathKey][method] = operationObj;
     }
-});
-        `;
 
-        await writeFile(tmpFile, source);
+    // Create full OpenAPI spec
+    const spec: any = {
+        openapi: "3.0.3",
+        info: {
+            title: packageJson.name || "API",
+            version: packageJson.version || "1.0.0",
+        },
+        paths,
+        components: {
+            schemas,
+        },
+    };
 
-        // Build with wiz plugin
-        const outDir = resolve(tmpDir, "out");
-        const build = await Bun.build({
-            entrypoints: [tmpFile],
-            outdir: outDir,
-            throw: false,
-            minify: false,
-            format: "esm",
-            root: tmpDir,
-            packages: "external",
-            sourcemap: "none",
-            plugins: [wizPlugin({ log: false })],
-        });
+    if (packageJson.description) {
+        spec.info.description = packageJson.description;
+    }
 
-        if (!build.success) {
-            console.error("Build logs:", build.logs);
-            return null;
-        }
+    return spec;
+}
 
-        // Import the generated spec
-        const outFile = resolve(outDir, "source.js");
-        const module = await import(outFile);
+/**
+ * Build a simple schema object from a type string (for JSDoc-based parameters)
+ */
+function buildSchemaFromType(typeStr: string): Record<string, unknown> {
+    const normalized = typeStr.trim().toLowerCase();
 
-        if (!module.spec || !module.spec.openapi) {
-            return null;
-        }
-
-        return module.spec;
-    } finally {
-        // Clean up tmp directory
-        await Bun.$`rm -rf ${tmpDir}`.quiet();
+    switch (normalized) {
+        case "string":
+            return { type: "string" };
+        case "number":
+            return { type: "number" };
+        case "integer":
+        case "int":
+            return { type: "integer" };
+        case "boolean":
+        case "bool":
+            return { type: "boolean" };
+        case "array":
+            return { type: "array", items: {} };
+        case "object":
+            return { type: "object" };
+        default:
+            // If it's not a primitive, treat it as a custom type
+            return { type: "object" };
     }
 }
 
