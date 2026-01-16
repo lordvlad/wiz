@@ -8,7 +8,8 @@ import { DebugLogger } from "./utils";
 interface ClientOptions {
     outdir?: string;
     wizValidator?: boolean;
-    reactQuery?: boolean;
+    reactQuery?: boolean; // Deprecated: use template instead
+    template?: string;
     debug?: boolean;
 }
 
@@ -18,12 +19,23 @@ interface ClientOptions {
 export async function generateClient(specPath: string, options: ClientOptions = {}): Promise<void> {
     const debug = new DebugLogger(options.debug || false);
 
+    // Handle template selection
+    let template = options.template || "fetch";
+
+    // Backward compatibility: if --react-query is used, set template to react-query
+    if (options.reactQuery) {
+        template = "react-query";
+        if (options.debug) {
+            console.warn("⚠️  --react-query is deprecated. Use --template react-query instead.");
+        }
+    }
+
     debug.group("Command Arguments");
     debug.log("Command: client");
     debug.log("Spec file:", specPath);
     debug.log("Output directory:", options.outdir || "stdout");
     debug.log("Wiz validator:", options.wizValidator || false);
-    debug.log("React Query:", options.reactQuery || false);
+    debug.log("Template:", template);
     debug.log("Debug enabled:", options.debug || false);
 
     // Read the spec file
@@ -55,19 +67,19 @@ export async function generateClient(specPath: string, options: ClientOptions = 
     debug.group("Generating Client");
     const result = generateClientFromOpenApi(spec, {
         wizValidator: options.wizValidator,
-        reactQuery: options.reactQuery,
+        reactQuery: template === "react-query",
     });
 
     debug.log("Generated models:", result.models ? "yes" : "no");
     debug.log("Generated API:", result.api ? "yes" : "no");
-    if (options.reactQuery) {
+    if (template === "react-query") {
         debug.log("Generated queries:", result.queries ? "yes" : "no");
         debug.log("Generated mutations:", result.mutations ? "yes" : "no");
     }
 
     // Output client
     if (options.outdir) {
-        await writeClientToFiles(result, options.outdir, options.reactQuery || false);
+        await writeClientToFiles(result, options.outdir, template === "react-query");
     } else {
         outputClientToStdout(result);
     }
