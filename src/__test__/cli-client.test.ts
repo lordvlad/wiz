@@ -466,4 +466,137 @@ components:
             console.log = originalLog;
         }
     });
+
+    it("should support --template fetch argument (default)", async () => {
+        const specFile = resolve(tmpDir, "spec.json");
+        const spec = {
+            openapi: "3.0.0",
+            paths: {
+                "/items": {
+                    get: {
+                        operationId: "getItems",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        await writeFile(specFile, JSON.stringify(spec));
+
+        // Capture console output
+        let output = "";
+        const originalLog = console.log;
+        console.log = (...args: any[]) => {
+            output += args.join(" ") + "\n";
+        };
+
+        try {
+            await generateClient(specFile, { template: "fetch" });
+            expect(output).toContain("export const api =");
+            expect(output).toContain("getItems");
+            // Should NOT contain React Query specific code
+            expect(output).not.toContain("useQuery");
+            expect(output).not.toContain("ApiProvider");
+        } finally {
+            console.log = originalLog;
+        }
+    });
+
+    it("should support --template react-query argument", async () => {
+        const specFile = resolve(tmpDir, "spec.json");
+        const spec = {
+            openapi: "3.0.0",
+            paths: {
+                "/items": {
+                    get: {
+                        operationId: "getItems",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        await writeFile(specFile, JSON.stringify(spec));
+        const outdir = resolve(tmpDir, "client");
+
+        // Capture console output
+        let output = "";
+        const originalLog = console.log;
+        console.log = (...args: any[]) => {
+            output += args.join(" ") + "\n";
+        };
+
+        try {
+            await generateClient(specFile, { template: "react-query", outdir });
+
+            // Check that queries and mutations files were created
+            const queriesFile = Bun.file(resolve(outdir, "queries.ts"));
+            const mutationsFile = Bun.file(resolve(outdir, "mutations.ts"));
+
+            expect(await queriesFile.exists()).toBe(true);
+            expect(await mutationsFile.exists()).toBe(true);
+
+            const queriesContent = await queriesFile.text();
+            expect(queriesContent).toContain("useQuery");
+            expect(queriesContent).toContain("useGetItems");
+
+            const apiFile = Bun.file(resolve(outdir, "api.ts"));
+            const apiContent = await apiFile.text();
+            expect(apiContent).toContain("ApiProvider");
+            expect(apiContent).toContain("useApiConfig");
+        } finally {
+            console.log = originalLog;
+        }
+    });
+
+    it("should show deprecation warning for --react-query flag", async () => {
+        const specFile = resolve(tmpDir, "spec.json");
+        const spec = {
+            openapi: "3.0.0",
+            paths: {
+                "/items": {
+                    get: {
+                        operationId: "getItems",
+                        responses: {
+                            "200": {
+                                description: "Success",
+                            },
+                        },
+                    },
+                },
+            },
+        };
+
+        await writeFile(specFile, JSON.stringify(spec));
+
+        // Capture console output
+        let warnOutput = "";
+        const originalWarn = console.warn;
+        console.warn = (...args: any[]) => {
+            warnOutput += args.join(" ") + "\n";
+        };
+
+        let output = "";
+        const originalLog = console.log;
+        console.log = (...args: any[]) => {
+            output += args.join(" ") + "\n";
+        };
+
+        try {
+            await generateClient(specFile, { reactQuery: true, debug: true });
+            expect(warnOutput).toContain("--react-query is deprecated");
+            expect(warnOutput).toContain("Use --template react-query instead");
+        } finally {
+            console.log = originalLog;
+            console.warn = originalWarn;
+        }
+    });
 });

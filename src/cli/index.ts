@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "util";
 
+import { bootstrapTemplates } from "./bootstrap";
 import { generateClient } from "./client";
 import { generateModels } from "./generate";
 import { inlineValidators } from "./inline";
@@ -19,6 +20,7 @@ Commands:
   model <spec-file>      Generate TypeScript models from OpenAPI or Protobuf spec
   client <spec-file>     Generate TypeScript client from OpenAPI specification
   inline [files...]      Transform validator calls to inline validators
+  bootstrap <type>       Bootstrap templates to a directory
 
 Global Options:
   --debug                Enable detailed debug logging to stderr
@@ -39,8 +41,11 @@ Client Options:
                          If provided, generates model.ts and api.ts files
   --wiz-validator        Enable wiz validation for path params, query params,
                          request body, and response body
-  --react-query          Enable React Query integration with context, query/mutation
-                         options methods, and custom hooks
+  --template <name>      Template to use: fetch (default), react-query, or path to custom template
+  --react-query          (Deprecated) Use --template react-query instead
+
+Bootstrap Options:
+  --outdir <directory>   Output directory for bootstrapped templates (required)
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -87,7 +92,13 @@ Examples:
   wiz client spec.json --outdir src/client --wiz-validator
 
   # Generate TypeScript client with React Query integration
-  wiz client spec.json --outdir src/client --react-query
+  wiz client spec.json --outdir src/client --template react-query
+
+  # Bootstrap OpenAPI client templates
+  wiz bootstrap openapi-client-templates --outdir my-templates/
+
+  # Generate client with custom template
+  wiz client spec.yaml --template ./my-templates/fetch --outdir src/client
 
   # Transform validators to inline (output to different directory)
   wiz inline src/ --outdir dist/
@@ -259,6 +270,9 @@ async function main() {
                 "react-query": {
                     type: "boolean",
                 },
+                template: {
+                    type: "string",
+                },
                 debug: {
                     type: "boolean",
                     default: false,
@@ -269,7 +283,9 @@ async function main() {
 
         if (positionals.length === 0) {
             console.error("Error: No spec file specified");
-            console.error("Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator] [--react-query] [--debug]");
+            console.error(
+                "Usage: wiz client <spec-file> [--outdir <dir>] [--wiz-validator] [--template <name>] [--debug]",
+            );
             process.exit(1);
         }
 
@@ -277,8 +293,42 @@ async function main() {
         const outdir = values.outdir;
         const wizValidator = values["wiz-validator"] || false;
         const reactQuery = values["react-query"] || false;
+        const template = values.template;
 
-        await generateClient(specFile, { outdir, wizValidator, reactQuery, debug: values.debug });
+        await generateClient(specFile, { outdir, wizValidator, reactQuery, template, debug: values.debug });
+    } else if (command === "bootstrap") {
+        // Handle bootstrap command
+        const { values, positionals } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                outdir: {
+                    type: "string",
+                },
+                debug: {
+                    type: "boolean",
+                    default: false,
+                },
+            },
+            allowPositionals: true,
+        });
+
+        if (positionals.length === 0) {
+            console.error("Error: No template type specified");
+            console.error("Usage: wiz bootstrap <type> --outdir <dir> [--debug]");
+            console.error("Available types: openapi-client-templates");
+            process.exit(1);
+        }
+
+        if (!values.outdir) {
+            console.error("Error: --outdir is required for bootstrap command");
+            console.error("Usage: wiz bootstrap <type> --outdir <dir> [--debug]");
+            process.exit(1);
+        }
+
+        const templateType = positionals[0]!;
+        const outdir = values.outdir;
+
+        await bootstrapTemplates(templateType, { outdir, debug: values.debug });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {
