@@ -466,4 +466,176 @@ components:
             console.log = originalLog;
         }
     });
+
+    describe("URL support", () => {
+        let server: any;
+        let port: number;
+
+        beforeEach(async () => {
+            // Start a simple HTTP server to serve test specs
+            server = Bun.serve({
+                port: 0, // Use random available port
+                fetch(req) {
+                    const url = new URL(req.url);
+                    if (url.pathname === "/spec.json") {
+                        return new Response(
+                            JSON.stringify({
+                                openapi: "3.0.0",
+                                paths: {
+                                    "/posts": {
+                                        get: {
+                                            operationId: "getPosts",
+                                            responses: {
+                                                "200": {
+                                                    description: "Success",
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                                components: {
+                                    schemas: {
+                                        Post: {
+                                            type: "object",
+                                            properties: {
+                                                id: { type: "number" },
+                                                title: { type: "string" },
+                                            },
+                                            required: ["id", "title"],
+                                        },
+                                    },
+                                },
+                            }),
+                            { headers: { "content-type": "application/json" } },
+                        );
+                    } else if (url.pathname === "/spec.yaml") {
+                        return new Response(
+                            `openapi: 3.0.0
+paths:
+  /comments:
+    get:
+      operationId: getComments
+      responses:
+        '200':
+          description: Success
+components:
+  schemas:
+    Comment:
+      type: object
+      properties:
+        id:
+          type: number
+        text:
+          type: string
+      required:
+        - id
+        - text`,
+                            { headers: { "content-type": "text/yaml" } },
+                        );
+                    }
+                    return new Response("Not Found", { status: 404 });
+                },
+            });
+            port = server.port;
+        });
+
+        afterEach(() => {
+            server.stop();
+        });
+
+        it("should generate client from HTTP URL (JSON)", async () => {
+            const specUrl = `http://localhost:${port}/spec.json`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateClient(specUrl);
+                expect(output).toContain("export type Post =");
+                expect(output).toContain("export const api =");
+                expect(output).toContain("getPosts");
+                expect(output).toContain("id: number;");
+                expect(output).toContain("title: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate client from HTTP URL (YAML)", async () => {
+            const specUrl = `http://localhost:${port}/spec.yaml`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateClient(specUrl);
+                expect(output).toContain("export type Comment =");
+                expect(output).toContain("export const api =");
+                expect(output).toContain("getComments");
+                expect(output).toContain("id: number;");
+                expect(output).toContain("text: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate client from file:// URL", async () => {
+            const specFile = resolve(tmpDir, "file-url-spec.json");
+            const spec = {
+                openapi: "3.0.0",
+                paths: {
+                    "/items": {
+                        get: {
+                            operationId: "getItems",
+                            responses: {
+                                "200": {
+                                    description: "Success",
+                                },
+                            },
+                        },
+                    },
+                },
+                components: {
+                    schemas: {
+                        Item: {
+                            type: "object",
+                            properties: {
+                                id: { type: "number" },
+                            },
+                            required: ["id"],
+                        },
+                    },
+                },
+            };
+
+            await writeFile(specFile, JSON.stringify(spec));
+
+            const fileUrl = `file://${specFile}`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateClient(fileUrl);
+                expect(output).toContain("export type Item =");
+                expect(output).toContain("export const api =");
+                expect(output).toContain("getItems");
+                expect(output).toContain("id: number;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+    });
 });

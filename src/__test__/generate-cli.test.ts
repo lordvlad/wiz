@@ -290,4 +290,200 @@ message Post {
             }
         });
     });
+
+    describe("URL support", () => {
+        let server: any;
+        let port: number;
+
+        beforeEach(async () => {
+            // Start a simple HTTP server to serve test specs
+            server = Bun.serve({
+                port: 0, // Use random available port
+                fetch(req) {
+                    const url = new URL(req.url);
+                    if (url.pathname === "/openapi.json") {
+                        return new Response(
+                            JSON.stringify({
+                                openapi: "3.0.0",
+                                components: {
+                                    schemas: {
+                                        Article: {
+                                            type: "object",
+                                            properties: {
+                                                id: { type: "number" },
+                                                title: { type: "string" },
+                                            },
+                                            required: ["id", "title"],
+                                        },
+                                    },
+                                },
+                            }),
+                            { headers: { "content-type": "application/json" } },
+                        );
+                    } else if (url.pathname === "/openapi.yaml") {
+                        return new Response(
+                            `openapi: 3.0.0
+components:
+  schemas:
+    Book:
+      type: object
+      properties:
+        isbn:
+          type: string
+        title:
+          type: string
+      required:
+        - isbn
+        - title`,
+                            { headers: { "content-type": "text/yaml" } },
+                        );
+                    } else if (url.pathname === "/api.proto") {
+                        return new Response(
+                            `syntax = "proto3";
+
+message Movie {
+  int32 id = 1;
+  string title = 2;
+}`,
+                            { headers: { "content-type": "text/plain" } },
+                        );
+                    }
+                    return new Response("Not Found", { status: 404 });
+                },
+            });
+            port = server.port;
+        });
+
+        afterEach(() => {
+            server.stop();
+        });
+
+        it("should generate models from HTTP URL (OpenAPI JSON)", async () => {
+            const specUrl = `http://localhost:${port}/openapi.json`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateModels(specUrl);
+                expect(output).toContain("export type Article =");
+                expect(output).toContain("id: number;");
+                expect(output).toContain("title: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate models from HTTP URL (OpenAPI YAML)", async () => {
+            const specUrl = `http://localhost:${port}/openapi.yaml`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateModels(specUrl);
+                expect(output).toContain("export type Book =");
+                expect(output).toContain("isbn: string;");
+                expect(output).toContain("title: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate models from HTTP URL (Protobuf)", async () => {
+            const specUrl = `http://localhost:${port}/api.proto`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateModels(specUrl);
+                expect(output).toContain("export type Movie =");
+                expect(output).toContain("id: number;");
+                expect(output).toContain("title: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate models from file:// URL (OpenAPI)", async () => {
+            const specFile = resolve(tmpDir, "file-url-spec.json");
+            const spec = {
+                openapi: "3.0.0",
+                components: {
+                    schemas: {
+                        Product: {
+                            type: "object",
+                            properties: {
+                                sku: { type: "string" },
+                            },
+                            required: ["sku"],
+                        },
+                    },
+                },
+            };
+
+            await writeFile(specFile, JSON.stringify(spec));
+
+            const fileUrl = `file://${specFile}`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateModels(fileUrl);
+                expect(output).toContain("export type Product =");
+                expect(output).toContain("sku: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
+        it("should generate models from file:// URL (Protobuf)", async () => {
+            const protoFile = resolve(tmpDir, "file-url-api.proto");
+            const protoContent = `
+syntax = "proto3";
+
+message Author {
+  int32 id = 1;
+  string name = 2;
+}`;
+
+            await writeFile(protoFile, protoContent);
+
+            const fileUrl = `file://${protoFile}`;
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateModels(fileUrl);
+                expect(output).toContain("export type Author =");
+                expect(output).toContain("id: number;");
+                expect(output).toContain("name: string;");
+            } finally {
+                console.log = originalLog;
+            }
+        });
+    });
 });

@@ -17,7 +17,9 @@ Commands:
   openapi [files...]     Generate OpenAPI specifications from TypeScript files
   protobuf [files...]    Generate Protobuf specifications from TypeScript files
   model <spec-file>      Generate TypeScript models from OpenAPI or Protobuf spec
+                         Spec can be a local file path or URL (http://, https://, file://, s3://)
   client <spec-file>     Generate TypeScript client from OpenAPI specification
+                         Spec can be a local file path or URL (http://, https://, file://, s3://)
   inline [files...]      Transform validator calls to inline validators
 
 Global Options:
