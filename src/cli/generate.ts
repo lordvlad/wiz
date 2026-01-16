@@ -5,7 +5,7 @@ import { resolve, basename } from "path";
 import { generateModelsFromOpenApi } from "../generator/openapi-ir";
 import { generateModelsFromProtobuf, parseProtoFile } from "../generator/protobuf-ir";
 import type * as TagTypes from "../tags/index";
-import { DebugLogger } from "./utils";
+import { DebugLogger, isUrl, loadSpecContent } from "./utils";
 
 interface GenerateOptions {
     outdir?: string;
@@ -24,6 +24,7 @@ export async function generateModels(specPath: string, options: GenerateOptions 
     debug.group("Command Arguments");
     debug.log("Command: model");
     debug.log("Spec file:", specPath);
+    debug.log("Is URL:", isUrl(specPath));
     debug.log("Output directory:", options.outdir || "stdout");
     debug.log("Include tags:", options.tags || false);
     debug.log("Disable wiz tags:", options.disableWizTags || false);
@@ -45,14 +46,13 @@ export async function generateModels(specPath: string, options: GenerateOptions 
  * Generate TypeScript models from OpenAPI specification
  */
 async function generateFromOpenApi(specPath: string, options: GenerateOptions = {}, debug: DebugLogger): Promise<void> {
-    // Read the spec file
-    const file = Bun.file(specPath);
+    // Load spec content from URL or file
+    const content = await loadSpecContent(specPath);
     let spec: any;
 
     if (specPath.endsWith(".json")) {
-        spec = await file.json();
+        spec = JSON.parse(content);
     } else if (specPath.endsWith(".yaml") || specPath.endsWith(".yml")) {
-        const content = await file.text();
         spec = Bun.YAML.parse(content);
     } else {
         throw new Error("Unsupported file format. Use .json or .yaml/.yml files.");
@@ -109,9 +109,8 @@ async function generateFromProtobuf(
     options: GenerateOptions = {},
     debug: DebugLogger,
 ): Promise<void> {
-    // Read the proto file
-    const file = Bun.file(protoPath);
-    const content = await file.text();
+    // Load proto content from URL or file
+    const content = await loadSpecContent(protoPath);
 
     // Parse proto file
     debug.group("Parsing Protobuf File");

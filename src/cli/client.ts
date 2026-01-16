@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 import { generateClientFromOpenApi } from "../generator/openapi-client";
-import { DebugLogger } from "./utils";
+import { DebugLogger, isUrl, loadSpecContent } from "./utils";
 
 interface ClientOptions {
     outdir?: string;
@@ -21,19 +21,19 @@ export async function generateClient(specPath: string, options: ClientOptions = 
     debug.group("Command Arguments");
     debug.log("Command: client");
     debug.log("Spec file:", specPath);
+    debug.log("Is URL:", isUrl(specPath));
     debug.log("Output directory:", options.outdir || "stdout");
     debug.log("Wiz validator:", options.wizValidator || false);
     debug.log("React Query:", options.reactQuery || false);
     debug.log("Debug enabled:", options.debug || false);
 
-    // Read the spec file
-    const file = Bun.file(specPath);
+    // Load spec content from URL or file
+    const content = await loadSpecContent(specPath);
     let spec: any;
 
     if (specPath.endsWith(".json")) {
-        spec = await file.json();
+        spec = JSON.parse(content);
     } else if (specPath.endsWith(".yaml") || specPath.endsWith(".yml")) {
-        const content = await file.text();
         spec = Bun.YAML.parse(content);
     } else {
         throw new Error("Unsupported file format. Use .json or .yaml/.yml files.");

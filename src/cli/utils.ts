@@ -81,6 +81,31 @@ export async function readPackageJson(path: string): Promise<any> {
 }
 
 /**
+ * Checks if a string is a URL (supports http://, https://, file://, s3://)
+ */
+export function isUrl(path: string): boolean {
+    return /^(https?|file|s3):\/\//i.test(path);
+}
+
+/**
+ * Loads content from a URL or file path.
+ * Bun's fetch supports http://, https://, file://, and s3:// protocols.
+ */
+export async function loadSpecContent(pathOrUrl: string): Promise<string> {
+    if (isUrl(pathOrUrl)) {
+        const response = await fetch(pathOrUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${pathOrUrl}: ${response.status} ${response.statusText}`);
+        }
+        return await response.text();
+    } else {
+        // Local file path
+        const file = Bun.file(pathOrUrl);
+        return await file.text();
+    }
+}
+
+/**
  * Debug logger that outputs to stderr when enabled.
  */
 export class DebugLogger {
