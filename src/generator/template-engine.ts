@@ -10,12 +10,21 @@ export interface TemplateContext {
 /**
  * Simple template engine that replaces ${var} with values from context
  * Supports nested property access like ${obj.prop}
+ * Use $$ to output a literal $ character
  */
 export function render(template: string, context: TemplateContext): string {
-    return template.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+    // First, replace $$ with a placeholder
+    const placeholder = "\x00DOLLAR\x00";
+    const withPlaceholder = template.replace(/\$\$/g, placeholder);
+
+    // Then perform variable substitution
+    const result = withPlaceholder.replace(/\$\{([^}]+)\}/g, (match, expr) => {
         const value = evaluateExpression(expr.trim(), context);
         return value === undefined || value === null ? "" : String(value);
     });
+
+    // Finally, restore the literal $ characters
+    return result.replace(new RegExp(placeholder, "g"), "$");
 }
 
 /**

@@ -61,7 +61,8 @@ export const apiProviderComponent = `export function ApiProvider({ config, child
 `;
 
 // API method for React Query mode
-export const apiMethodReactQuery = `\${jsDoc}async \${methodName}(\${params}): \${returnType} {
+export const apiMethodReactQuery =
+    `\${jsDoc}async \${methodName}(\${params}): \${returnType} {
     const config = globalConfig ?? {};
     const baseUrl = config.baseUrl ?? "\${defaultBaseUrl}";
     const fetchImpl = config.fetch ?? fetch;
@@ -74,7 +75,9 @@ export const apiMethodReactQuery = `\${jsDoc}async \${methodName}(\${params}): \
       if (!init?.headers) {
         init = { ...init, headers: {} };
       }
-      (init.headers as Record<string, string>)["Authorization"] = \`Bearer \${token}\`;
+      (init.headers as Record<string, string>)["Authorization"] = ` +
+    "`Bearer ${token}`;" +
+    `
     }
 
     const options: RequestInit = {

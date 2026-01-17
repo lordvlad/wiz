@@ -80,7 +80,8 @@ export const apiClient = `export const api = {
 `;
 
 // API method template
-export const apiMethod = `\${jsDoc}async \${methodName}(\${params}): \${returnType} {
+export const apiMethod =
+    `\${jsDoc}async \${methodName}(\${params}): \${returnType} {
     const config = getApiConfig();
     const baseUrl = config.baseUrl ?? "\${defaultBaseUrl}";
     const fetchImpl = config.fetch ?? fetch;
@@ -93,7 +94,9 @@ export const apiMethod = `\${jsDoc}async \${methodName}(\${params}): \${returnTy
       if (!init?.headers) {
         init = { ...init, headers: {} };
       }
-      (init.headers as Record<string, string>)["Authorization"] = \`Bearer \${token}\`;
+      (init.headers as Record<string, string>)["Authorization"] = ` +
+    "`Bearer ${token}`;" +
+    `
     }
 
     const options: RequestInit = {
@@ -137,7 +140,10 @@ export const requestBodyValidationBlock = `
     }`;
 
 // URL construction with path params
-export const urlConstructionWithPathParams = `let url = baseUrl + \`\${urlTemplate}\`;
+export const urlConstructionWithPathParams =
+    `let url = baseUrl + ` +
+    "`${urlTemplate}`" +
+    `;
 \${pathParamReplacements}`;
 
 // URL construction without path params
@@ -148,11 +154,14 @@ export const pathParamReplacement = `    url = url.replace("{\${paramName}}", St
 `;
 
 // Query params construction
-export const queryParamsConstructionBlock = `    const searchParams = new URLSearchParams();
+export const queryParamsConstructionBlock =
+    `    const searchParams = new URLSearchParams();
     if (queryParams) {
 \${queryParamAppends}    }
     const queryString = searchParams.toString();
-    const fullUrl = queryString ? \`\${url}?\${queryString}\` : url;
+    const fullUrl = queryString ? ` +
+    "`${url}?${queryString}`" +
+    ` : url;
 `;
 
 // Query param append
