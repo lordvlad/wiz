@@ -7,30 +7,13 @@
 import { Project } from "ts-morph";
 
 import { generateApiClient } from "../openapi-client";
-import type { OpenApiSpec } from "../openapi-ir";
 import { generateModelsFromOpenApi } from "../openapi-ir";
-
-export interface FetchTemplateContext {
-    spec: OpenApiSpec;
-    options?: FetchTemplateOptions;
-}
-
-export interface FetchTemplateOptions {
-    includeTags?: boolean;
-    tags?: Record<string, any>;
-    disableWizTags?: boolean;
-    wizValidator?: boolean;
-    reactQuery?: boolean;
-}
-
-export interface FetchTemplateOutput {
-    [key: string]: string;
-}
+import type { WizGeneratorOutput, WizTemplateContext } from "./types";
 
 /**
  * Generate model.ts content from OpenAPI spec
  */
-export function templateModel(ctx: FetchTemplateContext): string {
+export function templateModel(ctx: WizTemplateContext): string {
     const modelsMap = generateModelsFromOpenApi(ctx.spec, ctx.options);
     return Array.from(modelsMap.values()).join("\n\n");
 }
@@ -38,7 +21,7 @@ export function templateModel(ctx: FetchTemplateContext): string {
 /**
  * Generate api.ts content from OpenAPI spec
  */
-export function templateAPI(ctx: FetchTemplateContext): string {
+export function templateAPI(ctx: WizTemplateContext): string {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile("api.ts", "");
 
@@ -52,7 +35,7 @@ export function templateAPI(ctx: FetchTemplateContext): string {
  * Main fetch template function
  * Returns file content mappings for the fetch client
  */
-export default function template(ctx: FetchTemplateContext): FetchTemplateOutput {
+export default function template(ctx: WizTemplateContext): WizGeneratorOutput {
     return {
         "model.ts": templateModel(ctx),
         "api.ts": templateAPI(ctx),

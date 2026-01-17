@@ -7,26 +7,13 @@
 import { Project } from "ts-morph";
 
 import { generateReactQueryFiles } from "../openapi-client";
-import type { OpenApiSpec } from "../openapi-ir";
-import templateFetch, { type FetchTemplateContext, type FetchTemplateOptions } from "./fetch";
-
-export interface ReactQueryTemplateContext {
-    spec: OpenApiSpec;
-    options?: ReactQueryTemplateOptions;
-}
-
-export interface ReactQueryTemplateOptions extends FetchTemplateOptions {
-    reactQuery?: boolean;
-}
-
-export interface ReactQueryTemplateOutput {
-    [key: string]: string;
-}
+import templateFetch from "./fetch";
+import type { WizGeneratorOutput, WizTemplateContext } from "./types";
 
 /**
  * Generate queries.ts content from OpenAPI spec
  */
-export function templateQueries(ctx: ReactQueryTemplateContext): string {
+export function templateQueries(ctx: WizTemplateContext): string {
     const project = new Project({ useInMemoryFileSystem: true });
     const queriesFile = project.createSourceFile("queries.ts", "");
     const mutationsFile = project.createSourceFile("mutations.ts", "");
@@ -40,7 +27,7 @@ export function templateQueries(ctx: ReactQueryTemplateContext): string {
 /**
  * Generate mutations.ts content from OpenAPI spec
  */
-export function templateMutations(ctx: ReactQueryTemplateContext): string {
+export function templateMutations(ctx: WizTemplateContext): string {
     const project = new Project({ useInMemoryFileSystem: true });
     const queriesFile = project.createSourceFile("queries.ts", "");
     const mutationsFile = project.createSourceFile("mutations.ts", "");
@@ -55,13 +42,12 @@ export function templateMutations(ctx: ReactQueryTemplateContext): string {
  * Main react-query template function
  * Returns file content mappings for the react-query client
  */
-export default function template(ctx: ReactQueryTemplateContext): ReactQueryTemplateOutput {
-    // Get base files from fetch template
-    const fetchContext: FetchTemplateContext = {
+export default function template(ctx: WizTemplateContext): WizGeneratorOutput {
+    // Get base files from fetch template with reactQuery flag enabled
+    const fetchFiles = templateFetch({
         spec: ctx.spec,
         options: { ...ctx.options, reactQuery: true },
-    };
-    const fetchFiles = templateFetch(fetchContext);
+    });
 
     // Add React Query specific files
     return {
