@@ -68,8 +68,9 @@ export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGene
 
 /**
  * Generate API client code
+ * Exported for use in template functions
  */
-function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: ClientGeneratorOptions): void {
+export function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: ClientGeneratorOptions): void {
     const operations = extractOperations(spec);
 
     // Check for duplicate method names
@@ -900,8 +901,9 @@ function generateReactQueryHelpers(
 
 /**
  * Generate React Query files (queries.ts and mutations.ts)
+ * Exported for use in template functions
  */
-function generateReactQueryFiles(
+export function generateReactQueryFiles(
     queriesFile: SourceFile,
     mutationsFile: SourceFile,
     spec: OpenApiSpec,
