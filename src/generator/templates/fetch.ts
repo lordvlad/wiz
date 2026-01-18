@@ -163,7 +163,7 @@ export function templateAPI(ctx: WizTemplateContext): string {
         let globalConfig: ApiConfig = {
           baseUrl: "${defaultBaseUrl}",
           headers: {},
-          fetch: fetch,
+          fetch: fetch,${ctx.options?.oauthProvider ? `\n          bearerTokenProvider: ${ctx.options.oauthProvider},` : ""}
         };
 
         export function setApiConfig(config: Partial<ApiConfig>): void {
