@@ -2,9 +2,10 @@
  * Fetch client template
  *
  * Generates TypeScript client code using native fetch API.
- * Uses template strings instead of ts-morph for code generation.
+ * Uses template literals for clean code generation.
  */
 import { generateModelsFromOpenApi } from "../openapi-ir";
+import { dedent } from "./dedent";
 import {
     analyzeParameters,
     checkDuplicateMethodNames,
@@ -29,7 +30,7 @@ export function templateModel(ctx: WizTemplateContext): string {
 }
 
 /**
- * Generate api.ts content from OpenAPI spec using template strings
+ * Generate api.ts content from OpenAPI spec using template literals
  */
 export function templateAPI(ctx: WizTemplateContext): string {
     const operations = extractOperations(ctx.spec);
@@ -38,25 +39,20 @@ export function templateAPI(ctx: WizTemplateContext): string {
     const defaultBaseUrl = getDefaultBaseUrl(ctx.spec);
     const options = ctx.options || {};
 
-    const parts: string[] = [];
-
-    // Add React imports if needed
-    if (options.reactQuery) {
-        parts.push(`import { createContext, useContext } from "react";`);
-        parts.push(`import type { ReactNode, ReactElement } from "react";`);
-        parts.push("");
-    }
+    const sections: string[] = [];
 
     // Add validator imports if needed
     if (options.wizValidator) {
-        parts.push(`import { createValidator } from "wiz/validator";`);
-        parts.push("");
+        sections.push(dedent`
+            import { createValidator } from "wiz/validator";
+        `);
 
         // Add TypedResponse interface
-        parts.push(`export interface TypedResponse<T> extends Response {`);
-        parts.push(`  json(): Promise<T>;`);
-        parts.push(`}`);
-        parts.push("");
+        sections.push(dedent`
+            export interface TypedResponse<T> extends Response {
+              json(): Promise<T>;
+            }
+        `);
 
         // Collect types that need validators
         const typesToValidate = new Set<string>();
@@ -72,101 +68,59 @@ export function templateAPI(ctx: WizTemplateContext): string {
         }
 
         // Generate validators
-        for (const typeName of typesToValidate) {
-            parts.push(`const validate${typeName} = createValidator<Models.${typeName}>();`);
+        const validators = Array.from(typesToValidate)
+            .map((typeName) => `const validate${typeName} = createValidator<Models.${typeName}>();`)
+            .join("\n");
+        if (validators) {
+            sections.push(validators);
         }
-        parts.push("");
 
         // Generate createTypedResponse helper
-        parts.push(
-            `function createTypedResponse<T>(response: Response, validator: (value: unknown) => any[]): TypedResponse<T> {`,
-        );
-        parts.push(`  const originalJson = response.json.bind(response);`);
-        parts.push(``);
-        parts.push(`  return new Proxy(response, {`);
-        parts.push(`    get(target, prop) {`);
-        parts.push(`      if (prop === 'json') {`);
-        parts.push(`        return async () => {`);
-        parts.push(`          const data = await originalJson();`);
-        parts.push(`          const errors = validator(data);`);
-        parts.push(`          if (errors.length > 0) {`);
-        parts.push(`            throw new TypeError("Invalid response body: " + JSON.stringify(errors));`);
-        parts.push(`          }`);
-        parts.push(`          return data as T;`);
-        parts.push(`        };`);
-        parts.push(`      }`);
-        parts.push(`      return Reflect.get(target, prop);`);
-        parts.push(`    }`);
-        parts.push(`  }) as TypedResponse<T>;`);
-        parts.push(`}`);
-        parts.push("");
+        sections.push(dedent`
+            function createTypedResponse<T>(response: Response, validator: (value: unknown) => any[]): TypedResponse<T> {
+              const originalJson = response.json.bind(response);
+
+              return new Proxy(response, {
+                get(target, prop) {
+                  if (prop === 'json') {
+                    return async () => {
+                      const data = await originalJson();
+                      const errors = validator(data);
+                      if (errors.length > 0) {
+                        throw new TypeError("Invalid response body: " + JSON.stringify(errors));
+                      }
+                      return data as T;
+                    };
+                  }
+                  return Reflect.get(target, prop);
+                }
+              }) as TypedResponse<T>;
+            }
+        `);
     }
 
     // Generate ApiConfig interface
-    parts.push(`export interface ApiConfig {`);
-    parts.push(`  baseUrl?: string;`);
-    parts.push(`  headers?: Record<string, string>;`);
-    parts.push(`  fetch?: typeof fetch;`);
-    parts.push(`  bearerTokenProvider?: () => Promise<string>;`);
-    parts.push(`}`);
-    parts.push("");
+    sections.push(dedent`
+        export interface ApiConfig {
+          baseUrl?: string;
+          headers?: Record<string, string>;
+          fetch?: typeof fetch;
+          bearerTokenProvider?: () => Promise<string>;
+        }
+    `);
 
-    // Generate global config
-    parts.push(`let globalConfig: ApiConfig = {};`);
-    parts.push("");
+    // Generate global config and functions
+    sections.push(dedent`
+        let globalConfig: ApiConfig = {};
 
-    if (!options.reactQuery) {
-        // Standard mode config functions
-        parts.push(`export function setApiConfig(config: ApiConfig): void {`);
-        parts.push(`  globalConfig = config;`);
-        parts.push(`}`);
-        parts.push("");
-        parts.push(`export function getApiConfig(): ApiConfig {`);
-        parts.push(`  return globalConfig;`);
-        parts.push(`}`);
-        parts.push("");
-    } else {
-        // React Query mode
-        parts.push(`export function setGlobalApiConfig(config: ApiConfig): void {`);
-        parts.push(`  globalConfig = config;`);
-        parts.push(`}`);
-        parts.push("");
+        export function setApiConfig(config: ApiConfig): void {
+          globalConfig = config;
+        }
 
-        // Generate React context
-        parts.push(`export const ApiContext = createContext<ApiConfig | undefined>(undefined);`);
-        parts.push("");
-        parts.push(`const defaultApiConfig: ApiConfig = { baseUrl: "${defaultBaseUrl}" };`);
-        parts.push("");
-        parts.push(`export function useApiConfig(): ApiConfig {`);
-        parts.push(`  const config = useContext(ApiContext);`);
-        parts.push(`  return config ?? defaultApiConfig;`);
-        parts.push(`}`);
-        parts.push("");
-
-        // Generate ApiProvider
-        parts.push(`export interface ApiProviderProps {`);
-        parts.push(`  config?: Partial<ApiConfig>;`);
-        parts.push(`  children: ReactNode;`);
-        parts.push(`}`);
-        parts.push("");
-        parts.push(`export function ApiProvider({ config, children }: ApiProviderProps): ReactElement {`);
-        parts.push(`  const mergedConfig: ApiConfig = {`);
-        parts.push(`    ...defaultApiConfig,`);
-        parts.push(`    ...config,`);
-        parts.push(`    headers: {`);
-        parts.push(`      ...(defaultApiConfig.headers ?? {}),`);
-        parts.push(`      ...(config?.headers ?? {}),`);
-        parts.push(`    },`);
-        parts.push(`  };`);
-        parts.push("");
-        parts.push(`  return (`);
-        parts.push(`    <ApiContext.Provider value={mergedConfig}>`);
-        parts.push(`      {children}`);
-        parts.push(`    </ApiContext.Provider>`);
-        parts.push(`  );`);
-        parts.push(`}`);
-        parts.push("");
-    }
+        export function getApiConfig(): ApiConfig {
+          return globalConfig;
+        }
+    `);
 
     // Generate parameter types for all operations
     for (const op of operations) {
@@ -174,80 +128,83 @@ export function templateAPI(ctx: WizTemplateContext): string {
 
         if (pathParams.length > 0) {
             const typeName = getPathParamsTypeName(op);
-            parts.push(`export type ${typeName} = {`);
-            for (const param of pathParams) {
-                const optional = !param.required ? "?" : "";
-                const type = getTypeFromSchema(param.schema);
-                parts.push(`  ${param.name}${optional}: ${type};`);
-            }
-            parts.push(`};`);
-            parts.push("");
+            const properties = pathParams
+                .map((param) => {
+                    const optional = !param.required ? "?" : "";
+                    const type = getTypeFromSchema(param.schema);
+                    return `  ${param.name}${optional}: ${type};`;
+                })
+                .join("\n");
+
+            sections.push(dedent`
+                export type ${typeName} = {
+                ${properties}
+                };
+            `);
 
             // Generate validator if needed
             if (options.wizValidator) {
-                parts.push(`const validate${typeName} = createValidator<${typeName}>();`);
-                parts.push("");
+                sections.push(`const validate${typeName} = createValidator<${typeName}>();`);
             }
         }
 
         if (queryParams.length > 0) {
             const typeName = getQueryParamsTypeName(op);
-            parts.push(`export type ${typeName} = {`);
-            for (const param of queryParams) {
-                const optional = !param.required ? "?" : "";
-                const type = getTypeFromSchema(param.schema);
-                parts.push(`  ${param.name}${optional}: ${type};`);
-            }
-            parts.push(`};`);
-            parts.push("");
+            const properties = queryParams
+                .map((param) => {
+                    const optional = !param.required ? "?" : "";
+                    const type = getTypeFromSchema(param.schema);
+                    return `  ${param.name}${optional}: ${type};`;
+                })
+                .join("\n");
+
+            sections.push(dedent`
+                export type ${typeName} = {
+                ${properties}
+                };
+            `);
 
             // Generate validator if needed
             if (options.wizValidator) {
-                parts.push(`const validate${typeName} = createValidator<${typeName}>();`);
-                parts.push("");
+                sections.push(`const validate${typeName} = createValidator<${typeName}>();`);
             }
         }
     }
 
     // Generate api object with methods
-    parts.push(`export const api = {`);
+    const methods = operations
+        .filter((op) => op !== undefined)
+        .map((op) => generateMethodCode(op, defaultBaseUrl, options))
+        .join(",\n\n");
 
-    for (let i = 0; i < operations.length; i++) {
-        const op = operations[i];
-        if (op) {
-            const methodCode = generateMethodCode(op, defaultBaseUrl, options);
-            parts.push(methodCode);
-            if (i < operations.length - 1) {
-                parts.push(",");
-            }
-            parts.push("");
-        }
-    }
+    sections.push(dedent`
+        export const api = {
+        ${methods}
+        };
+    `);
 
-    parts.push(`};`);
-
-    return parts.join("\n");
+    return sections.join("\n\n");
 }
 
 /**
- * Generate code for a single API method
+ * Generate code for a single API method using template literals
  */
 function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: any): string {
     const methodName = getMethodName(op);
     const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
 
-    const lines: string[] = [];
-
-    // JSDoc comment
+    // Build JSDoc comment
+    let jsDoc = "";
     if (op.summary || op.description) {
-        lines.push(`  /**`);
+        const lines = ["  /**"];
         if (op.summary) {
             lines.push(`   * ${op.summary}`);
         }
         if (op.description && op.description !== op.summary) {
             lines.push(`   * ${op.description}`);
         }
-        lines.push(`   */`);
+        lines.push("   */");
+        jsDoc = lines.join("\n") + "\n";
     }
 
     // Build parameter list
@@ -272,129 +229,140 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
         }
     }
 
-    // Method signature
-    lines.push(`  async ${methodName}(${params.join(", ")}): ${returnType} {`);
+    // Build validation blocks
+    const validations: string[] = [];
 
-    // Method body
-    const configAccess = options.reactQuery ? "globalConfig ?? {}" : "getApiConfig()";
-    lines.push(`    const config = ${configAccess};`);
-    lines.push(`    const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";`);
-    lines.push(`    const fetchImpl = config.fetch ?? fetch;`);
-
-    // Validation for path params
     if (options.wizValidator && pathParams.length > 0) {
         const typeName = getPathParamsTypeName(op);
-        lines.push(``);
-        lines.push(`    // Validate path parameters`);
-        lines.push(`    const pathParamsErrors = validate${typeName}(pathParams);`);
-        lines.push(`    if (pathParamsErrors.length > 0) {`);
-        lines.push(`      throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));`);
-        lines.push(`    }`);
+        validations.push(dedent`
+            // Validate path parameters
+            const pathParamsErrors = validate${typeName}(pathParams);
+            if (pathParamsErrors.length > 0) {
+              throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));
+            }
+        `);
     }
 
-    // Validation for query params
     if (options.wizValidator && queryParams.length > 0) {
         const typeName = getQueryParamsTypeName(op);
-        lines.push(``);
-        lines.push(`    // Validate query parameters`);
-        lines.push(`    if (queryParams) {`);
-        lines.push(`      const queryParamsErrors = validate${typeName}(queryParams);`);
-        lines.push(`      if (queryParamsErrors.length > 0) {`);
-        lines.push(`        throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));`);
-        lines.push(`      }`);
-        lines.push(`    }`);
+        validations.push(dedent`
+            // Validate query parameters
+            if (queryParams) {
+              const queryParamsErrors = validate${typeName}(queryParams);
+              if (queryParamsErrors.length > 0) {
+                throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));
+              }
+            }
+        `);
     }
 
-    // Validation for request body
     if (options.wizValidator && hasRequestBody) {
         const bodyType = getRequestBodyType(op);
         if (bodyType !== "any" && !bodyType.includes("[]")) {
-            lines.push(``);
-            lines.push(`    // Validate request body`);
-            lines.push(`    const requestBodyErrors = validate${bodyType}(requestBody);`);
-            lines.push(`    if (requestBodyErrors.length > 0) {`);
-            lines.push(`      throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));`);
-            lines.push(`    }`);
+            validations.push(dedent`
+                // Validate request body
+                const requestBodyErrors = validate${bodyType}(requestBody);
+                if (requestBodyErrors.length > 0) {
+                  throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));
+                }
+            `);
         }
     }
 
-    // Build URL
-    lines.push(``);
+    const validationCode = validations.length > 0 ? "\n" + validations.join("\n\n") : "";
+
+    // Build URL construction
+    let urlCode: string;
     if (pathParams.length > 0) {
-        lines.push(`    let url = baseUrl + \`${op.path}\`;`);
-        for (const param of pathParams) {
-            lines.push(`    url = url.replace("{${param.name}}", String(pathParams.${param.name}));`);
-        }
+        const replacements = pathParams
+            .map((param) => `    url = url.replace("{${param.name}}", String(pathParams.${param.name}));`)
+            .join("\n");
+        urlCode = dedent`
+            let url = baseUrl + \`${op.path}\`;
+            ${replacements}
+        `;
     } else {
-        lines.push(`    const url = baseUrl + "${op.path}";`);
+        urlCode = `const url = baseUrl + "${op.path}";`;
     }
 
-    // Add query params
+    // Build query params code
+    let queryCode = "";
     if (queryParams.length > 0) {
-        lines.push(`    const searchParams = new URLSearchParams();`);
-        lines.push(`    if (queryParams) {`);
-        for (const param of queryParams) {
-            lines.push(`      if (queryParams.${param.name} !== undefined) {`);
-            lines.push(`        searchParams.append("${param.name}", String(queryParams.${param.name}));`);
-            lines.push(`      }`);
-        }
-        lines.push(`    }`);
-        lines.push(`    const queryString = searchParams.toString();`);
-        lines.push(`    const fullUrl = queryString ? \`\${url}?\${queryString}\` : url;`);
+        const appendCalls = queryParams
+            .map(
+                (param) => dedent`
+              if (queryParams.${param.name} !== undefined) {
+                searchParams.append("${param.name}", String(queryParams.${param.name}));
+              }
+          `,
+            )
+            .join("\n");
+
+        queryCode = dedent`
+            const searchParams = new URLSearchParams();
+            if (queryParams) {
+            ${appendCalls}
+            }
+            const queryString = searchParams.toString();
+            const fullUrl = queryString ? \`\${url}?\${queryString}\` : url;
+        `;
     } else {
-        lines.push(`    const fullUrl = url;`);
+        queryCode = "const fullUrl = url;";
     }
 
-    // Add bearer token if configured
-    lines.push(``);
-    lines.push(`    // Add bearer token if configured`);
-    lines.push(`    if (config.bearerTokenProvider) {`);
-    lines.push(`      const token = await config.bearerTokenProvider();`);
-    lines.push(`      if (!init?.headers) {`);
-    lines.push(`        init = { ...init, headers: {} };`);
-    lines.push(`      }`);
-    lines.push(`      (init.headers as Record<string, string>)["Authorization"] = \`Bearer \${token}\`;`);
-    lines.push(`    }`);
+    // Build request body
+    const bodyLine = hasRequestBody ? "      body: JSON.stringify(requestBody)," : "";
 
-    // Build fetch options
-    lines.push(``);
-    lines.push(`    const options: RequestInit = {`);
-    lines.push(`      method: "${op.method}",`);
-    lines.push(`      headers: {`);
-    lines.push(`        "Content-Type": "application/json",`);
-    lines.push(`        ...config.headers,`);
-    lines.push(`        ...init?.headers,`);
-    lines.push(`      },`);
-    if (hasRequestBody) {
-        lines.push(`      body: JSON.stringify(requestBody),`);
-    }
-    lines.push(`      ...init,`);
-    lines.push(`    };`);
-
-    // Make fetch call
-    lines.push(``);
-    lines.push(`    const response = await fetchImpl(fullUrl, options);`);
-
-    // Wrap response with typed validation if needed
+    // Build return statement
+    let returnCode: string;
     if (options.wizValidator) {
         const responseBodyType = getResponseBodyType(op);
         if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
-            lines.push(``);
-            lines.push(
-                `    return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`,
-            );
+            returnCode = `return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`;
         } else {
-            lines.push(``);
-            lines.push(`    return response;`);
+            returnCode = "return response;";
         }
     } else {
-        lines.push(``);
-        lines.push(`    return response;`);
+        returnCode = "return response;";
     }
 
-    lines.push(`  }`);
+    // Assemble the complete method
+    return dedent`
+        ${jsDoc}  async ${methodName}(${params.join(", ")}): ${returnType} {
+            const config = getApiConfig();
+            const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";
+            const fetchImpl = config.fetch ?? fetch;
+            ${validationCode}
 
-    return lines.join("\n");
+            ${urlCode}
+
+            ${queryCode}
+
+            // Add bearer token if configured
+            if (config.bearerTokenProvider) {
+              const token = await config.bearerTokenProvider();
+              if (!init?.headers) {
+                init = { ...init, headers: {} };
+              }
+              (init.headers as Record<string, string>)["Authorization"] = \`Bearer \${token}\`;
+            }
+
+            const options: RequestInit = {
+              method: "${op.method}",
+              headers: {
+                "Content-Type": "application/json",
+                ...config.headers,
+                ...init?.headers,
+              },
+        ${bodyLine}
+              ...init,
+            };
+
+            const response = await fetchImpl(fullUrl, options);
+
+            ${returnCode}
+          }
+    `.replace(/\n\s*\n\s*\n/g, "\n\n"); // Remove excessive blank lines
 }
 
 /**
