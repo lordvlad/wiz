@@ -39,44 +39,34 @@ export function templateAPI(ctx: WizTemplateContext): string {
     const defaultBaseUrl = getDefaultBaseUrl(ctx.spec);
     const options = ctx.options || {};
 
-    const sections: string[] = [];
+    // Collect types that need validators
+    const typesToValidate = options.wizValidator
+        ? operations.reduce((acc: Set<string>, op) => {
+              const requestBodyType = getRequestBodyType(op);
+              if (requestBodyType && requestBodyType !== "any" && !requestBodyType.includes("[]")) {
+                  acc.add(requestBodyType);
+              }
+              const responseBodyType = getResponseBodyType(op);
+              if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+                  acc.add(responseBodyType);
+              }
+              return acc;
+          }, new Set<string>())
+        : new Set<string>();
 
-    // Add validator imports if needed
-    if (options.wizValidator) {
-        sections.push(dedent`
+    // Build validator section
+    const validatorSection = options.wizValidator
+        ? dedent`
             import { createValidator } from "wiz/validator";
-        `);
 
-        // Add TypedResponse interface
-        sections.push(dedent`
             export interface TypedResponse<T> extends Response {
               json(): Promise<T>;
             }
-        `);
 
-        // Collect types that need validators
-        const typesToValidate = new Set<string>();
-        for (const op of operations) {
-            const requestBodyType = getRequestBodyType(op);
-            if (requestBodyType && requestBodyType !== "any" && !requestBodyType.includes("[]")) {
-                typesToValidate.add(requestBodyType);
-            }
-            const responseBodyType = getResponseBodyType(op);
-            if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
-                typesToValidate.add(responseBodyType);
-            }
-        }
+            ${Array.from(typesToValidate)
+                .map((typeName) => `const validate${typeName} = createValidator<Models.${typeName}>();`)
+                .join("\n")}
 
-        // Generate validators
-        const validators = Array.from(typesToValidate)
-            .map((typeName) => `const validate${typeName} = createValidator<Models.${typeName}>();`)
-            .join("\n");
-        if (validators) {
-            sections.push(validators);
-        }
-
-        // Generate createTypedResponse helper
-        sections.push(dedent`
             function createTypedResponse<T>(response: Response, validator: (value: unknown) => any[]): TypedResponse<T> {
               const originalJson = response.json.bind(response);
 
@@ -96,21 +86,71 @@ export function templateAPI(ctx: WizTemplateContext): string {
                 }
               }) as TypedResponse<T>;
             }
-        `);
-    }
+          `
+        : "";
 
-    // Generate ApiConfig interface
-    sections.push(dedent`
+    // Build parameter types section
+    const parameterTypesSection = operations
+        .map((op) => {
+            const { pathParams, queryParams } = analyzeParameters(op);
+            const parts: string[] = [];
+
+            if (pathParams.length > 0) {
+                const typeName = getPathParamsTypeName(op);
+                const properties = pathParams
+                    .map((param) => {
+                        const optional = !param.required ? "?" : "";
+                        const type = getTypeFromSchema(param.schema);
+                        return `  ${param.name}${optional}: ${type};`;
+                    })
+                    .join("\n");
+
+                parts[parts.length] = dedent`
+                    export type ${typeName} = {
+                    ${properties}
+                    };${options.wizValidator ? `\n\nconst validate${typeName} = createValidator<${typeName}>();` : ""}
+                `;
+            }
+
+            if (queryParams.length > 0) {
+                const typeName = getQueryParamsTypeName(op);
+                const properties = queryParams
+                    .map((param) => {
+                        const optional = !param.required ? "?" : "";
+                        const type = getTypeFromSchema(param.schema);
+                        return `  ${param.name}${optional}: ${type};`;
+                    })
+                    .join("\n");
+
+                parts[parts.length] = dedent`
+                    export type ${typeName} = {
+                    ${properties}
+                    };${options.wizValidator ? `\n\nconst validate${typeName} = createValidator<${typeName}>();` : ""}
+                `;
+            }
+
+            return parts.join("\n\n");
+        })
+        .filter((s) => s)
+        .join("\n\n");
+
+    // Generate methods
+    const methods = operations
+        .filter((op) => op !== undefined)
+        .map((op) => generateMethodCode(op, defaultBaseUrl, options))
+        .join(",\n\n");
+
+    // Assemble all sections using template literal
+    return dedent`
+        ${validatorSection}
+
         export interface ApiConfig {
           baseUrl?: string;
           headers?: Record<string, string>;
           fetch?: typeof fetch;
           bearerTokenProvider?: () => Promise<string>;
         }
-    `);
 
-    // Generate global config and functions
-    sections.push(dedent`
         let globalConfig: ApiConfig = {};
 
         export function setApiConfig(config: ApiConfig): void {
@@ -120,70 +160,13 @@ export function templateAPI(ctx: WizTemplateContext): string {
         export function getApiConfig(): ApiConfig {
           return globalConfig;
         }
-    `);
 
-    // Generate parameter types for all operations
-    for (const op of operations) {
-        const { pathParams, queryParams } = analyzeParameters(op);
+        ${parameterTypesSection}
 
-        if (pathParams.length > 0) {
-            const typeName = getPathParamsTypeName(op);
-            const properties = pathParams
-                .map((param) => {
-                    const optional = !param.required ? "?" : "";
-                    const type = getTypeFromSchema(param.schema);
-                    return `  ${param.name}${optional}: ${type};`;
-                })
-                .join("\n");
-
-            sections.push(dedent`
-                export type ${typeName} = {
-                ${properties}
-                };
-            `);
-
-            // Generate validator if needed
-            if (options.wizValidator) {
-                sections.push(`const validate${typeName} = createValidator<${typeName}>();`);
-            }
-        }
-
-        if (queryParams.length > 0) {
-            const typeName = getQueryParamsTypeName(op);
-            const properties = queryParams
-                .map((param) => {
-                    const optional = !param.required ? "?" : "";
-                    const type = getTypeFromSchema(param.schema);
-                    return `  ${param.name}${optional}: ${type};`;
-                })
-                .join("\n");
-
-            sections.push(dedent`
-                export type ${typeName} = {
-                ${properties}
-                };
-            `);
-
-            // Generate validator if needed
-            if (options.wizValidator) {
-                sections.push(`const validate${typeName} = createValidator<${typeName}>();`);
-            }
-        }
-    }
-
-    // Generate api object with methods
-    const methods = operations
-        .filter((op) => op !== undefined)
-        .map((op) => generateMethodCode(op, defaultBaseUrl, options))
-        .join(",\n\n");
-
-    sections.push(dedent`
         export const api = {
         ${methods}
         };
-    `);
-
-    return sections.join("\n\n");
+    `.replace(/\n{3,}/g, "\n\n"); // Clean up excessive blank lines
 }
 
 /**
@@ -193,146 +176,112 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
     const methodName = getMethodName(op);
     const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
 
-    // Build JSDoc comment
-    let jsDoc = "";
-    if (op.summary || op.description) {
-        const lines = ["  /**"];
-        if (op.summary) {
-            lines.push(`   * ${op.summary}`);
-        }
-        if (op.description && op.description !== op.summary) {
-            lines.push(`   * ${op.description}`);
-        }
-        lines.push("   */");
-        jsDoc = lines.join("\n") + "\n";
-    }
+    // Build JSDoc comment using template literal
+    const jsDoc =
+        op.summary || op.description
+            ? `  /**\n${[op.summary && `   * ${op.summary}`, op.description && op.description !== op.summary && `   * ${op.description}`].filter(Boolean).join("\n")}\n   */\n`
+            : "";
 
-    // Build parameter list
-    const params: string[] = [];
-    if (pathParams.length > 0) {
-        params.push(`pathParams: ${getPathParamsTypeName(op)}`);
-    }
-    if (queryParams.length > 0) {
-        params.push(`queryParams?: ${getQueryParamsTypeName(op)}`);
-    }
-    if (hasRequestBody) {
-        params.push(`requestBody: ${getRequestBodyType(op)}`);
-    }
-    params.push("init?: RequestInit");
+    // Build parameter list using array operations
+    const params = [
+        pathParams.length > 0 && `pathParams: ${getPathParamsTypeName(op)}`,
+        queryParams.length > 0 && `queryParams?: ${getQueryParamsTypeName(op)}`,
+        hasRequestBody && `requestBody: ${getRequestBodyType(op)}`,
+        "init?: RequestInit",
+    ]
+        .filter(Boolean)
+        .join(", ");
 
     // Determine return type
-    let returnType = "Promise<Response>";
-    if (options.wizValidator) {
-        const responseBodyType = getResponseBodyType(op);
-        if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
-            returnType = `Promise<TypedResponse<Models.${responseBodyType}>>`;
-        }
-    }
+    const responseBodyType = options.wizValidator && getResponseBodyType(op);
+    const returnType =
+        options.wizValidator && responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")
+            ? `Promise<TypedResponse<Models.${responseBodyType}>>`
+            : "Promise<Response>";
 
-    // Build validation blocks
-    const validations: string[] = [];
-
-    if (options.wizValidator && pathParams.length > 0) {
-        const typeName = getPathParamsTypeName(op);
-        validations.push(dedent`
-            // Validate path parameters
-            const pathParamsErrors = validate${typeName}(pathParams);
-            if (pathParamsErrors.length > 0) {
-              throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));
-            }
-        `);
-    }
-
-    if (options.wizValidator && queryParams.length > 0) {
-        const typeName = getQueryParamsTypeName(op);
-        validations.push(dedent`
-            // Validate query parameters
-            if (queryParams) {
-              const queryParamsErrors = validate${typeName}(queryParams);
-              if (queryParamsErrors.length > 0) {
-                throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));
-              }
-            }
-        `);
-    }
-
-    if (options.wizValidator && hasRequestBody) {
-        const bodyType = getRequestBodyType(op);
-        if (bodyType !== "any" && !bodyType.includes("[]")) {
-            validations.push(dedent`
+    // Build validation blocks using array reduce
+    const validationCode = [
+        options.wizValidator &&
+            pathParams.length > 0 &&
+            dedent`
+                // Validate path parameters
+                const pathParamsErrors = validate${getPathParamsTypeName(op)}(pathParams);
+                if (pathParamsErrors.length > 0) {
+                  throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));
+                }
+            `,
+        options.wizValidator &&
+            queryParams.length > 0 &&
+            dedent`
+                // Validate query parameters
+                if (queryParams) {
+                  const queryParamsErrors = validate${getQueryParamsTypeName(op)}(queryParams);
+                  if (queryParamsErrors.length > 0) {
+                    throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));
+                  }
+                }
+            `,
+        options.wizValidator &&
+            hasRequestBody &&
+            getRequestBodyType(op) !== "any" &&
+            !getRequestBodyType(op).includes("[]") &&
+            dedent`
                 // Validate request body
-                const requestBodyErrors = validate${bodyType}(requestBody);
+                const requestBodyErrors = validate${getRequestBodyType(op)}(requestBody);
                 if (requestBodyErrors.length > 0) {
                   throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));
                 }
-            `);
-        }
-    }
-
-    const validationCode = validations.length > 0 ? "\n" + validations.join("\n\n") : "";
+            `,
+    ]
+        .filter(Boolean)
+        .join("\n\n");
 
     // Build URL construction
-    let urlCode: string;
-    if (pathParams.length > 0) {
-        const replacements = pathParams
-            .map((param) => `    url = url.replace("{${param.name}}", String(pathParams.${param.name}));`)
-            .join("\n");
-        urlCode = dedent`
+    const urlCode =
+        pathParams.length > 0
+            ? dedent`
             let url = baseUrl + \`${op.path}\`;
-            ${replacements}
-        `;
-    } else {
-        urlCode = `const url = baseUrl + "${op.path}";`;
-    }
+            ${pathParams.map((param) => `url = url.replace("{${param.name}}", String(pathParams.${param.name}));`).join("\n            ")}
+          `
+            : `const url = baseUrl + "${op.path}";`;
 
     // Build query params code
-    let queryCode = "";
-    if (queryParams.length > 0) {
-        const appendCalls = queryParams
-            .map(
-                (param) => dedent`
+    const queryCode =
+        queryParams.length > 0
+            ? dedent`
+            const searchParams = new URLSearchParams();
+            if (queryParams) {
+            ${queryParams
+                .map(
+                    (param) => dedent`
               if (queryParams.${param.name} !== undefined) {
                 searchParams.append("${param.name}", String(queryParams.${param.name}));
               }
-          `,
-            )
-            .join("\n");
-
-        queryCode = dedent`
-            const searchParams = new URLSearchParams();
-            if (queryParams) {
-            ${appendCalls}
+            `,
+                )
+                .join("")}
             }
             const queryString = searchParams.toString();
             const fullUrl = queryString ? \`\${url}?\${queryString}\` : url;
-        `;
-    } else {
-        queryCode = "const fullUrl = url;";
-    }
+          `
+            : "const fullUrl = url;";
 
     // Build request body
     const bodyLine = hasRequestBody ? "      body: JSON.stringify(requestBody)," : "";
 
     // Build return statement
-    let returnCode: string;
-    if (options.wizValidator) {
-        const responseBodyType = getResponseBodyType(op);
-        if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
-            returnCode = `return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`;
-        } else {
-            returnCode = "return response;";
-        }
-    } else {
-        returnCode = "return response;";
-    }
+    const returnCode =
+        options.wizValidator && responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")
+            ? `return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`
+            : "return response;";
 
     // Assemble the complete method
     return dedent`
-        ${jsDoc}  async ${methodName}(${params.join(", ")}): ${returnType} {
+        ${jsDoc}  async ${methodName}(${params}): ${returnType} {
             const config = getApiConfig();
             const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";
             const fetchImpl = config.fetch ?? fetch;
-            ${validationCode}
+            ${validationCode ? "\n" + validationCode : ""}
 
             ${urlCode}
 
@@ -362,7 +311,7 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
 
             ${returnCode}
           }
-    `.replace(/\n\s*\n\s*\n/g, "\n\n"); // Remove excessive blank lines
+    `.replace(/\n{3,}/g, "\n\n"); // Remove excessive blank lines
 }
 
 /**
