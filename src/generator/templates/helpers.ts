@@ -92,9 +92,9 @@ export function getDefaultBaseUrl(spec: OpenApiSpec): string {
 }
 
 /**
- * Analyze operation parameters
+ * Extract path, query parameters, and request body info from operation
  */
-export function analyzeParameters(op: OperationInfo): {
+export function extractParameters(op: OperationInfo): {
     pathParams: any[];
     queryParams: any[];
     hasRequestBody: boolean;
@@ -134,11 +134,11 @@ export function getQueryParamsTypeName(op: OperationInfo): string {
 }
 
 /**
- * Get request body type
+ * Get request body type - returns null if no request body defined
  */
-export function getRequestBodyType(op: OperationInfo): string {
+export function getRequestBodyType(op: OperationInfo): string | null {
     if (!op.requestBody?.content) {
-        return "any";
+        return null;
     }
 
     const jsonContent = op.requestBody.content["application/json"];
@@ -146,12 +146,12 @@ export function getRequestBodyType(op: OperationInfo): string {
     if (jsonContent?.schema) {
         if (jsonContent.schema.$ref) {
             const refName = jsonContent.schema.$ref.split("/").pop();
-            return refName || "any";
+            return refName || null;
         }
         return getTypeFromSchema(jsonContent.schema);
     }
 
-    return "any";
+    return null;
 }
 
 /**

@@ -7,9 +7,9 @@
 import { generateModelsFromOpenApi } from "../openapi-ir";
 import { dedent } from "./dedent";
 import {
-    analyzeParameters,
     checkDuplicateMethodNames,
     extractOperations,
+    extractParameters,
     getDefaultBaseUrl,
     getMethodName,
     getPathParamsTypeName,
@@ -43,11 +43,11 @@ export function templateAPI(ctx: WizTemplateContext): string {
     const typesToValidate = options.wizValidator
         ? operations.reduce((acc: Set<string>, op) => {
               const requestBodyType = getRequestBodyType(op);
-              if (requestBodyType && requestBodyType !== "any" && !requestBodyType.includes("[]")) {
+              if (requestBodyType && requestBodyType !== "any") {
                   acc.add(requestBodyType);
               }
               const responseBodyType = getResponseBodyType(op);
-              if (responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")) {
+              if (responseBodyType && responseBodyType !== "any") {
                   acc.add(responseBodyType);
               }
               return acc;
@@ -92,7 +92,7 @@ export function templateAPI(ctx: WizTemplateContext): string {
     // Build parameter types section
     const parameterTypesSection = operations
         .map((op) => {
-            const { pathParams, queryParams } = analyzeParameters(op);
+            const { pathParams, queryParams } = extractParameters(op);
             const parts: string[] = [];
 
             if (pathParams.length > 0) {
@@ -134,11 +134,20 @@ export function templateAPI(ctx: WizTemplateContext): string {
         .filter((s) => s)
         .join("\n\n");
 
-    // Generate methods
-    const methods = operations
+    // Generate methods as individual exports
+    const individualMethods = operations
         .filter((op) => op !== undefined)
         .map((op) => generateMethodCode(op, defaultBaseUrl, options))
-        .join(",\n\n");
+        .join("\n\n");
+
+    // Also generate api object for backward compatibility
+    const apiObjectMethods = operations
+        .filter((op) => op !== undefined)
+        .map((op) => {
+            const methodName = getMethodName(op);
+            return `  ${methodName}`;
+        })
+        .join(",\n");
 
     // Assemble all sections using template literal
     return dedent`
@@ -163,8 +172,10 @@ export function templateAPI(ctx: WizTemplateContext): string {
 
         ${parameterTypesSection}
 
+        ${individualMethods}
+
         export const api = {
-        ${methods}
+        ${apiObjectMethods}
         };
     `.replace(/\n{3,}/g, "\n\n"); // Clean up excessive blank lines
 }
@@ -174,19 +185,20 @@ export function templateAPI(ctx: WizTemplateContext): string {
  */
 function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: any): string {
     const methodName = getMethodName(op);
-    const { pathParams, queryParams, hasRequestBody } = analyzeParameters(op);
+    const { pathParams, queryParams, hasRequestBody } = extractParameters(op);
+    const requestBodyType = getRequestBodyType(op);
 
     // Build JSDoc comment using template literal
     const jsDoc =
         op.summary || op.description
-            ? `  /**\n${[op.summary && `   * ${op.summary}`, op.description && op.description !== op.summary && `   * ${op.description}`].filter(Boolean).join("\n")}\n   */\n`
+            ? `/**\n${[op.summary && ` * ${op.summary}`, op.description && op.description !== op.summary && ` * ${op.description}`].filter(Boolean).join("\n")}\n */\n`
             : "";
 
-    // Build parameter list using array operations
+    // Build parameter list using array operations - omit requestBody if not defined
     const params = [
         pathParams.length > 0 && `pathParams: ${getPathParamsTypeName(op)}`,
         queryParams.length > 0 && `queryParams?: ${getQueryParamsTypeName(op)}`,
-        hasRequestBody && `requestBody: ${getRequestBodyType(op)}`,
+        hasRequestBody && requestBodyType && `requestBody: ${requestBodyType}`,
         "init?: RequestInit",
     ]
         .filter(Boolean)
@@ -195,11 +207,11 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
     // Determine return type
     const responseBodyType = options.wizValidator && getResponseBodyType(op);
     const returnType =
-        options.wizValidator && responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")
+        options.wizValidator && responseBodyType && responseBodyType !== "any"
             ? `Promise<TypedResponse<Models.${responseBodyType}>>`
             : "Promise<Response>";
 
-    // Build validation blocks using array reduce
+    // Build validation blocks using array operations
     const validationCode = [
         options.wizValidator &&
             pathParams.length > 0 &&
@@ -223,11 +235,11 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
             `,
         options.wizValidator &&
             hasRequestBody &&
-            getRequestBodyType(op) !== "any" &&
-            !getRequestBodyType(op).includes("[]") &&
+            requestBodyType &&
+            requestBodyType !== "any" &&
             dedent`
                 // Validate request body
-                const requestBodyErrors = validate${getRequestBodyType(op)}(requestBody);
+                const requestBodyErrors = validate${requestBodyType}(requestBody);
                 if (requestBodyErrors.length > 0) {
                   throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));
                 }
@@ -267,50 +279,49 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
             : "const fullUrl = url;";
 
     // Build request body
-    const bodyLine = hasRequestBody ? "      body: JSON.stringify(requestBody)," : "";
+    const bodyLine = hasRequestBody && requestBodyType ? "      body: JSON.stringify(requestBody)," : "";
 
     // Build return statement
     const returnCode =
-        options.wizValidator && responseBodyType && responseBodyType !== "any" && !responseBodyType.includes("[]")
+        options.wizValidator && responseBodyType && responseBodyType !== "any"
             ? `return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`
             : "return response;";
 
-    // Assemble the complete method
+    // Assemble the complete method as an exported async function
     return dedent`
-        ${jsDoc}  async ${methodName}(${params}): ${returnType} {
-            const config = getApiConfig();
-            const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";
-            const fetchImpl = config.fetch ?? fetch;
-            ${validationCode ? "\n" + validationCode : ""}
+        ${jsDoc}export async function ${methodName}(${params}): ${returnType} {
+          const config = globalConfig;
+          const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";
+          const fetchImpl = config.fetch ?? fetch;
+          ${validationCode ? "\n" + validationCode : ""}
 
-            ${urlCode}
+          ${urlCode}
 
-            ${queryCode}
+          ${queryCode}
 
-            // Add bearer token if configured
-            if (config.bearerTokenProvider) {
-              const token = await config.bearerTokenProvider();
-              if (!init?.headers) {
-                init = { ...init, headers: {} };
-              }
-              (init.headers as Record<string, string>)["Authorization"] = \`Bearer \${token}\`;
-            }
-
-            const options: RequestInit = {
-              method: "${op.method}",
-              headers: {
-                "Content-Type": "application/json",
-                ...config.headers,
-                ...init?.headers,
-              },
-        ${bodyLine}
-              ...init,
-            };
-
-            const response = await fetchImpl(fullUrl, options);
-
-            ${returnCode}
+          // Add bearer token if configured
+          if (config.bearerTokenProvider) {
+            const token = await config.bearerTokenProvider();
+            const headers = init?.headers ? { ...init.headers } : {};
+            headers["Authorization"] = \`Bearer \${token}\`;
+            init = { ...init, headers };
           }
+
+          const options: RequestInit = {
+            method: "${op.method}",
+            headers: {
+              "Content-Type": "application/json",
+              ...config.headers,
+              ...(init?.headers || {}),
+            },
+      ${bodyLine}
+            ...init,
+          };
+
+          const response = await fetchImpl(fullUrl, options);
+
+          ${returnCode}
+        }
     `.replace(/\n{3,}/g, "\n\n"); // Remove excessive blank lines
 }
 

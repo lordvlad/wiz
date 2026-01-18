@@ -505,7 +505,7 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         expect(api).toContain("init?: RequestInit");
         expect(api).toContain("...init");
-        expect(api).toContain("...init?.headers");
+        expect(api).toContain("...(init?.headers || {})");
     });
 
     it("should support custom fetch implementation in config", () => {
@@ -778,6 +778,6 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("// Add bearer token if configured");
         expect(api).toContain("if (config.bearerTokenProvider)");
         expect(api).toContain("const token = await config.bearerTokenProvider();");
-        expect(api).toContain('(init.headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;');
+        expect(api).toContain('headers["Authorization"] = `Bearer ${token}`;');
     });
 });

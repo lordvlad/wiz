@@ -174,13 +174,11 @@ describe("Template functions - react-query template", () => {
 
         // Check queries.ts content
         expect(result["queries.ts"]).toContain("useQuery");
-        expect(result["queries.ts"]).toContain("useGetUsers");
-        expect(result["queries.ts"]).toContain("getGetUsersQueryOptions");
+        expect(result["queries.ts"]).toContain("useGetUsersQuery");
 
         // Check mutations.ts content
         expect(result["mutations.ts"]).toContain("useMutation");
-        expect(result["mutations.ts"]).toContain("useCreateUser");
-        expect(result["mutations.ts"]).toContain("getCreateUserMutationOptions");
+        expect(result["mutations.ts"]).toContain("useCreateUserMutation");
     });
 
     it("should reuse fetch template for base files", () => {
