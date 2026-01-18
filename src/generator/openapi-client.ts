@@ -35,41 +35,32 @@ interface OperationInfo {
 
 /**
  * Generate TypeScript client from OpenAPI specification
+ * Now uses template functions for consistent generation
  */
 export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGeneratorOptions = {}): GeneratedClient {
-    // Generate models
-    const modelsMap = generateModelsFromOpenApi(spec, options);
-    const models = Array.from(modelsMap.values()).join("\n\n");
+    // Import template functions
+    const { fetchTemplate, reactQueryTemplate } = require("./templates");
 
-    // Generate API client using ts-morph
-    const project = new Project({ useInMemoryFileSystem: true });
-    const sourceFile = project.createSourceFile("api.ts", "");
+    // Choose template based on options
+    const template = options.reactQuery ? reactQueryTemplate : fetchTemplate;
 
-    generateApiClient(sourceFile, spec, options);
+    // Generate files using template
+    const files = template({ spec, options });
 
-    const api = sourceFile.getFullText();
-
-    // Generate separate queries and mutations files if React Query is enabled
-    let queries: string | undefined;
-    let mutations: string | undefined;
-
-    if (options.reactQuery) {
-        const queriesFile = project.createSourceFile("queries.ts", "");
-        const mutationsFile = project.createSourceFile("mutations.ts", "");
-
-        generateReactQueryFiles(queriesFile, mutationsFile, spec, options);
-
-        queries = queriesFile.getFullText();
-        mutations = mutationsFile.getFullText();
-    }
-
-    return { models, api, queries, mutations };
+    // Return in the original format for backward compatibility
+    return {
+        models: files["model.ts"],
+        api: files["api.ts"],
+        queries: files["queries.ts"],
+        mutations: files["mutations.ts"],
+    };
 }
 
 /**
  * Generate API client code
+ * Exported for use in template functions
  */
-function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: ClientGeneratorOptions): void {
+export function generateApiClient(sourceFile: SourceFile, spec: OpenApiSpec, options: ClientGeneratorOptions): void {
     const operations = extractOperations(spec);
 
     // Check for duplicate method names
@@ -900,8 +891,9 @@ function generateReactQueryHelpers(
 
 /**
  * Generate React Query files (queries.ts and mutations.ts)
+ * Exported for use in template functions
  */
-function generateReactQueryFiles(
+export function generateReactQueryFiles(
     queriesFile: SourceFile,
     mutationsFile: SourceFile,
     spec: OpenApiSpec,
