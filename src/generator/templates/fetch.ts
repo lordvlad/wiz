@@ -154,16 +154,31 @@ export function templateAPI(ctx: WizTemplateContext): string {
         ${validatorSection}
 
         export interface ApiConfig {
-          baseUrl?: string;
-          headers?: Record<string, string>;
-          fetch?: typeof fetch;
+          baseUrl: string;
+          headers: Record<string, string>;
+          fetch: typeof fetch;
           bearerTokenProvider?: () => Promise<string>;
         }
 
-        let globalConfig: ApiConfig = {};
+        let globalConfig: ApiConfig = {
+          baseUrl: "${defaultBaseUrl}",
+          headers: {},
+          fetch: fetch,
+        };
 
-        export function setApiConfig(config: ApiConfig): void {
-          globalConfig = config;
+        export function setApiConfig(config: Partial<ApiConfig>): void {
+          globalConfig = {
+            ...globalConfig,
+            ...config,
+            headers: {
+              ...globalConfig.headers,
+              ...(config.headers || {}),
+            },
+          };
+          // Ensure fetch is always set
+          if (config.fetch) {
+            globalConfig.fetch = config.fetch;
+          }
         }
 
         export function getApiConfig(): ApiConfig {
@@ -252,10 +267,10 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
     const urlCode =
         pathParams.length > 0
             ? dedent`
-            let url = baseUrl + \`${op.path}\`;
+            let url = globalConfig.baseUrl + \`${op.path}\`;
             ${pathParams.map((param) => `url = url.replace("{${param.name}}", String(pathParams.${param.name}));`).join("\n            ")}
           `
-            : `const url = baseUrl + "${op.path}";`;
+            : `const url = globalConfig.baseUrl + "${op.path}";`;
 
     // Build query params code
     const queryCode =
@@ -290,9 +305,6 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
     // Assemble the complete method as an exported async function
     return dedent`
         ${jsDoc}export async function ${methodName}(${params}): ${returnType} {
-          const config = globalConfig;
-          const baseUrl = config.baseUrl ?? "${defaultBaseUrl}";
-          const fetchImpl = config.fetch ?? fetch;
           ${validationCode ? "\n" + validationCode : ""}
 
           ${urlCode}
@@ -300,8 +312,8 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
           ${queryCode}
 
           // Add bearer token if configured
-          if (config.bearerTokenProvider) {
-            const token = await config.bearerTokenProvider();
+          if (globalConfig.bearerTokenProvider) {
+            const token = await globalConfig.bearerTokenProvider();
             const headers = init?.headers ? { ...init.headers } : {};
             headers["Authorization"] = \`Bearer \${token}\`;
             init = { ...init, headers };
@@ -311,14 +323,14 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
             method: "${op.method}",
             headers: {
               "Content-Type": "application/json",
-              ...config.headers,
+              ...globalConfig.headers,
               ...(init?.headers || {}),
             },
       ${bodyLine}
             ...init,
           };
 
-          const response = await fetchImpl(fullUrl, options);
+          const response = await globalConfig.fetch(fullUrl, options);
 
           ${returnCode}
         }

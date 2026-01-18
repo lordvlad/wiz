@@ -280,9 +280,9 @@ describe("OpenAPI to TypeScript client generator", () => {
         const { api } = generateClientFromOpenApi(spec);
 
         expect(api).toContain("export interface ApiConfig");
-        expect(api).toContain("baseUrl?:");
-        expect(api).toContain("headers?:");
-        expect(api).toContain("fetch?: typeof fetch;");
+        expect(api).toContain("baseUrl: string;");
+        expect(api).toContain("headers: Record<string, string>;");
+        expect(api).toContain("fetch: typeof fetch;");
         expect(api).toContain("export function setApiConfig");
         expect(api).toContain("export function getApiConfig");
     });
@@ -314,8 +314,8 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        // The default baseUrl should be used in the method body
-        expect(api).toContain('const baseUrl = config.baseUrl ?? "https://api.example.com";');
+        // The default baseUrl should be set in globalConfig initialization
+        expect(api).toContain('baseUrl: "https://api.example.com"');
     });
 
     it("should generate models alongside API", () => {
@@ -530,20 +530,20 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        // Check that ApiConfig includes fetch
+        // Check that ApiConfig includes required fetch field
         expect(api).toContain("export interface ApiConfig");
-        expect(api).toContain("fetch?: typeof fetch;");
+        expect(api).toContain("fetch: typeof fetch;");
 
-        // Check that setApiConfig accepts ApiConfig directly
-        expect(api).toContain("setApiConfig(config: ApiConfig)");
+        // Check that setApiConfig accepts Partial<ApiConfig> and merges
+        expect(api).toContain("setApiConfig(config: Partial<ApiConfig>)");
 
         // Check that getApiConfig is synchronous
         expect(api).toContain("export function getApiConfig(): ApiConfig");
         expect(api).not.toContain("async function getApiConfig");
 
-        // Check that fetch implementation is used
-        expect(api).toContain("const fetchImpl = config.fetch ?? fetch");
-        expect(api).toContain("const response = await fetchImpl(fullUrl, options)");
+        // Check that fetch implementation is used directly from globalConfig
+        expect(api).toContain("globalConfig.fetch");
+        expect(api).toContain("const response = await globalConfig.fetch(fullUrl, options)");
         expect(api).toContain("return response;");
     });
 
@@ -776,8 +776,8 @@ describe("OpenAPI to TypeScript client generator", () => {
         const { api } = generateClientFromOpenApi(spec);
 
         expect(api).toContain("// Add bearer token if configured");
-        expect(api).toContain("if (config.bearerTokenProvider)");
-        expect(api).toContain("const token = await config.bearerTokenProvider();");
+        expect(api).toContain("if (globalConfig.bearerTokenProvider)");
+        expect(api).toContain("const token = await globalConfig.bearerTokenProvider();");
         expect(api).toContain('headers["Authorization"] = `Bearer ${token}`;');
     });
 });
