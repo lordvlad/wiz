@@ -19,11 +19,6 @@ export interface WizTemplateOptions {
     tags?: Record<string, any>;
     disableWizTags?: boolean;
     wizValidator?: boolean;
-    /**
-     * OAuth provider function that will be used to generate bearer tokens
-     * When set, the generated client will automatically add Authorization headers
-     */
-    oauthProvider?: string;
     /** Additional custom options for template extensions */
     [key: string]: unknown;
 }

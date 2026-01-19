@@ -534,8 +534,8 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("export interface ApiConfig");
         expect(api).toContain("fetch: typeof fetch;");
 
-        // Check that setApiConfig accepts Partial<ApiConfig> and merges
-        expect(api).toContain("setApiConfig(config: Partial<ApiConfig>)");
+        // Check that setApiConfig accepts Partial<ApiConfig & { oauthBearerProvider: ... }>
+        expect(api).toContain("setApiConfig(config: Partial<ApiConfig & { oauthBearerProvider: () => Promise<string> | string }>)");
 
         // Check that getApiConfig is synchronous
         expect(api).toContain("export function getApiConfig(): ApiConfig");
@@ -726,7 +726,7 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).not.toContain("// Validate response body");
     });
 
-    it("should include bearerTokenProvider in ApiConfig", () => {
+    it("should support oauthBearerProvider in setApiConfig", () => {
         const spec: OpenApiSpec = {
             openapi: "3.0.0",
             paths: {
@@ -748,12 +748,16 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        expect(api).toContain("export interface ApiConfig");
-        expect(api).toContain("bearerTokenProvider?:");
-        expect(api).toContain("() => Promise<string>");
+        // Check that setApiConfig accepts oauthBearerProvider
+        expect(api).toContain("oauthBearerProvider: () => Promise<string> | string");
+        // Check that it wraps the fetch function
+        expect(api).toContain('if ("oauthBearerProvider" in config)');
+        expect(api).toContain("const originalFetch = globalConfig.fetch;");
+        expect(api).toContain("const token = await config.oauthBearerProvider!();");
+        expect(api).toContain("'Authorization': `Bearer ${token}`");
     });
 
-    it("should use bearerTokenProvider in generated methods", () => {
+    it("should not include bearer token logic in generated methods", () => {
         const spec: OpenApiSpec = {
             openapi: "3.0.0",
             paths: {
@@ -775,9 +779,9 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        expect(api).toContain("// Add bearer token if configured");
-        expect(api).toContain("if (globalConfig.bearerTokenProvider)");
-        expect(api).toContain("const token = await globalConfig.bearerTokenProvider();");
-        expect(api).toContain('headers["Authorization"] = `Bearer ${token}`;');
+        // Bearer token handling should NOT be in the generated methods
+        // It's centralized in the wrapped fetch function from setApiConfig
+        expect(api).not.toContain("// Add bearer token if configured");
+        expect(api).not.toContain("if (globalConfig.bearerTokenProvider)");
     });
 });

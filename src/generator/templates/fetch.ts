@@ -157,27 +157,24 @@ export function templateAPI(ctx: WizTemplateContext): string {
           baseUrl: string;
           headers: Record<string, string>;
           fetch: typeof fetch;
-          bearerTokenProvider?: () => Promise<string>;
         }
 
         let globalConfig: ApiConfig = {
           baseUrl: "${defaultBaseUrl}",
           headers: {},
-          fetch: fetch,${ctx.options?.oauthProvider ? `\n          bearerTokenProvider: ${ctx.options.oauthProvider},` : ""}
+          fetch: fetch,
         };
 
-        export function setApiConfig(config: Partial<ApiConfig>): void {
-          globalConfig = {
-            ...globalConfig,
-            ...config,
-            headers: {
-              ...globalConfig.headers,
-              ...(config.headers || {}),
-            },
-          };
-          // Ensure fetch is always set
-          if (config.fetch) {
-            globalConfig.fetch = config.fetch;
+        export function setApiConfig(config: Partial<ApiConfig & { oauthBearerProvider: () => Promise<string> | string }>): void {
+          if ("baseUrl" in config) globalConfig.baseUrl = config.baseUrl!;
+          if ("headers" in config) globalConfig.headers = config.headers!;
+          if ("fetch" in config) globalConfig.fetch = config.fetch!;
+          if ("oauthBearerProvider" in config) {
+            const originalFetch = globalConfig.fetch;
+            globalConfig.fetch = async (url, init) => {
+              const token = await config.oauthBearerProvider!();
+              return originalFetch(url, { ...init, headers: { ...init?.headers, 'Authorization': \`Bearer \${token}\` } });
+            };
           }
         }
 
@@ -310,14 +307,6 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string, options: 
           ${urlCode}
 
           ${queryCode}
-
-          // Add bearer token if configured
-          if (globalConfig.bearerTokenProvider) {
-            const token = await globalConfig.bearerTokenProvider();
-            const headers = init?.headers ? { ...init.headers } : {};
-            headers["Authorization"] = \`Bearer \${token}\`;
-            init = { ...init, headers };
-          }
 
           const options: RequestInit = {
             method: "${op.method}",
