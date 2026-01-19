@@ -94,22 +94,25 @@ export function templateQueries(ctx: WizTemplateContext): string {
     // Filter operations that are queries (GET, HEAD, OPTIONS)
     const queryOperations = operations.filter((op) => ["GET", "HEAD", "OPTIONS"].includes(op.method));
 
+    // Collect all method names for import
+    const methodNames = queryOperations.map((op) => getMethodName(op));
+
     const queryHooks = queryOperations
         .map((op) => {
             const methodName = getMethodName(op);
             const capitalizedName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
 
             // Build parameters type
-            const paramsType = `Parameters<typeof api.${methodName}>[0]`;
+            const paramsType = `Parameters<typeof ${methodName}>[0]`;
 
             return dedent`
             export function use${capitalizedName}Query(
               params: ${paramsType},
-              options?: Omit<UseQueryOptions<Awaited<ReturnType<typeof api.${methodName}>>>, 'queryKey' | 'queryFn'>
+              options?: Omit<UseQueryOptions<Awaited<ReturnType<typeof ${methodName}>>>, 'queryKey' | 'queryFn'>
             ) {
               return useQuery({
                 queryKey: ['${methodName}', params],
-                queryFn: () => api.${methodName}(params),
+                queryFn: () => ${methodName}(params),
                 ...options,
               });
             }
@@ -120,7 +123,7 @@ export function templateQueries(ctx: WizTemplateContext): string {
     return dedent`
         import { useQuery } from "@tanstack/react-query";
         import type { UseQueryOptions } from "@tanstack/react-query";
-        import * as api from "./api";
+        import { ${methodNames.join(", ")} } from "./api";
 
         ${queryHooks}
     `;
@@ -135,20 +138,23 @@ export function templateMutations(ctx: WizTemplateContext): string {
     // Filter operations that are mutations (POST, PUT, PATCH, DELETE)
     const mutationOperations = operations.filter((op) => ["POST", "PUT", "PATCH", "DELETE"].includes(op.method));
 
+    // Collect all method names for import
+    const methodNames = mutationOperations.map((op) => getMethodName(op));
+
     const mutationHooks = mutationOperations
         .map((op) => {
             const methodName = getMethodName(op);
             const capitalizedName = methodName.charAt(0).toUpperCase() + methodName.slice(1);
 
             // Build parameters type
-            const paramsType = `Parameters<typeof api.${methodName}>[0]`;
+            const paramsType = `Parameters<typeof ${methodName}>[0]`;
 
             return dedent`
             export function use${capitalizedName}Mutation(
-              options?: Omit<UseMutationOptions<Awaited<ReturnType<typeof api.${methodName}>>, Error, ${paramsType}>, 'mutationFn'>
+              options?: Omit<UseMutationOptions<Awaited<ReturnType<typeof ${methodName}>>, Error, ${paramsType}>, 'mutationFn'>
             ) {
               return useMutation({
-                mutationFn: (params: ${paramsType}) => api.${methodName}(params),
+                mutationFn: (params: ${paramsType}) => ${methodName}(params),
                 ...options,
               });
             }
@@ -159,7 +165,7 @@ export function templateMutations(ctx: WizTemplateContext): string {
     return dedent`
         import { useMutation } from "@tanstack/react-query";
         import type { UseMutationOptions } from "@tanstack/react-query";
-        import * as api from "./api";
+        import { ${methodNames.join(", ")} } from "./api";
 
         ${mutationHooks}
     `;

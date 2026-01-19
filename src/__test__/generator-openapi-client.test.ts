@@ -26,8 +26,7 @@ describe("OpenAPI to TypeScript client generator", () => {
 
         const { api } = generateClientFromOpenApi(spec);
 
-        expect(api).toContain("export const api =");
-        expect(api).toContain("getUsers");
+        expect(api).toContain("export async function getUsers");
         expect(api).toContain('method: "GET"');
         expect(api).toContain("/users");
     });

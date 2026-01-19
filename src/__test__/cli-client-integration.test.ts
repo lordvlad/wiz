@@ -113,14 +113,16 @@ import type * as Models from "./client/model";
 // Verify the API client is properly typed
 // This test ensures TypeScript compilation works with the generated types
 console.log("API client generated successfully");
-console.log("Available methods:", Object.keys(api));
+
+// Import methods directly from api
+import * as apiMethods from "./client/api";
 
 // Verify some expected methods exist in the PetStore API
-if (!api.findPetsByStatus) {
+if (!apiMethods.findPetsByStatus) {
     throw new Error("Expected findPetsByStatus method to exist");
 }
 
-if (!api.addPet) {
+if (!apiMethods.addPet) {
     throw new Error("Expected addPet method to exist");
 }
 
@@ -138,19 +140,19 @@ console.log("✓ Client validation passed");
         // Step 5: Test TypeScript type checking with intentional errors
         const typeErrorFile = resolve(tmpDir, "type-error-test.ts");
         const typeErrorCode = `
-import { api } from "./client/api";
+import { findPetsByStatus, addPet } from "./client/api";
 
 // This should cause TypeScript errors:
 // 1. Wrong parameter type in findPetsByStatus
 async function testTypeError1() {
     // @ts-expect-error - intentionally passing wrong type
-    await api.findPetsByStatus({ status: 123 }); // status should be string
+    await findPetsByStatus({ status: 123 }); // status should be string
 }
 
 // 2. Missing required parameter in addPet
 async function testTypeError2() {
     // @ts-expect-error - intentionally missing required parameter
-    await api.addPet({});
+    await addPet({});
 }
 
 console.log("Type error tests defined");
@@ -165,14 +167,14 @@ console.log("Type error tests defined");
         // Step 6: Test runtime behavior with wrong parameters
         const runtimeErrorFile = resolve(tmpDir, "runtime-error-test.ts");
         const runtimeErrorCode = `
-import { api } from "./client/api";
+import { findPetsByStatus } from "./client/api";
 
 async function testRuntimeErrors() {
     try {
         // Pass wrong type at runtime (bypassing TypeScript)
         const wrongParam: any = { status: 12345 };
         console.log("Attempting call with wrong parameter type...");
-        const response = await api.findPetsByStatus(wrongParam);
+        const response = await findPetsByStatus(wrongParam);
         console.log("Response status:", response.status);
     } catch (error) {
         console.log("Caught error:", error instanceof Error ? error.message : error);
@@ -221,13 +223,13 @@ testRuntimeErrors();
         // Create test file that triggers validation errors
         const validationTestFile = resolve(tmpDir, "validation-test.ts");
         const validationTestCode = `
-import { api } from "./client-validated/api";
+import { getPetById } from "./client-validated/api";
 
 async function testValidation() {
     try {
         // This should throw a validation error 
         const wrongParam: any = { petId: "not-a-number" };
-        await api.getPetById(wrongParam);
+        await getPetById(wrongParam);
         console.log("ERROR: Validation should have thrown");
         process.exit(1);
     } catch (error) {

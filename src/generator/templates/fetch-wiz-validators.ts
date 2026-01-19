@@ -131,15 +131,6 @@ export function templateAPI(ctx: WizTemplateContext): string {
         .map((op) => generateMethodCode(op, defaultBaseUrl))
         .join("\n\n");
 
-    // Also generate api object for backward compatibility
-    const apiObjectMethods = operations
-        .filter((op) => op !== undefined)
-        .map((op) => {
-            const methodName = getMethodName(op);
-            return `  ${methodName}`;
-        })
-        .join(",\n");
-
     // Assemble all sections using template literal
     return dedent`
         ${validatorSection}
@@ -176,10 +167,6 @@ export function templateAPI(ctx: WizTemplateContext): string {
         ${parameterTypesSection}
 
         ${individualMethods}
-
-        export const api = {
-        ${apiObjectMethods}
-        };
     `.replace(/\n{3,}/g, "\n\n"); // Clean up excessive blank lines
 }
 

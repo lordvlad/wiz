@@ -46,8 +46,7 @@ describe("Template functions - fetch template", () => {
         expect(result["model.ts"]).toContain("name:");
 
         // Check api.ts content
-        expect(result["api.ts"]).toContain("export const api =");
-        expect(result["api.ts"]).toContain("getUsers");
+        expect(result["api.ts"]).toContain("export async function getUsers");
         expect(result["api.ts"]).toContain('method: "GET"');
     });
 
@@ -165,7 +164,7 @@ describe("Template functions - react-query template", () => {
         expect(result["model.ts"]).toContain("User");
 
         // Check api.ts content
-        expect(result["api.ts"]).toContain("export const api =");
+        expect(result["api.ts"]).toContain("export async function getUsers");
         expect(result["api.ts"]).toContain("ApiContext");
         expect(result["api.ts"]).toContain("ApiProvider");
 
