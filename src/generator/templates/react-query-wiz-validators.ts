@@ -1,20 +1,18 @@
 /**
- * React Query client template
+ * React Query client template with Wiz validator support
  *
- * Generates TypeScript client code with React Query integration.
- * Extends the fetch template with queries and mutations.
- * Does not modify api.ts - uses React context for configuration instead.
+ * Combines React Query integration with validator support.
+ * Extends the fetch-wiz-validators template with React Query hooks.
  */
 import { dedent } from "./dedent";
-import templateFetch from "./fetch";
+import templateFetchWizValidators from "./fetch-wiz-validators";
 import { extractOperations, getDefaultBaseUrl, getMethodName, getRequestBodyType } from "./helpers";
 import type { WizGeneratorOutput, WizTemplateContext } from "./types";
 
 /**
- * Generate api.ts content - uses fetch template as-is
+ * Generate api.ts content with React context and validators
  */
 export function templateReactQueryAPI(ctx: WizTemplateContext): string {
-    const operations = extractOperations(ctx.spec);
     const defaultBaseUrl = getDefaultBaseUrl(ctx.spec);
 
     // Generate React-specific additions at the top
@@ -61,12 +59,12 @@ export function templateReactQueryAPI(ctx: WizTemplateContext): string {
         }
     `;
 
-    // Get the base API from fetch template
-    const fetchResult = templateFetch({ spec: ctx.spec, options: ctx.options });
+    // Get the base API from fetch-wiz-validators template
+    const fetchResult = templateFetchWizValidators({ spec: ctx.spec, options: ctx.options });
     const baseAPI = fetchResult["api.ts"];
 
     if (!baseAPI) {
-        throw new Error("Failed to generate base API from fetch template");
+        throw new Error("Failed to generate base API from fetch-wiz-validators template");
     }
 
     // Remove setApiConfig and getApiConfig from base API since we use React context
@@ -174,12 +172,12 @@ export function templateMutations(ctx: WizTemplateContext): string {
 }
 
 /**
- * Main react-query template function
- * Returns file content mappings for the react-query client
+ * Main react-query-wiz-validators template function
+ * Returns file content mappings for the react-query client with validator support
  */
 export default function template(ctx: WizTemplateContext): WizGeneratorOutput {
-    // Get model from fetch template
-    const fetchFiles = templateFetch({ spec: ctx.spec, options: ctx.options });
+    // Get model from fetch-wiz-validators template
+    const fetchFiles = templateFetchWizValidators({ spec: ctx.spec, options: ctx.options });
 
     // Generate React Query specific files
     return {

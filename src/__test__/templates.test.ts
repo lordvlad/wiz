@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { OpenApiSpec } from "../generator/openapi-ir";
-import { fetchTemplate, reactQueryTemplate } from "../generator/templates";
+import { fetchTemplate, fetchWizValidatorsTemplate, reactQueryTemplate } from "../generator/templates";
 
 describe("Template functions - fetch template", () => {
     it("should generate model.ts and api.ts files", () => {
@@ -46,8 +46,7 @@ describe("Template functions - fetch template", () => {
         expect(result["model.ts"]).toContain("name:");
 
         // Check api.ts content
-        expect(result["api.ts"]).toContain("export const api =");
-        expect(result["api.ts"]).toContain("getUsers");
+        expect(result["api.ts"]).toContain("export async function getUsers");
         expect(result["api.ts"]).toContain('method: "GET"');
     });
 
@@ -96,10 +95,7 @@ describe("Template functions - fetch template", () => {
             },
         };
 
-        const result = fetchTemplate({
-            spec,
-            options: { wizValidator: true },
-        });
+        const result = fetchWizValidatorsTemplate({ spec });
 
         // Check that validator imports are present
         expect(result["api.ts"]).toContain("createValidator");
@@ -168,7 +164,7 @@ describe("Template functions - react-query template", () => {
         expect(result["model.ts"]).toContain("User");
 
         // Check api.ts content
-        expect(result["api.ts"]).toContain("export const api =");
+        expect(result["api.ts"]).toContain("export async function getUsers");
         expect(result["api.ts"]).toContain("ApiContext");
         expect(result["api.ts"]).toContain("ApiProvider");
 
@@ -201,7 +197,7 @@ describe("Template functions - react-query template", () => {
             },
         };
 
-        const fetchResult = fetchTemplate({ spec, options: { reactQuery: true } });
+        const fetchResult = fetchTemplate({ spec });
         const reactQueryResult = reactQueryTemplate({ spec });
 
         // The model.ts should be the same

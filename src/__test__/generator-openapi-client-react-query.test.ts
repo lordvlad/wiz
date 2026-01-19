@@ -166,7 +166,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
         expect(queries).toContain("export function useGetUserByIdQuery");
         expect(queries).toContain("queryKey:");
         expect(queries).toContain("queryFn:");
-        expect(queries).toContain("api.getUserById");
+        expect(queries).toContain("getUserById");
     });
 
     it("should generate custom query hook for GET operation", () => {
@@ -260,7 +260,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
         // Should generate mutation options method
         expect(mutations).toContain("export function useCreateUserMutation");
         expect(mutations).toContain("mutationFn:");
-        expect(mutations).toContain("api.createUser");
+        expect(mutations).toContain("createUser");
     });
 
     it("should generate custom mutation hook for POST operation", () => {
@@ -352,7 +352,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
 
         // Should include query params in the function signature
         expect(queries).toContain("export function useListUsersQuery");
-        expect(queries).toContain("api.listUsers");
+        expect(queries).toContain("listUsers");
         expect(queries).toContain("queryKey:");
     });
 
@@ -378,8 +378,7 @@ describe("OpenAPI to TypeScript client generator with React Query", () => {
 
         const { api, queries, mutations } = generateClientFromOpenApi(spec, { reactQuery: true });
 
-        // Should have regular api object
-        expect(api).toContain("export const api =");
+        // Should have regular api methods as exports
         expect(api).toContain("export async function getUsers");
 
         // Should have React Query helpers

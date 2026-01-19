@@ -57,8 +57,7 @@ describe("CLI client command", () => {
         try {
             await generateClient(specFile);
             expect(output).toContain("export type User =");
-            expect(output).toContain("export const api =");
-            expect(output).toContain("getUsers");
+            expect(output).toContain("export async function getUsers");
             expect(output).toContain("id: number;");
         } finally {
             console.log = originalLog;
@@ -201,11 +200,10 @@ components:
             const apiFile = Bun.file(resolve(outDir, "api.ts"));
             const apiContent = await apiFile.text();
             expect(apiContent).toContain('import type * as Models from "./model"');
-            expect(apiContent).toContain("export const api =");
-            expect(apiContent).toContain("getUserById");
-            expect(apiContent).toContain("updateUser");
+            expect(apiContent).toContain("export async function getUserById");
+            expect(apiContent).toContain("export async function updateUser");
             expect(apiContent).toContain("GetUserByIdPathParams");
-            expect(apiContent).toContain('config.baseUrl ?? "https://api.example.com"');
+            expect(apiContent).toContain('baseUrl: "https://api.example.com"');
 
             expect(output).toContain("model.ts");
             expect(output).toContain("api.ts");
@@ -362,7 +360,7 @@ components:
 
         try {
             await generateClient(specFile);
-            expect(output).toContain('config.baseUrl ?? ""');
+            expect(output).toContain('baseUrl: ""');
         } finally {
             console.log = originalLog;
         }
@@ -556,8 +554,7 @@ components:
             try {
                 await generateClient(specUrl);
                 expect(output).toContain("export type Post =");
-                expect(output).toContain("export const api =");
-                expect(output).toContain("getPosts");
+                expect(output).toContain("export async function getPosts");
                 expect(output).toContain("id: number;");
                 expect(output).toContain("title: string;");
             } finally {
@@ -578,8 +575,7 @@ components:
             try {
                 await generateClient(specUrl);
                 expect(output).toContain("export type Comment =");
-                expect(output).toContain("export const api =");
-                expect(output).toContain("getComments");
+                expect(output).toContain("export async function getComments");
                 expect(output).toContain("id: number;");
                 expect(output).toContain("text: string;");
             } finally {
@@ -630,8 +626,7 @@ components:
             try {
                 await generateClient(fileUrl);
                 expect(output).toContain("export type Item =");
-                expect(output).toContain("export const api =");
-                expect(output).toContain("getItems");
+                expect(output).toContain("export async function getItems");
                 expect(output).toContain("id: number;");
             } finally {
                 console.log = originalLog;
