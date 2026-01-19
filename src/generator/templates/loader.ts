@@ -10,7 +10,7 @@ import type { WizTemplate } from "./types";
 /**
  * Built-in templates available in wiz
  */
-const BUILTIN_TEMPLATES = ["fetch", "react-query"] as const;
+const BUILTIN_TEMPLATES = ["fetch", "fetch-wiz-validators", "react-query", "react-query-wiz-validators"] as const;
 type BuiltinTemplate = (typeof BUILTIN_TEMPLATES)[number];
 
 /**

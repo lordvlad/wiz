@@ -1,11 +1,11 @@
 /**
- * Fetch client template
+ * Fetch client template with Wiz validator support
  *
- * Generates TypeScript client code using native fetch API.
- * Uses template literals for clean code generation.
+ * Extends the base fetch template with validator integration for
+ * request/response validation using wiz validators.
  */
-import { generateModelsFromOpenApi } from "../openapi-ir";
 import { dedent } from "./dedent";
+import templateFetch, { templateModel } from "./fetch";
 import {
     checkDuplicateMethodNames,
     extractOperations,
@@ -22,15 +22,7 @@ import {
 import type { WizGeneratorOutput, WizTemplateContext } from "./types";
 
 /**
- * Generate model.ts content from OpenAPI spec
- */
-export function templateModel(ctx: WizTemplateContext): string {
-    const modelsMap = generateModelsFromOpenApi(ctx.spec, ctx.options);
-    return Array.from(modelsMap.values()).join("\n\n");
-}
-
-/**
- * Generate api.ts content from OpenAPI spec using template literals
+ * Generate api.ts content with validator support
  */
 export function templateAPI(ctx: WizTemplateContext): string {
     const operations = extractOperations(ctx.spec);
@@ -38,7 +30,53 @@ export function templateAPI(ctx: WizTemplateContext): string {
 
     const defaultBaseUrl = getDefaultBaseUrl(ctx.spec);
 
-    // Build parameter types section
+    // Collect types that need validators
+    const typesToValidate = operations.reduce((acc: Set<string>, op) => {
+        const requestBodyType = getRequestBodyType(op);
+        if (requestBodyType && requestBodyType !== "any") {
+            acc.add(requestBodyType);
+        }
+        const responseBodyType = getResponseBodyType(op);
+        if (responseBodyType && responseBodyType !== "any") {
+            acc.add(responseBodyType);
+        }
+        return acc;
+    }, new Set<string>());
+
+    // Build validator section
+    const validatorSection = dedent`
+        import { createValidator } from "wiz/validator";
+
+        export interface TypedResponse<T> extends Response {
+          json(): Promise<T>;
+        }
+
+        ${Array.from(typesToValidate)
+            .map((typeName) => `const validate${typeName} = createValidator<Models.${typeName}>();`)
+            .join("\n")}
+
+        function createTypedResponse<T>(response: Response, validator: (value: unknown) => any[]): TypedResponse<T> {
+          const originalJson = response.json.bind(response);
+
+          return new Proxy(response, {
+            get(target, prop) {
+              if (prop === 'json') {
+                return async () => {
+                  const data = await originalJson();
+                  const errors = validator(data);
+                  if (errors.length > 0) {
+                    throw new TypeError("Invalid response body: " + JSON.stringify(errors));
+                  }
+                  return data as T;
+                };
+              }
+              return Reflect.get(target, prop);
+            }
+          }) as TypedResponse<T>;
+        }
+      `;
+
+    // Build parameter types section with validators
     const parameterTypesSection = operations
         .map((op) => {
             const { pathParams, queryParams } = extractParameters(op);
@@ -58,6 +96,8 @@ export function templateAPI(ctx: WizTemplateContext): string {
                     export type ${typeName} = {
                     ${properties}
                     };
+
+                    const validate${typeName} = createValidator<${typeName}>();
                 `;
             }
 
@@ -75,6 +115,8 @@ export function templateAPI(ctx: WizTemplateContext): string {
                     export type ${typeName} = {
                     ${properties}
                     };
+
+                    const validate${typeName} = createValidator<${typeName}>();
                 `;
             }
 
@@ -83,7 +125,7 @@ export function templateAPI(ctx: WizTemplateContext): string {
         .filter((s) => s)
         .join("\n\n");
 
-    // Generate methods as individual exports
+    // Generate methods as individual exports with validation
     const individualMethods = operations
         .filter((op) => op !== undefined)
         .map((op) => generateMethodCode(op, defaultBaseUrl))
@@ -100,6 +142,8 @@ export function templateAPI(ctx: WizTemplateContext): string {
 
     // Assemble all sections using template literal
     return dedent`
+        ${validatorSection}
+
         export interface ApiConfig {
           baseUrl: string;
           headers: Record<string, string>;
@@ -140,7 +184,7 @@ export function templateAPI(ctx: WizTemplateContext): string {
 }
 
 /**
- * Generate code for a single API method using template literals
+ * Generate code for a single API method with validation
  */
 function generateMethodCode(op: OperationInfo, defaultBaseUrl: string): string {
     const methodName = getMethodName(op);
@@ -163,8 +207,46 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string): string {
         .filter(Boolean)
         .join(", ");
 
-    // Determine return type
-    const returnType = "Promise<Response>";
+    // Determine return type with validation
+    const responseBodyType = getResponseBodyType(op);
+    const returnType =
+        responseBodyType && responseBodyType !== "any"
+            ? `Promise<TypedResponse<Models.${responseBodyType}>>`
+            : "Promise<Response>";
+
+    // Build validation blocks using array operations
+    const validationCode = [
+        pathParams.length > 0 &&
+            dedent`
+                // Validate path parameters
+                const pathParamsErrors = validate${getPathParamsTypeName(op)}(pathParams);
+                if (pathParamsErrors.length > 0) {
+                  throw new TypeError("Invalid path parameters: " + JSON.stringify(pathParamsErrors));
+                }
+            `,
+        queryParams.length > 0 &&
+            dedent`
+                // Validate query parameters
+                if (queryParams) {
+                  const queryParamsErrors = validate${getQueryParamsTypeName(op)}(queryParams);
+                  if (queryParamsErrors.length > 0) {
+                    throw new TypeError("Invalid query parameters: " + JSON.stringify(queryParamsErrors));
+                  }
+                }
+            `,
+        hasRequestBody &&
+            requestBodyType &&
+            requestBodyType !== "any" &&
+            dedent`
+                // Validate request body
+                const requestBodyErrors = validate${requestBodyType}(requestBody);
+                if (requestBodyErrors.length > 0) {
+                  throw new TypeError("Invalid request body: " + JSON.stringify(requestBodyErrors));
+                }
+            `,
+    ]
+        .filter(Boolean)
+        .join("\n\n");
 
     // Build URL construction
     const urlCode =
@@ -199,12 +281,17 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string): string {
     // Build request body
     const bodyLine = hasRequestBody && requestBodyType ? "      body: JSON.stringify(requestBody)," : "";
 
-    // Build return statement
-    const returnCode = "return response;";
+    // Build return statement with validation
+    const returnCode =
+        responseBodyType && responseBodyType !== "any"
+            ? `return createTypedResponse<Models.${responseBodyType}>(response, validate${responseBodyType});`
+            : "return response;";
 
     // Assemble the complete method as an exported async function
     return dedent`
         ${jsDoc}export async function ${methodName}(${params}): ${returnType} {
+          ${validationCode ? "\n" + validationCode : ""}
+
           ${urlCode}
 
           ${queryCode}
@@ -228,8 +315,8 @@ function generateMethodCode(op: OperationInfo, defaultBaseUrl: string): string {
 }
 
 /**
- * Main fetch template function
- * Returns file content mappings for the fetch client
+ * Main fetch-wiz-validators template function
+ * Returns file content mappings for the fetch client with validator support
  */
 export default function template(ctx: WizTemplateContext): WizGeneratorOutput {
     return {

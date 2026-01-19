@@ -39,13 +39,27 @@ interface OperationInfo {
  */
 export function generateClientFromOpenApi(spec: OpenApiSpec, options: ClientGeneratorOptions = {}): GeneratedClient {
     // Import template functions
-    const { fetchTemplate, reactQueryTemplate } = require("./templates");
+    const {
+        fetchTemplate,
+        fetchWizValidatorsTemplate,
+        reactQueryTemplate,
+        reactQueryWizValidatorsTemplate,
+    } = require("./templates");
 
     // Choose template based on options
-    const template = options.reactQuery ? reactQueryTemplate : fetchTemplate;
+    let template;
+    if (options.reactQuery && options.wizValidator) {
+        template = reactQueryWizValidatorsTemplate;
+    } else if (options.reactQuery) {
+        template = reactQueryTemplate;
+    } else if (options.wizValidator) {
+        template = fetchWizValidatorsTemplate;
+    } else {
+        template = fetchTemplate;
+    }
 
-    // Generate files using template
-    const files = template({ spec, options });
+    // Generate files using template (pass empty options since template selection is done)
+    const files = template({ spec, options: {} });
 
     // Return in the original format for backward compatibility
     return {

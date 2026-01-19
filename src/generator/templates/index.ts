@@ -33,7 +33,9 @@ export type { WizGeneratorOutput, WizTemplateContext, WizTemplateOptions, WizTem
 
 // Export template functions
 export { default as fetchTemplate, templateModel, templateAPI } from "./fetch";
+export { default as fetchWizValidatorsTemplate } from "./fetch-wiz-validators";
 export { default as reactQueryTemplate, templateQueries, templateMutations } from "./react-query";
+export { default as reactQueryWizValidatorsTemplate } from "./react-query-wiz-validators";
 
 // Export template loader
 export { loadTemplate, listBuiltinTemplates } from "./loader";
