@@ -2,15 +2,12 @@
     "name": "@lordvlad/wiz",
     "version": "0.1.0",
     "description": "A general-purpose wizard to generate all sorts of schemas from TypeScript types",
-    "author": "lordvlad",
-    "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/lordvlad/wiz.git"
     },
-    "publishConfig": {
-        "registry": "https://npm.pkg.github.com"
-    },
+    "license": "MIT",
+    "author": "lordvlad",
     "type": "module",
     "exports": {
         ".": "./src/index.ts",
@@ -43,5 +40,8 @@
     },
     "peerDependencies": {
         "typescript": "^5"
+    },
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
     }
 }

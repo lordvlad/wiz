@@ -2145,14 +2145,16 @@ This project was created using `bun init` in bun v1.3.3. [Bun](https://bun.com) 
 This package is automatically published to GitHub Packages when:
 
 1. **Tags are pushed** - Create and push a version tag to trigger a release:
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
+
+    ```bash
+    git tag v0.1.0
+    git push origin v0.1.0
+    ```
 
 2. **Code is pushed to the master branch** - Any commit to master will trigger a build and publish
 
 The GitHub Actions workflow automatically:
+
 - Checks out the code
 - Sets up Bun and runs tests
 - Authenticates with GitHub Packages
