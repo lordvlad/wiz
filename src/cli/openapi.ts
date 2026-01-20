@@ -1,14 +1,20 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, relative, resolve } from "path";
-import { Project, SyntaxKind } from "ts-morph";
+import { Project, SyntaxKind, type Type } from "ts-morph";
 
 import { namedTypeToIrDefinition } from "../ir/converters/ts-to-ir";
 import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
-import { scanFiles, getExportedTypes, getFilesWithFunctionCall, getTypesByNames } from "./file-scanner";
+import {
+    scanFiles,
+    getExportedTypes,
+    getFilesWithFunctionCall,
+    getTypesByNames,
+    type ScannedType,
+} from "./file-scanner";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
@@ -228,10 +234,89 @@ async function generateFromJSDocTags(scanResult: any, files: string[], debug: De
 
     debug.log(`Referenced type names from JSDoc: ${Array.from(referencedTypeNames).join(", ")}`);
 
-    // Filter types to include exported types + types referenced in JSDoc
-    const relevantTypes = allTypes.filter((t: any) => t.isExported || referencedTypeNames.has(t.name));
+    // CHANGED: When JSDoc tags are present, ONLY include types that are referenced
+    // (not all exported types). We still need to recursively collect nested types.
+    const typesToInclude = new Set<string>(referencedTypeNames);
+    const typesMap = new Map<string, ScannedType>(allTypes.map((t: any) => [t.name, t]));
 
-    debug.log(`Total relevant types (exported + JSDoc-referenced): ${relevantTypes.length}`);
+    // Recursively collect types referenced by the initially referenced types
+    const collectReferencedTypes = (typeName: string, visited = new Set<string>()) => {
+        if (visited.has(typeName)) return;
+        visited.add(typeName);
+
+        const typeInfo = typesMap.get(typeName);
+        if (!typeInfo) return;
+
+        const type = typeInfo.type;
+
+        // Collect type references from the ts-morph Type
+        if (type.isUnion()) {
+            for (const unionType of type.getUnionTypes()) {
+                const symbol = unionType.getSymbol();
+                if (symbol) {
+                    const name = symbol.getName();
+                    if (typesMap.has(name)) {
+                        typesToInclude.add(name);
+                        collectReferencedTypes(name, visited);
+                    }
+                }
+            }
+        }
+
+        if (type.isIntersection()) {
+            for (const intersectionType of type.getIntersectionTypes()) {
+                const symbol = intersectionType.getSymbol();
+                if (symbol) {
+                    const name = symbol.getName();
+                    if (typesMap.has(name)) {
+                        typesToInclude.add(name);
+                        collectReferencedTypes(name, visited);
+                    }
+                }
+            }
+        }
+
+        if (type.isArray()) {
+            const elementType = type.getArrayElementType();
+            if (elementType) {
+                const symbol = elementType.getSymbol();
+                if (symbol) {
+                    const name = symbol.getName();
+                    if (typesMap.has(name)) {
+                        typesToInclude.add(name);
+                        collectReferencedTypes(name, visited);
+                    }
+                }
+            }
+        }
+
+        // Collect from object properties
+        const properties = type.getProperties();
+        for (const prop of properties) {
+            const propType = prop.getTypeAtLocation(prop.getValueDeclaration() || prop.getDeclarations()[0]!);
+            const symbol = propType.getSymbol();
+            if (symbol) {
+                const name = symbol.getName();
+                if (typesMap.has(name)) {
+                    typesToInclude.add(name);
+                    collectReferencedTypes(name, visited);
+                }
+            }
+        }
+    };
+
+    // Collect all nested type references
+    for (const typeName of referencedTypeNames) {
+        collectReferencedTypes(typeName);
+    }
+
+    debug.log(`Total types to include (after recursive collection): ${typesToInclude.size}`);
+    debug.log(`Types: ${Array.from(typesToInclude).join(", ")}`);
+
+    // Filter types to only include the ones we need
+    const relevantTypes = allTypes.filter((t: any) => typesToInclude.has(t.name));
+
+    debug.log(`Total relevant types: ${relevantTypes.length}`);
 
     // Find nearest package.json for metadata
     let packageJson: any = {};
