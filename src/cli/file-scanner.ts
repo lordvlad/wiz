@@ -9,7 +9,7 @@
  *
  * This eliminates the need for multiple passes over the same files.
  */
-import { Project, SyntaxKind, type SourceFile } from "ts-morph";
+import { Project, SyntaxKind, type SourceFile, type Type } from "ts-morph";
 
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
 import type { DebugLogger } from "./utils";
@@ -19,7 +19,7 @@ import type { DebugLogger } from "./utils";
  */
 export interface ScannedType {
     name: string;
-    type: any; // ts-morph Type object
+    type: Type; // ts-morph Type object
     file: string;
     isExported: boolean;
 }

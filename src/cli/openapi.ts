@@ -1,14 +1,20 @@
 #!/usr/bin/env bun
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, relative, resolve } from "path";
-import { Project, SyntaxKind } from "ts-morph";
+import { Project, SyntaxKind, type Type } from "ts-morph";
 
 import { namedTypeToIrDefinition } from "../ir/converters/ts-to-ir";
 import { irToOpenApiSchemas } from "../ir/generators/ir-to-openapi";
 import type { IRSchema } from "../ir/types";
 import wizPlugin from "../plugin/index";
 import { extractOpenApiFromJSDoc } from "../plugin/openApiSchema/codegen";
-import { scanFiles, getExportedTypes, getFilesWithFunctionCall, getTypesByNames } from "./file-scanner";
+import {
+    scanFiles,
+    getExportedTypes,
+    getFilesWithFunctionCall,
+    getTypesByNames,
+    type ScannedType,
+} from "./file-scanner";
 import { expandFilePaths, findNearestPackageJson, readPackageJson, DebugLogger } from "./utils";
 
 type Format = "json" | "yaml";
@@ -231,7 +237,7 @@ async function generateFromJSDocTags(scanResult: any, files: string[], debug: De
     // CHANGED: When JSDoc tags are present, ONLY include types that are referenced
     // (not all exported types). We still need to recursively collect nested types.
     const typesToInclude = new Set<string>(referencedTypeNames);
-    const typesMap = new Map(allTypes.map((t: any) => [t.name, t]));
+    const typesMap = new Map<string, ScannedType>(allTypes.map((t: any) => [t.name, t]));
 
     // Recursively collect types referenced by the initially referenced types
     const collectReferencedTypes = (typeName: string, visited = new Set<string>()) => {

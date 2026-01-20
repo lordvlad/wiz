@@ -550,11 +550,11 @@ export type SomeOtherType = {
 
             try {
                 await generateOpenApi([apiFile, modelFile], { format: "yaml" });
-                
+
                 // Should include User (referenced in @response)
                 expect(output).toContain("User:");
                 expect(output).toContain("/users/:id:");
-                
+
                 // Should NOT include SomeOtherType (exported but not referenced)
                 expect(output).not.toContain("SomeOtherType:");
             } finally {
