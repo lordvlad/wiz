@@ -71,7 +71,10 @@ export function templateReactQueryAPI(ctx: WizTemplateContext): string {
 
     // Remove setApiConfig and getApiConfig from base API since we use React context
     let modifiedAPI = baseAPI
-        .replace(/export function setApiConfig\(config: Partial<ApiConfig & \{ oauthBearerProvider: \(\) => Promise<string> \| string \}>\): void \{[\s\S]*?\n\s*\}\n/s, "")
+        .replace(
+            /export function setApiConfig\(config: Partial<ApiConfig & \{ oauthBearerProvider: \(\) => Promise<string> \| string \}>\): void \{[\s\S]*?\n\s*\}\n/s,
+            "",
+        )
         .replace(/export function getApiConfig\(\): ApiConfig \{[\s\S]*?\n\s*\}\n/s, "");
 
     // Insert React additions at the beginning, after any imports
