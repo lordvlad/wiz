@@ -2,6 +2,7 @@
 import { parseArgs } from "util";
 
 import { generateClient } from "./client";
+import { ejectTemplate } from "./eject";
 import { generateModels } from "./generate";
 import { inlineValidators } from "./inline";
 import { generateOpenApi } from "./openapi";
@@ -20,6 +21,7 @@ Commands:
                          Spec can be a local file path or URL (http://, https://, file://, s3://)
   client <spec-file>     Generate TypeScript client from OpenAPI specification
                          Spec can be a local file path or URL (http://, https://, file://, s3://)
+  eject                  Dump a raw client template file to stdout for customization
   inline [files...]      Transform validator calls to inline validators
 
 Global Options:
@@ -43,6 +45,11 @@ Client Options:
                          request body, and response body
   --react-query          Enable React Query integration with context, query/mutation
                          options methods, and custom hooks
+
+Eject Options:
+  --template <name>      Template name to eject (default: fetch)
+                         Available: fetch, fetch-wiz-validators, react-query,
+                         react-query-wiz-validators
 
 Inline Options:
   --outdir <directory>   Output directory for transformed files
@@ -99,6 +106,15 @@ Examples:
 
   # Transform specific files
   wiz inline src/validators.ts --outdir dist/
+
+  # Eject default fetch template
+  wiz eject
+
+  # Eject React Query template
+  wiz eject --template react-query
+
+  # Eject template and save to file for customization
+  wiz eject --template fetch > my-custom-template.ts
 
 For more information, visit: https://github.com/lordvlad/wiz
 `;
@@ -281,6 +297,21 @@ async function main() {
         const reactQuery = values["react-query"] || false;
 
         await generateClient(specFile, { outdir, wizValidator, reactQuery, debug: values.debug });
+    } else if (command === "eject") {
+        // Handle eject command
+        const { values } = parseArgs({
+            args: rawArgs.slice(1),
+            options: {
+                template: {
+                    type: "string",
+                },
+            },
+            allowPositionals: true,
+        });
+
+        const template = values.template;
+
+        await ejectTemplate({ template });
     } else if (command === "help" || command === "--help" || command === "-h") {
         console.log(HELP_TEXT);
     } else {

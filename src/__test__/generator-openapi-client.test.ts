@@ -534,7 +534,9 @@ describe("OpenAPI to TypeScript client generator", () => {
         expect(api).toContain("fetch: typeof fetch;");
 
         // Check that setApiConfig accepts Partial<ApiConfig & { oauthBearerProvider: ... }>
-        expect(api).toContain("setApiConfig(config: Partial<ApiConfig & { oauthBearerProvider: () => Promise<string> | string }>)");
+        expect(api).toContain(
+            "setApiConfig(config: Partial<ApiConfig & { oauthBearerProvider: () => Promise<string> | string }>)",
+        );
 
         // Check that getApiConfig is synchronous
         expect(api).toContain("export function getApiConfig(): ApiConfig");
