@@ -2174,13 +2174,43 @@ npm publish
 
 ### Version Management
 
-Before creating a new release, update the version in `package.json`:
+#### Automated Version Bumping (Recommended)
+
+Use the **Bump Version** GitHub Action to automatically increment the package version:
+
+1. Go to the **Actions** tab in the GitHub repository
+2. Select the **Bump Version** workflow
+3. Click **Run workflow**
+4. Choose the version increment level:
+    - `patch` - Bug fixes (0.1.0 → 0.1.1)
+    - `minor` - New features (0.1.0 → 0.2.0)
+    - `major` - Breaking changes (0.1.0 → 1.0.0)
+    - `prepatch` - Pre-release patch (0.1.0 → 0.1.1-0)
+    - `preminor` - Pre-release minor (0.1.0 → 0.2.0-0)
+    - `premajor` - Pre-release major (0.1.0 → 1.0.0-0)
+    - `prerelease` - Increment pre-release (0.1.0-0 → 0.1.0-1)
+
+The workflow will automatically:
+
+- Bump the version in `package.json`
+- Create a git tag
+- Push changes and tags to the repository
+- Trigger the publish workflow
+
+#### Manual Version Bumping
+
+Alternatively, update the version locally:
 
 ```bash
-# Update version (patch, minor, or major)
-npm version patch  # 0.1.0 -> 0.1.1
-npm version minor  # 0.1.0 -> 0.2.0
-npm version major  # 0.1.0 -> 1.0.0
+# Update version using bun
+bun pm version patch  # 0.1.0 -> 0.1.1
+bun pm version minor  # 0.1.0 -> 0.2.0
+bun pm version major  # 0.1.0 -> 1.0.0
+
+# Or use npm
+npm version patch
+npm version minor
+npm version major
 
 # Push the version commit and tag
 git push && git push --tags
