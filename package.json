@@ -1,6 +1,6 @@
 {
     "name": "@lordvlad/wiz",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "A general-purpose wizard to generate all sorts of schemas from TypeScript types",
     "repository": {
         "type": "git",
