@@ -14,7 +14,34 @@ A general-purpose wizard to generate all sorts of schemas from typescript types
 
 ## Installation
 
-To install dependencies:
+### Using the Package
+
+To use this package in your project, install it from GitHub Packages:
+
+```bash
+# Configure npm to use GitHub Packages for @lordvlad scope
+npm config set @lordvlad:registry https://npm.pkg.github.com
+
+# Authenticate with GitHub (requires a personal access token with read:packages scope)
+npm login --scope=@lordvlad --registry=https://npm.pkg.github.com
+
+# Install the package
+npm install @lordvlad/wiz
+```
+
+Or with Bun:
+
+```bash
+# Configure Bun to use GitHub Packages for @lordvlad scope
+echo "@lordvlad:registry=https://npm.pkg.github.com" >> ~/.bunfig.toml
+
+# Install the package
+bun add @lordvlad/wiz
+```
+
+### Development Setup
+
+To install dependencies for development:
 
 ```bash
 bun install
@@ -2110,3 +2137,51 @@ bun run test:report
 ```
 
 This project was created using `bun init` in bun v1.3.3. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+
+## Publishing
+
+### Automatic Publishing via GitHub Actions
+
+This package is automatically published to GitHub Packages when:
+
+1. **Tags are pushed** - Create and push a version tag to trigger a release:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+2. **Code is pushed to the master branch** - Any commit to master will trigger a build and publish
+
+The GitHub Actions workflow automatically:
+- Checks out the code
+- Sets up Bun and runs tests
+- Authenticates with GitHub Packages
+- Publishes the package to `https://npm.pkg.github.com/@lordvlad/wiz`
+
+### Manual Publishing
+
+To manually publish the package (requires appropriate permissions):
+
+```bash
+# Ensure you're logged in to GitHub Packages
+npm login --registry=https://npm.pkg.github.com
+
+# Publish the package
+npm publish
+```
+
+### Version Management
+
+Before creating a new release, update the version in `package.json`:
+
+```bash
+# Update version (patch, minor, or major)
+npm version patch  # 0.1.0 -> 0.1.1
+npm version minor  # 0.1.0 -> 0.2.0
+npm version major  # 0.1.0 -> 1.0.0
+
+# Push the version commit and tag
+git push && git push --tags
+```
+
+The version update will trigger the GitHub Actions workflow to publish the new version automatically.
