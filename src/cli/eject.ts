@@ -27,6 +27,8 @@ export async function ejectTemplate(options: EjectOptions = {}): Promise<void> {
         const templateContent = await readFile(templatePath, "utf-8");
         console.log(templateContent);
     } catch (error) {
-        throw new Error(`Failed to read template file "${templateName}": ${error}`);
+        throw new Error(
+            `Failed to read template file "${templateName}". Valid templates: ${availableTemplates.join(", ")}`,
+        );
     }
 }
