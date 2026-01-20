@@ -501,6 +501,66 @@ function updateUser() {}
                 console.log = originalLog;
             }
         });
+
+        it("should NOT include exported types that are not referenced in JSDoc tags", async () => {
+            const modelFile = resolve(tmpDir, "model.ts");
+            await writeFile(
+                modelFile,
+                `
+// User is NOT exported, but IS used in @response
+type User = {
+    id: number;
+    name: string;
+}
+
+export type SomeOtherType = {
+    foo: string;
+    bar: number;
+}
+            `,
+            );
+
+            const apiFile = resolve(tmpDir, "api.ts");
+            await writeFile(
+                apiFile,
+                `
+import type { User } from './model';
+
+/**
+ * @openApi
+ * @method GET
+ * @path /users/:id
+ * @response 200 User - user found
+ */
+export function getUser() {}
+
+// SomeOtherType is exported but NOT used in any @openApi endpoint
+export type SomeOtherType = {
+    unused: string;
+}
+            `,
+            );
+
+            // Capture console output
+            let output = "";
+            const originalLog = console.log;
+            console.log = (...args: any[]) => {
+                output += args.join(" ") + "\n";
+            };
+
+            try {
+                await generateOpenApi([apiFile, modelFile], { format: "yaml" });
+                
+                // Should include User (referenced in @response)
+                expect(output).toContain("User:");
+                expect(output).toContain("/users/:id:");
+                
+                // Should NOT include SomeOtherType (exported but not referenced)
+                expect(output).not.toContain("SomeOtherType:");
+            } finally {
+                console.log = originalLog;
+            }
+        });
     });
 
     describe("generateProtobuf", () => {
